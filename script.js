@@ -165,12 +165,13 @@ function renderTripDetails() {
         elements.totalCost.textContent = `$${tripData.costs.totalEstimate.toFixed(2)}`;
     }
 }
-
 function renderSchedule() {
     elements.scheduleTimeline.innerHTML = tripData.schedule.map((day, index) => `
         <div class="timeline-item">
+            <div class="timeline-date">
+                ${day.day}<br>${day.date}
+            </div>
             <div class="timeline-content">
-                <div class="timeline-date">${day.day} - ${day.date}</div>
                 <h3 class="timeline-title">${day.title}</h3>
                 <p class="timeline-details">${day.details}</p>
                 ${day.courses.map(course => `
