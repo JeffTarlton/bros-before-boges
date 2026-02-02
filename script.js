@@ -14,20 +14,19 @@ const tripData = {
     },
     roster: {
         confirmed: [
-            { name: "Colby Gibson", size: "XL", handicap: 5.0 },
-            { name: "Westin Tucker", size: "XL", handicap: 5.6 },
-            { name: "Zac Taylor", size: "XL", handicap: 3.5 },
-            { name: "Derrick Merchant", size: "L", handicap: 10.0 },
-            { name: "Jeff Tarlton", size: "L", handicap: 9.0 },
-            { name: "Kelly Dennard", size: "L", handicap: 8.4 },
-            { name: "Dillon Griffin", size: "L", handicap: 14.4 },
-            { name: "Andy Mazzolini", size: "L", handicap: 15.0 },
-            { name: "Blake Watts", size: "L", handicap: null },
-            { name: "Jayme McCall", size: "M", handicap: 7.1 },
-            { name: "David Owens", size: "M", handicap: 9.3 },
-            { name: "Parker Davidson", size: "M", handicap: 8.0 },
-            { name: "Tripp Harris", size: "M", handicap: null },
-            { name: "Ty Buis", size: null, handicap: 17.0 }
+            { name: "Colby Gibson", ghin: null, handicap: 5.0 },
+            { name: "Westin Tucker", ghin: null, handicap: 5.6 },
+            { name: "Zac Taylor", ghin: null, handicap: 3.5 },
+            { name: "Derrick Merchant", ghin: null, handicap: 10.0 },
+            { name: "Jeff Tarlton", ghin: 2360395, handicap: 9.0 },
+            { name: "Kelly Dennard", ghin: null, handicap: 8.4 },
+            { name: "Dillon Griffin", ghin: null, handicap: 14.4 },
+            { name: "Andy Mazzolini", ghin: null, handicap: 15.0 },
+            { name: "Jayme McCall", ghin: null, handicap: 7.1 },
+            { name: "David Owens", ghin: null, handicap: 9.3 },
+            { name: "Parker Davidson", ghin: null, handicap: 8.0 },
+            { name: "Tripp Harris", ghin: null, handicap: null },
+            { name: "Ty Buis", ghin: null, handicap: 17.0 }
         ],
         potential: [
             "Tanner Terrell", "Brian Lewis", "Daniel Castro", "Tommy Wood",
@@ -123,7 +122,12 @@ const elements = {
     coursesGrid: document.getElementById('courses-grid'),
     footerYear: document.getElementById('footer-year'),
     menuToggle: document.querySelector('.menu-toggle'),
-    mainNav: document.querySelector('.main-nav')
+    mainNav: document.querySelector('.main-nav'),
+    signupBtn: document.getElementById('signup-btn'),
+    registrationModal: document.getElementById('registration-modal'),
+    modalClose: document.getElementById('modal-close'),
+    cancelBtn: document.getElementById('cancel-btn'),
+    registrationForm: document.getElementById('registration-form')
 };
 
 // Render Functions
@@ -274,7 +278,7 @@ function renderRoster() {
             </div>
             <h4 class="attendee-name">${player.name}</h4>
             <div style="margin-top: 10px; font-size: 0.85rem; color: #555;">
-                <p>Size: ${player.size || '-'}</p>
+                <p>GHIN: ${player.ghin || 'Missing'}</p>
                 <p style="color: var(--primary-color); font-weight: 700;">HCP: ${player.handicap !== null ? player.handicap : 'N/A'}</p>
             </div>
         </div>
@@ -291,6 +295,7 @@ function getInitials(name) {
 }
 
 function setupEventListeners() {
+    // Mobile menu toggle
     elements.menuToggle.addEventListener('click', () => {
         elements.mainNav.classList.toggle('active');
     });
@@ -300,6 +305,126 @@ function setupEventListeners() {
             elements.mainNav.classList.remove('active');
         });
     });
+
+    // Modal open/close
+    elements.signupBtn.addEventListener('click', openModal);
+    elements.modalClose.addEventListener('click', closeModal);
+    elements.cancelBtn.addEventListener('click', closeModal);
+
+    // Close modal when clicking outside
+    elements.registrationModal.addEventListener('click', (e) => {
+        if (e.target === elements.registrationModal) {
+            closeModal();
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && elements.registrationModal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    // Form submission
+    elements.registrationForm.addEventListener('submit', handleFormSubmit);
 }
+
+function openModal() {
+    elements.registrationModal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // Prevent scrolling
+}
+
+function closeModal() {
+    elements.registrationModal.classList.remove('active');
+    document.body.style.overflow = ''; // Restore scrolling
+    elements.registrationForm.reset();
+}
+
+function handleFormSubmit(e) {
+    e.preventDefault();
+
+    // Get form data
+    const formData = new FormData(elements.registrationForm);
+    const firstName = formData.get('firstName').trim();
+    const lastName = formData.get('lastName').trim();
+    const ghinNumber = formData.get('ghinNumber').trim();
+    const handicap = formData.get('handicap');
+    const password = formData.get('password');
+
+    // Validate password
+    const correctPassword = 'iLoveGolf2026!';
+    if (password !== correctPassword) {
+        alert('❌ Incorrect password. Please contact the trip organizer for the registration password.');
+        return;
+    }
+
+    // Create player object
+    const newPlayer = {
+        name: `${firstName} ${lastName}`,
+        ghin: ghinNumber || null,
+        handicap: handicap ? parseFloat(handicap) : null
+    };
+
+    // Send email notification
+    sendEmailNotification(newPlayer);
+
+    // Add to roster
+    tripData.roster.confirmed.push(newPlayer);
+
+    // Re-render the roster and scoreboard
+    renderRoster();
+    renderScoreboard();
+
+    // Show success message
+    alert(`Welcome to the trip, ${newPlayer.name}! 🏌️‍♂️\n\nA confirmation email has been sent to the trip organizer.`);
+
+    // Close modal
+    closeModal();
+
+    // Scroll to roster section
+    document.getElementById('attendees').scrollIntoView({ behavior: 'smooth' });
+}
+
+function sendEmailNotification(player) {
+    // Create email body
+    const subject = encodeURIComponent('New Bros before Boges Registration');
+    const body = encodeURIComponent(
+        `New Player Registration\n\n` +
+        `Name: ${player.name}\n` +
+        `GHIN Number: ${player.ghin || 'Not provided'}\n` +
+        `Handicap: ${player.handicap !== null ? player.handicap : 'Not provided'}\n\n` +
+        `Registration Time: ${new Date().toLocaleString()}\n\n` +
+        `---\n` +
+        `This is an automated notification from the Bros before Boges registration system.`
+    );
+
+    // Method 1: Using mailto (will open user's email client)
+    // Uncomment this if you want to use the simpler mailto approach
+    // window.location.href = `mailto:westin.tucker@gmail.com?subject=${subject}&body=${body}`;
+
+    // Method 2: Using FormSubmit.co (recommended - sends silently in background)
+    fetch('https://formsubmit.co/ajax/westin.tucker@gmail.com', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            name: player.name,
+            ghin: player.ghin || 'Not provided',
+            handicap: player.handicap !== null ? player.handicap : 'Not provided',
+            _subject: 'New Bros before Boges Registration',
+            _template: 'box'
+        })
+    })
+        .then(response => response.json())
+        .then(data => console.log('Email sent successfully:', data))
+        .catch(error => {
+            console.error('Error sending email:', error);
+            // Fallback to mailto if fetch fails
+            window.open(`mailto:westin.tucker@gmail.com?subject=${subject}&body=${body}`, '_blank');
+        });
+}
+
 
 document.addEventListener('DOMContentLoaded', init);

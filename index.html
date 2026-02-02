@@ -23,6 +23,7 @@
                     <li><a href="#courses">The Links</a></li>
                     <li><a href="#attendees">The Squad</a></li>
                     <li><a href="#scoreboard" class="btn-nav">Scoreboard</a></li>
+                    <li><button id="signup-btn" class="btn-nav btn-signup">Sign Up</button></li>
                 </ul>
             </nav>
             <button class="menu-toggle" aria-label="Toggle menu">
@@ -136,6 +137,48 @@
             </div>
         </section>
     </main>
+
+    <!-- Registration Modal -->
+    <div id="registration-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Register for Bros before Boges 2026</h2>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <form id="registration-form" class="registration-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first-name">First Name *</label>
+                        <input type="text" id="first-name" name="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last-name">Last Name *</label>
+                        <input type="text" id="last-name" name="lastName" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="ghin-number">GHIN Number</label>
+                    <input type="text" id="ghin-number" name="ghinNumber"
+                        placeholder="Leave blank if you don't have one">
+                </div>
+                <div class="form-group">
+                    <label for="handicap">Handicap</label>
+                    <input type="number" id="handicap" name="handicap" step="0.1" placeholder="Leave blank if unknown">
+                </div>
+                <div class="form-group">
+                    <label for="password">Registration Password *</label>
+                    <input type="password" id="password" name="password" required
+                        placeholder="Enter password to submit">
+                    <small style="color: #666; font-size: 0.85rem; margin-top: 5px; display: block;">Password required
+                        to prevent spam registrations</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Registration</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <footer class="site-footer">
         <div class="container">
