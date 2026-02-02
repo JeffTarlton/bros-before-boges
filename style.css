@@ -644,17 +644,30 @@ img {
     }
 
     .timeline::after {
-        left: 31px;
+        left: 20px;
     }
 
     .timeline-item {
         width: 100%;
-        padding-left: 70px;
-        padding-right: 25px;
+        padding-left: 50px;
+        padding-right: 15px;
     }
 
     .timeline-item::after {
-        left: 19px;
+        left: 8px;
+    }
+
+    .timeline-content {
+        padding: 15px 20px;
+    }
+
+    .timeline-title {
+        font-size: 1.2rem;
+    }
+
+    .timeline-details {
+        font-size: 0.9rem;
+        line-height: 1.5;
     }
 }
 
