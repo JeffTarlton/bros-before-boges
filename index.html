@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bros before Boges</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Oswald:wght@500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container header-container">
+            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="#overview">Trip Info</a></li>
+                    <li><a href="#courses">The Links</a></li>
+                    <li><a href="#attendees">The Squad</a></li>
+                    <li><a href="#scoreboard" class="btn-nav">Scoreboard</a></li>
+                </ul>
+            </nav>
+            <button class="menu-toggle" aria-label="Toggle menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <section id="hero" class="hero-section">
+            <div class="hero-overlay"></div>
+            <div class="container hero-content">
+                <p class="hero-year" id="trip-year">2025</p>
+                <h2 class="hero-title">Drive for Show,<br>Putt for <span class="accent">Dough</span></h2>
+                <p class="hero-subtitle">The tradition continues.</p>
+                <a href="#overview" class="btn btn-primary">Get the Details</a>
+            </div>
+        </section>
+
+        <section id="overview" class="section-padding">
+            <div class="container">
+                <h2 class="section-title">Trip <span class="text-stroke">Overview</span></h2>
+                <div class="trip-cards">
+                    <div class="card trip-info-card">
+                        <div class="card-icon">📍</div>
+                        <h3>Location</h3>
+                        <p id="trip-location">Loading...</p>
+                    </div>
+                    <div class="card trip-info-card">
+                        <div class="card-icon">📅</div>
+                        <h3>Dates</h3>
+                        <p id="trip-dates">Loading...</p>
+                    </div>
+                    <div class="card trip-info-card">
+                        <div class="card-icon">🏨</div>
+                        <h3>HQ</h3>
+                        <p id="trip-accommodation">Loading...</p>
+                    </div>
+                </div>
+
+                <div class="cost-breakdown-container card">
+                    <h3>💰 Trip Costs (Est.)</h3>
+                    <div id="cost-breakdown" class="cost-grid">
+                        <!-- Costs rendered here -->
+                    </div>
+                    <p class="total-cost">Total Est: <span id="total-cost"></span></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="schedule" class="section-padding">
+            <div class="container">
+                <h2 class="section-title">The <span class="text-stroke">Itinerary</span></h2>
+                <div class="timeline" id="schedule-timeline">
+                    <!-- Schedule rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <section id="courses" class="section-padding bg-dark">
+            <div class="container">
+                <h2 class="section-title text-light">The <span class="accent">Battlegrounds</span></h2>
+                <div class="courses-grid" id="courses-grid">
+                    <!-- Courses rendered here by JS -->
+                </div>
+            </div>
+        </section>
+
+        <section id="attendees" class="section-padding">
+            <div class="container">
+                <h2 class="section-title">The <span class="text-stroke">Squad</span></h2>
+
+                <h3 class="roster-category-title">Confirmed Players</h3>
+                <div class="attendees-grid" id="confirmed-roster">
+                    <!-- Confirmed rendered here -->
+                </div>
+
+                <h3 class="roster-category-title">On the Bubble</h3>
+                <div class="potential-grid" id="potential-roster">
+                    <!-- Potential rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <section id="scoreboard" class="section-padding live-score-section">
+            <div class="container text-center">
+                <h2 class="section-title">The <span class="text-stroke">Leaderboard</span></h2>
+
+                <div class="augusta-board">
+                    <div class="board-header">
+                        <div class="board-title">Official Scorecard</div>
+                        <div class="board-subtitle">Bros before Boges 2026</div>
+                    </div>
+                    <div class="board-grid" id="main-scoreboard">
+                        <div class="board-row header-row">
+                            <div class="col-pos">Hole</div>
+                            <div class="col-player">Player</div>
+                            <div class="col-rating">HCP/Rat</div>
+                            <div class="col-thru">Thru</div>
+                            <div class="col-score">Score</div>
+                        </div>
+                        <!-- Rows rendered by JS -->
+                    </div>
+                    <div class="board-footer">
+                        Attest: ____________________ Date: Oct 3, 2055
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; <span id="footer-year">2025</span> Bros before Boges. All rights reserved.</p>
+            <p class="footer-motto">Swing hard in case you hit it.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
