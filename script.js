@@ -1,6 +1,6 @@
 // Supabase Configuration - USER NEEDS TO FILL THESE IN
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://gxpwgrdyizruzfczzqwn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
 
 // Initialize Supabase Client (Defensive Pattern)
 let supabaseInstance = null;
