@@ -19,7 +19,7 @@ const tripData = {
     location: "Horseshoe Bay, Texas",
     accommodation: "Horseshoe Bay Resort",
     accommodationLink: "https://www.hsbresort.com/",
-    dates: "April 9th - 13th, 2025",
+    dates: "April 9th - 13th, 2026",
     costs: {
         entryFee: 150,
         room: 806.50,
@@ -278,7 +278,7 @@ function renderCourses() {
     ];
 
     elements.coursesGrid.innerHTML = uniqueCourses.map(course => `
-        <div class="course-card">
+        <div class="course-card glass-panel">
             <div class="course-image">
                 <img src="${course.image}" alt="${course.name}">
             </div>
@@ -334,21 +334,21 @@ function renderScoreboard() {
 function renderRoster() {
     if (!elements.confirmedRoster) return;
     elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => `
-        <div class="attendee-card">
+        <div class="attendee-card glass-panel">
             <div class="attendee-avatar">
                 <span>${getInitials(player.name)}</span>
             </div>
             <h4 class="attendee-name">${player.name}</h4>
-            <div style="margin-top: 10px; font-size: 0.85rem; color: #555;">
+            <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
                 <p>GHIN: ${player.ghin || 'Missing'}</p>
-                <p style="color: var(--primary-color); font-weight: 700;">HCP: ${player.handicap !== null ? player.handicap : 'N/A'}</p>
+                <p style="color: var(--accent-emerald); font-weight: 700;">HCP: ${player.handicap !== null ? player.handicap : 'N/A'}</p>
             </div>
         </div>
     `).join('');
 
     if (elements.potentialRoster) {
         elements.potentialRoster.innerHTML = tripData.roster.potential.map(name => `
-            <div class="potential-badge">${name}</div>
+            <div class="potential-badge glass-panel" style="padding: 10px 20px; border-radius: 99px; font-size: 0.9rem; color: var(--text-muted);">${name}</div>
         `).join('');
     }
 }

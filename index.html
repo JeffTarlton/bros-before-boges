@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bros before Boges</title>
+    <title>Bros before Boges | The Ultimate Golf Trip</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Oswald:wght@500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -38,9 +38,9 @@
         <section id="hero" class="hero-section">
             <div class="hero-overlay"></div>
             <div class="container hero-content">
-                <p class="hero-year" id="trip-year">2025</p>
+                <p class="hero-year" id="trip-year">2026</p>
                 <h2 class="hero-title">Drive for Show,<br>Putt for <span class="accent">Dough</span></h2>
-                <p class="hero-subtitle">The tradition continues.</p>
+                <p class="hero-subtitle">The tradition continues. Higher stakes, faster greens, same idiots.</p>
                 <a href="#overview" class="btn btn-primary">Get the Details</a>
             </div>
         </section>
@@ -49,24 +49,24 @@
             <div class="container">
                 <h2 class="section-title">Trip <span class="text-stroke">Overview</span></h2>
                 <div class="trip-cards">
-                    <div class="card trip-info-card">
-                        <div class="card-icon">📍</div>
+                    <div class="glass-panel trip-info-card">
+                        <span class="card-icon">📍</span>
                         <h3>Location</h3>
                         <p id="trip-location">Loading...</p>
                     </div>
-                    <div class="card trip-info-card">
-                        <div class="card-icon">📅</div>
+                    <div class="glass-panel trip-info-card">
+                        <span class="card-icon">📅</span>
                         <h3>Dates</h3>
                         <p id="trip-dates">Loading...</p>
                     </div>
-                    <div class="card trip-info-card">
-                        <div class="card-icon">🏨</div>
+                    <div class="glass-panel trip-info-card">
+                        <span class="card-icon">🏨</span>
                         <h3>HQ</h3>
                         <p id="trip-accommodation">Loading...</p>
                     </div>
                 </div>
 
-                <div class="cost-breakdown-container card">
+                <div class="cost-breakdown-container glass-panel">
                     <h3>💰 Trip Costs (Est.)</h3>
                     <div id="cost-breakdown" class="cost-grid">
                         <!-- Costs rendered here -->
@@ -85,9 +85,9 @@
             </div>
         </section>
 
-        <section id="courses" class="section-padding bg-dark">
+        <section id="courses" class="section-padding">
             <div class="container">
-                <h2 class="section-title text-light">The <span class="accent">Battlegrounds</span></h2>
+                <h2 class="section-title">The <span class="accent">Battlegrounds</span></h2>
                 <div class="courses-grid" id="courses-grid">
                     <!-- Courses rendered here by JS -->
                 </div>
@@ -103,15 +103,15 @@
                     <!-- Confirmed rendered here -->
                 </div>
 
-                <h3 class="roster-category-title">On the Bubble</h3>
-                <div class="potential-grid" id="potential-roster">
+                <h3 class="roster-category-title" style="margin-top: 60px;">On the Bubble</h3>
+                <div class="attendees-grid" id="potential-roster">
                     <!-- Potential rendered here -->
                 </div>
             </div>
         </section>
 
         <section id="scoreboard" class="section-padding live-score-section">
-            <div class="container text-center">
+            <div class="container">
                 <h2 class="section-title">The <span class="text-stroke">Leaderboard</span></h2>
 
                 <div class="augusta-board">
@@ -123,14 +123,14 @@
                         <div class="board-row header-row">
                             <div class="col-pos">Hole</div>
                             <div class="col-player">Player</div>
-                            <div class="col-rating">HCP/Rat</div>
+                            <div class="col-rating">HCP</div>
                             <div class="col-thru">Thru</div>
                             <div class="col-score">Score</div>
                         </div>
                         <!-- Rows rendered by JS -->
                     </div>
                     <div class="board-footer">
-                        Attest: ____________________ Date: Oct 3, 2055
+                        Attest: ____________________ Date: Oct 3, 2026
                     </div>
                 </div>
 
@@ -140,41 +140,37 @@
 
     <!-- Registration Modal -->
     <div id="registration-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content glass-panel">
             <div class="modal-header">
-                <h2>Register for Bros before Boges 2026</h2>
-                <button class="modal-close" id="modal-close">&times;</button>
+                <h2 style="margin-bottom: 20px;">Join the Crew</h2>
+                <button class="modal-close" id="modal-close"
+                    style="background: none; border: none; font-size: 2rem; color: white; cursor: pointer; position: absolute; top: 20px; right: 20px;">&times;</button>
             </div>
             <form id="registration-form" class="registration-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="first-name">First Name *</label>
-                        <input type="text" id="first-name" name="firstName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="last-name">Last Name *</label>
-                        <input type="text" id="last-name" name="lastName" required>
-                    </div>
+                <div class="form-group">
+                    <label for="first-name">First Name</label>
+                    <input type="text" id="first-name" name="firstName" required>
                 </div>
                 <div class="form-group">
-                    <label for="ghin-number">GHIN Number</label>
-                    <input type="text" id="ghin-number" name="ghinNumber"
-                        placeholder="Leave blank if you don't have one">
+                    <label for="last-name">Last Name</label>
+                    <input type="text" id="last-name" name="lastName" required>
                 </div>
                 <div class="form-group">
-                    <label for="handicap">Handicap</label>
-                    <input type="number" id="handicap" name="handicap" step="0.1" placeholder="Leave blank if unknown">
+                    <label for="ghin-number">GHIN Number (Optional)</label>
+                    <input type="text" id="ghin-number" name="ghinNumber">
                 </div>
                 <div class="form-group">
-                    <label for="password">Registration Password *</label>
-                    <input type="password" id="password" name="password" required
-                        placeholder="Enter password to submit">
-                    <small style="color: #666; font-size: 0.85rem; margin-top: 5px; display: block;">Password required
-                        to prevent spam registrations</small>
+                    <label for="handicap">Handicap (Optional)</label>
+                    <input type="number" id="handicap" name="handicap" step="0.1">
                 </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Submit Registration</button>
+                <div class="form-group" style="display: none;">
+                    <label for="password">Registration Password</label>
+                    <input type="password" id="password" name="password" value="golftrip">
+                </div>
+                <div class="form-actions" style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="btn-primary" style="flex: 1; padding: 15px;">Submit
+                        Registration</button>
+                    <button type="button" class="btn-nav" id="cancel-btn" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
@@ -182,7 +178,7 @@
 
     <footer class="site-footer">
         <div class="container">
-            <p>&copy; <span id="footer-year">2025</span> Bros before Boges. All rights reserved.</p>
+            <p>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</p>
             <p class="footer-motto">Swing hard in case you hit it.</p>
         </div>
     </footer>
