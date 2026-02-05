@@ -4,8 +4,12 @@ const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // Initialize Supabase Client
 let supabaseInstance = null;
-if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
-    supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+try {
+    if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+        supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+} catch (e) {
+    console.error('Supabase initialization failed:', e);
 }
 
 // DOM Elements
