@@ -3,9 +3,9 @@ const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // Initialize Supabase Client
-let supabase = null;
+let supabaseInstance = null;
 if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
 // DOM Elements
@@ -28,12 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function checkInitialAuth() {
-    if (!supabase) {
+    if (!supabaseInstance) {
         console.warn('Supabase not configured. Showing demo mode.');
         return;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseInstance.auth.getSession();
     if (session) {
         showDashboard();
     }
@@ -57,7 +57,7 @@ async function handleLogin() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
 
-    if (!supabase) {
+    if (!supabaseInstance) {
         // DEMO BYPASS: If no Supabase, allow 'admin'/'admin' for preview
         if (email === 'admin' && password === 'admin') {
             showDashboard();
@@ -67,7 +67,7 @@ async function handleLogin() {
         return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseInstance.auth.signInWithPassword({ email, password });
 
     if (error) {
         loginError.textContent = error.message;
@@ -78,8 +78,8 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
-    if (supabase) {
-        await supabase.auth.signOut();
+    if (supabaseInstance) {
+        await supabaseInstance.auth.signOut();
     }
     location.reload();
 }
@@ -93,8 +93,8 @@ function showDashboard() {
 
 async function loadRoster() {
     // Try to load from Supabase
-    if (supabase) {
-        const { data, error } = await supabase
+    if (supabaseInstance) {
+        const { data, error } = await supabaseInstance
             .from('players')
             .select('*')
             .order('name');

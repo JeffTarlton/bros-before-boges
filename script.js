@@ -3,9 +3,9 @@ const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 // Initialize Supabase Client
-let supabase = null;
+let supabaseInstance = null;
 if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseInstance = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
 // Trip Configuration Data
@@ -151,13 +151,13 @@ async function init() {
 }
 
 async function loadRosterData() {
-    if (!supabase) {
+    if (!supabaseInstance) {
         console.warn('Supabase not configured. Using hardcoded roster.');
         renderRoster();
         return;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseInstance
         .from('players')
         .select('*')
         .order('name');
@@ -427,10 +427,10 @@ function handleFormSubmit(e) {
 }
 
 async function saveToSupabase(player) {
-    if (!supabase) return;
+    if (!supabaseInstance) return;
 
     try {
-        const { error } = await supabase
+        const { error } = await supabaseInstance
             .from('players')
             .insert([
                 {
