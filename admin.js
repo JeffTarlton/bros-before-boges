@@ -17,6 +17,7 @@ let elements = {};
 
 // State
 let players = [];
+let originalPlayers = []; // To track changes and allow discard
 let hasChanges = false;
 
 // Initial Load
@@ -32,7 +33,10 @@ function init() {
             logoutBtn: document.getElementById('logout-btn'),
             loginError: document.getElementById('login-error'),
             emailInput: document.getElementById('email'),
-            passwordInput: document.getElementById('password')
+            passwordInput: document.getElementById('password'),
+            addPlayerBtn: document.getElementById('add-player-btn'),
+            saveBtn: document.getElementById('save-btn'),
+            discardBtn: document.getElementById('discard-btn')
         };
 
         checkInitialAuth();
@@ -60,6 +64,7 @@ async function checkInitialAuth() {
 }
 
 function setupEventListeners() {
+    // Login Handling
     if (elements.loginBtn) {
         elements.loginBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -69,6 +74,39 @@ function setupEventListeners() {
 
     if (elements.logoutBtn) {
         elements.logoutBtn.addEventListener('click', handleLogout);
+    }
+
+    // Add Player Button
+    if (elements.addPlayerBtn) {
+        elements.addPlayerBtn.addEventListener('click', () => {
+            addNewPlayer();
+        });
+    }
+
+    // Save/Discard
+    if (elements.saveBtn) {
+        elements.saveBtn.addEventListener('click', saveChanges);
+    }
+    if (elements.discardBtn) {
+        elements.discardBtn.addEventListener('click', discardChanges);
+    }
+
+    // Table Interaction (Event Delegation)
+    if (elements.rosterTbody) {
+        elements.rosterTbody.addEventListener('input', (e) => {
+            if (e.target.classList.contains('edit-input')) {
+                const index = e.target.closest('tr').dataset.index;
+                const field = e.target.dataset.field;
+                updatePlayerData(index, field, e.target.value);
+            }
+        });
+
+        elements.rosterTbody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-player-btn')) {
+                const index = e.target.closest('tr').dataset.index;
+                removePlayer(index);
+            }
+        });
     }
 
     // Tab switching
@@ -135,54 +173,133 @@ async function loadRoster() {
                 .order('name');
 
             if (!error && data) {
-                players = data;
+                players = JSON.parse(JSON.stringify(data)); // Deep copy
+                originalPlayers = JSON.parse(JSON.stringify(data));
             }
         } catch (e) {
             console.error('Roster load failed:', e);
         }
     } else {
         // Fallback to demo data
-        players = [
+        const demoData = [
             { name: "Colby Gibson", ghin: "2360395", handicap: 5.0, status: "confirmed" },
             { name: "Westin Tucker", ghin: "Missing", handicap: 5.6, status: "confirmed" },
             { name: "Jeff Tarlton", ghin: "2360395", handicap: 9.0, status: "confirmed" }
         ];
+        players = JSON.parse(JSON.stringify(demoData));
+        originalPlayers = JSON.parse(JSON.stringify(demoData));
     }
     renderRosterTable();
+    checkChanges();
 }
 
 function renderRosterTable() {
     if (!elements.rosterTbody) return;
+
+    if (players.length === 0) {
+        elements.rosterTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No players found. Click "+ Add Player" to start.</td></tr>`;
+        return;
+    }
+
     elements.rosterTbody.innerHTML = players.map((player, index) => `
-        <tr>
-            <td><input type="text" class="edit-input" value="${player.name}" onchange="markDirty()"></td>
-            <td><input type="text" class="edit-input" value="${player.ghin || ''}" onchange="markDirty()"></td>
-            <td><input type="number" step="0.1" class="edit-input" value="${player.handicap || 0}" onchange="markDirty()"></td>
-            <td><span class="status-badge status-confirmed">Confirmed</span></td>
+        <tr data-index="${index}">
+            <td><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
+            <td><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
+            <td><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
+            <td><span class="status-badge status-confirmed">${player.status || 'confirmed'}</span></td>
             <td>
-                <button class="admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
+                <button class="remove-player-btn admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
             </td>
         </tr>
     `).join('');
 }
 
-function markDirty() {
-    hasChanges = true;
-    if (elements.saveBar) elements.saveBar.style.display = 'flex';
+function updatePlayerData(index, field, value) {
+    if (field === 'handicap') {
+        players[index][field] = value === '' ? null : parseFloat(value);
+    } else {
+        players[index][field] = value;
+    }
+    checkChanges();
+}
+
+function addNewPlayer() {
+    const newPlayer = {
+        name: "",
+        ghin: "",
+        handicap: 0,
+        status: "confirmed"
+    };
+    players.push(newPlayer);
+    renderRosterTable();
+    checkChanges();
+}
+
+function removePlayer(index) {
+    if (confirm(`Remove ${players[index].name || 'this player'}?`)) {
+        players.splice(index, 1);
+        renderRosterTable();
+        checkChanges();
+    }
+}
+
+function checkChanges() {
+    // Compare players to originalPlayers
+    const current = JSON.stringify(players);
+    const original = JSON.stringify(originalPlayers);
+
+    hasChanges = current !== original;
+
+    if (elements.saveBar) {
+        elements.saveBar.style.display = hasChanges ? 'flex' : 'none';
+    }
 }
 
 function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
-        loadRoster();
-        if (elements.saveBar) elements.saveBar.style.display = 'none';
-        hasChanges = false;
+        players = JSON.parse(JSON.stringify(originalPlayers));
+        renderRosterTable();
+        checkChanges();
     }
 }
 
 async function saveChanges() {
-    alert('Save functionality will be connected once Supabase table is created!');
-    if (elements.saveBar) elements.saveBar.style.display = 'none';
-    hasChanges = false;
+    if (!supabaseInstance) {
+        alert('Saving is disabled in demo mode.');
+        return;
+    }
+
+    try {
+        console.log('Saving changes to Supabase...');
+
+        // 1. Find deleted players
+        const originalIds = originalPlayers.map(p => p.id).filter(id => id);
+        const currentIds = players.map(p => p.id).filter(id => id);
+        const deletedIds = originalIds.filter(id => !currentIds.includes(id));
+
+        // 2. Perform Deletions
+        if (deletedIds.length > 0) {
+            const { error: delError } = await supabaseInstance
+                .from('players')
+                .delete()
+                .in('id', deletedIds);
+
+            if (delError) throw delError;
+        }
+
+        // 3. Perform Upserts (Insert new or Update existing)
+        const { data, error: upsertError } = await supabaseInstance
+            .from('players')
+            .upsert(players, { onConflict: 'id' });
+
+        if (upsertError) throw upsertError;
+
+        alert('Changes saved successfully! 🎉');
+        loadRoster(); // Refresh original state
+    } catch (err) {
+        console.error('Save failed:', err);
+        alert('Error saving changes: ' + err.message);
+    }
 }
 
 // Global initialization
