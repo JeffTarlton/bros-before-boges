@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Bros before Boges</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Admin-specific Styles (Premium Glassmorphism) */
+        :root {
+            --admin-bg: #0f172a;
+            --admin-card: rgba(30, 41, 59, 0.7);
+            --admin-accent: #10b981;
+            /* Emerald/Golf Green */
+            --admin-gold: #fbbf24;
+        }
+
+        body.admin-mode {
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+            color: #f8fafc;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .admin-title h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #fff, var(--admin-accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+
+        .glass-panel {
+            background: var(--admin-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60vh;
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .admin-input {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .admin-input:focus {
+            outline: none;
+            border-color: var(--admin-accent);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+        }
+
+        .admin-btn {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, var(--admin-accent), #059669);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .admin-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.4);
+        }
+
+        .admin-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard {
+            display: none;
+            /* Hidden until login */
+        }
+
+        .dashboard.active {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 30px;
+        }
+
+        .admin-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-item {
+            padding: 15px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .sidebar-item.active {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--admin-accent);
+            border-left: 4px solid var(--admin-accent);
+        }
+
+        .sidebar-item:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .admin-table th {
+            text-align: left;
+            padding: 15px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .admin-table td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .edit-input {
+            background: transparent;
+            border: 1px solid transparent;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .edit-input:focus {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--admin-accent);
+            outline: none;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-confirmed {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .save-bar {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard.active {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-sidebar {
+                flex-direction: row;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+
+<body class="admin-mode">
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="admin-title">
+                <h1>Admin Dashboard</h1>
+            </div>
+            <div id="auth-status">
+                <button id="logout-btn" class="admin-btn secondary"
+                    style="display: none; width: auto; padding: 10px 20px; margin: 0;">Logout</button>
+            </div>
+        </header>
+
+        <!-- Login Screen -->
+        <div id="login-screen" class="login-screen">
+            <div class="login-box glass-panel">
+                <h2 style="margin-bottom: 30px;">Authorized Personnel Only</h2>
+                <input type="email" id="email" class="admin-input" placeholder="Email Address">
+                <input type="password" id="password" class="admin-input" placeholder="Password">
+                <button id="login-btn" class="admin-btn">Login to Dashboard</button>
+                <p id="login-error" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
+                <p style="margin-top: 20px; font-size: 0.8rem; color: rgba(255,255,255,0.4);">
+                    Credentials managed via Supabase Auth
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="dashboard">
+            <!-- Sidebar -->
+            <aside class="admin-sidebar">
+                <div class="sidebar-item active" data-tab="roster">Confirmed Roster</div>
+                <div class="sidebar-item" data-tab="potential">Potential Players</div>
+                <div class="sidebar-item" data-tab="config">Trip Config</div>
+                <div class="sidebar-item" data-tab="schedule">Schedule</div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="admin-content glass-panel">
+                <div id="tab-roster" class="tab-content">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Golfers</h2>
+                        <button class="admin-btn" style="width: auto; margin-top: 0; padding: 10px 20px;">+ Add
+                            Player</button>
+                    </div>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>GHIN</th>
+                                <th>Handicap</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roster-tbody">
+                            <!-- Populated by JS -->
+                            <tr>
+                                <td colspan="5"
+                                    style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
+                                    Loading roster data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+
+        <!-- Floating Action Button -->
+        <div id="save-bar" class="save-bar" style="display: none;">
+            <button id="discard-btn" class="admin-btn secondary" style="width: auto; margin: 0;">Discard</button>
+            <button id="save-btn" class="admin-btn"
+                style="width: auto; margin: 0; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="admin.js"></script>
+</body>
+
+</html>

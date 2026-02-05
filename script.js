@@ -1,3 +1,13 @@
+// Supabase Configuration - USER NEEDS TO FILL THESE IN
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+// Initialize Supabase Client
+let supabase = null;
+if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
 // Trip Configuration Data
 const tripData = {
     tripName: "Annual Bros before Boges",
@@ -131,13 +141,40 @@ const elements = {
 };
 
 // Render Functions
-function init() {
+async function init() {
     renderTripDetails();
     renderSchedule();
     renderCourses();
-    renderRoster();
+    await loadRosterData(); // Fetch from Supabase if possible
     renderScoreboard();
     setupEventListeners();
+}
+
+async function loadRosterData() {
+    if (!supabase) {
+        console.warn('Supabase not configured. Using hardcoded roster.');
+        renderRoster();
+        return;
+    }
+
+    const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .order('name');
+
+    if (error) {
+        console.error('Error fetching roster:', error);
+        renderRoster(); // Fallback
+    } else if (data && data.length > 0) {
+        tripData.roster.confirmed = data.map(p => ({
+            name: p.name,
+            ghin: p.ghin,
+            handicap: p.handicap !== null ? parseFloat(p.handicap) : null
+        }));
+        renderRoster();
+    } else {
+        renderRoster(); // No data yet, show hardcoded
+    }
 }
 
 function renderTripDetails() {
@@ -347,6 +384,7 @@ function handleFormSubmit(e) {
     const formData = new FormData(elements.registrationForm);
     const firstName = formData.get('firstName').trim();
     const lastName = formData.get('lastName').trim();
+    const shirtsize = formData.get('shirt size').trim();
     const ghinNumber = formData.get('ghinNumber').trim();
     const handicap = formData.get('handicap');
     const password = formData.get('password');
@@ -368,7 +406,10 @@ function handleFormSubmit(e) {
     // Send email notification
     sendEmailNotification(newPlayer);
 
-    // Add to roster
+    // Add to Supabase
+    saveToSupabase(newPlayer);
+
+    // Add locally for instant UI update
     tripData.roster.confirmed.push(newPlayer);
 
     // Re-render the roster and scoreboard
@@ -384,6 +425,29 @@ function handleFormSubmit(e) {
     // Scroll to roster section
     document.getElementById('attendees').scrollIntoView({ behavior: 'smooth' });
 }
+
+async function saveToSupabase(player) {
+    if (!supabase) return;
+
+    try {
+        const { error } = await supabase
+            .from('players')
+            .insert([
+                {
+                    name: player.name,
+                    ghin: player.ghin,
+                    handicap: player.handicap,
+                    status: 'confirmed'
+                }
+            ]);
+
+        if (error) throw error;
+        console.log('Player saved to Supabase successfully');
+    } catch (err) {
+        console.error('Failed to save to Supabase:', err);
+    }
+}
+
 
 function sendEmailNotification(player) {
     // Create email body
