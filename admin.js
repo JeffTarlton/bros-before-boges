@@ -12,24 +12,36 @@ try {
     console.error('Supabase initialization failed:', e);
 }
 
-// DOM Elements
-const authScreen = document.getElementById('login-screen');
-const dashboard = document.getElementById('dashboard');
-const rosterTbody = document.getElementById('roster-tbody');
-const saveBar = document.getElementById('save-bar');
-const loginBtn = document.getElementById('login-btn');
-const logoutBtn = document.getElementById('logout-btn');
-const loginError = document.getElementById('login-error');
+// DOM Elements Registry
+let elements = {};
 
 // State
 let players = [];
 let hasChanges = false;
 
 // Initial Load
-document.addEventListener('DOMContentLoaded', () => {
-    checkInitialAuth();
-    setupEventListeners();
-});
+function init() {
+    console.log('Admin Dashboard initializing...');
+    try {
+        elements = {
+            authScreen: document.getElementById('login-screen'),
+            dashboard: document.getElementById('dashboard'),
+            rosterTbody: document.getElementById('roster-tbody'),
+            saveBar: document.getElementById('save-bar'),
+            loginBtn: document.getElementById('login-btn'),
+            logoutBtn: document.getElementById('logout-btn'),
+            loginError: document.getElementById('login-error'),
+            emailInput: document.getElementById('email'),
+            passwordInput: document.getElementById('password')
+        };
+
+        checkInitialAuth();
+        setupEventListeners();
+        console.log('Admin Dashboard ready.');
+    } catch (err) {
+        console.error('Admin Dashboard failed to initialize.', err);
+    }
+}
 
 async function checkInitialAuth() {
     if (!supabaseInstance) {
@@ -37,33 +49,46 @@ async function checkInitialAuth() {
         return;
     }
 
-    const { data: { session } } = await supabaseInstance.auth.getSession();
-    if (session) {
-        showDashboard();
+    try {
+        const { data: { session } } = await supabaseInstance.auth.getSession();
+        if (session) {
+            showDashboard();
+        }
+    } catch (e) {
+        console.error('Auth check failed:', e);
     }
 }
 
 function setupEventListeners() {
-    loginBtn.addEventListener('click', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
+    if (elements.loginBtn) {
+        elements.loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleLogin();
+        });
+    }
+
+    if (elements.logoutBtn) {
+        elements.logoutBtn.addEventListener('click', handleLogout);
+    }
 
     // Tab switching
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', () => {
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
-            // Tab logic would go here
         });
     });
 }
 
 async function handleLogin() {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+    console.log('Login attempt...');
+    const email = elements.emailInput ? elements.emailInput.value : '';
+    const password = elements.passwordInput ? elements.passwordInput.value : '';
 
     if (!supabaseInstance) {
-        // DEMO BYPASS: If no Supabase, allow 'admin'/'admin' for preview
+        // DEMO BYPASS
         if (email === 'admin' && password === 'admin') {
+            console.log('Demo login successful.');
             showDashboard();
             return;
         }
@@ -71,13 +96,19 @@ async function handleLogin() {
         return;
     }
 
-    const { error } = await supabaseInstance.auth.signInWithPassword({ email, password });
-
-    if (error) {
-        loginError.textContent = error.message;
-        loginError.style.display = 'block';
-    } else {
-        showDashboard();
+    try {
+        const { error } = await supabaseInstance.auth.signInWithPassword({ email, password });
+        if (error) {
+            if (elements.loginError) {
+                elements.loginError.textContent = error.message;
+                elements.loginError.style.display = 'block';
+            }
+        } else {
+            showDashboard();
+        }
+    } catch (e) {
+        console.error('Login error:', e);
+        alert('An unexpected error occurred during login.');
     }
 }
 
@@ -89,22 +120,25 @@ async function handleLogout() {
 }
 
 function showDashboard() {
-    authScreen.style.display = 'none';
-    dashboard.classList.add('active');
-    logoutBtn.style.display = 'block';
+    if (elements.authScreen) elements.authScreen.style.display = 'none';
+    if (elements.dashboard) elements.dashboard.classList.add('active');
+    if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
     loadRoster();
 }
 
 async function loadRoster() {
-    // Try to load from Supabase
     if (supabaseInstance) {
-        const { data, error } = await supabaseInstance
-            .from('players')
-            .select('*')
-            .order('name');
+        try {
+            const { data, error } = await supabaseInstance
+                .from('players')
+                .select('*')
+                .order('name');
 
-        if (!error && data) {
-            players = data;
+            if (!error && data) {
+                players = data;
+            }
+        } catch (e) {
+            console.error('Roster load failed:', e);
         }
     } else {
         // Fallback to demo data
@@ -114,12 +148,12 @@ async function loadRoster() {
             { name: "Jeff Tarlton", ghin: "2360395", handicap: 9.0, status: "confirmed" }
         ];
     }
-
     renderRosterTable();
 }
 
 function renderRosterTable() {
-    rosterTbody.innerHTML = players.map((player, index) => `
+    if (!elements.rosterTbody) return;
+    elements.rosterTbody.innerHTML = players.map((player, index) => `
         <tr>
             <td><input type="text" class="edit-input" value="${player.name}" onchange="markDirty()"></td>
             <td><input type="text" class="edit-input" value="${player.ghin || ''}" onchange="markDirty()"></td>
@@ -134,20 +168,26 @@ function renderRosterTable() {
 
 function markDirty() {
     hasChanges = true;
-    saveBar.style.display = 'flex';
+    if (elements.saveBar) elements.saveBar.style.display = 'flex';
 }
 
 function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         loadRoster();
-        saveBar.style.display = 'none';
+        if (elements.saveBar) elements.saveBar.style.display = 'none';
         hasChanges = false;
     }
 }
 
 async function saveChanges() {
-    // This will implement the batch update to Supabase
     alert('Save functionality will be connected once Supabase table is created!');
-    saveBar.style.display = 'none';
+    if (elements.saveBar) elements.saveBar.style.display = 'none';
     hasChanges = false;
+}
+
+// Global initialization
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
 }

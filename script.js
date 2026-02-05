@@ -2,7 +2,7 @@
 const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
-// Initialize Supabase Client
+// Initialize Supabase Client (Defensive Pattern)
 let supabaseInstance = null;
 try {
     if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
@@ -122,36 +122,53 @@ const tripData = {
     ]
 };
 
-// DOM Elements
-const elements = {
-    tripYear: document.getElementById('trip-year'),
-    tripLocation: document.getElementById('trip-location'),
-    tripDates: document.getElementById('trip-dates'),
-    tripAccommodation: document.getElementById('trip-accommodation'),
-    costBreakdown: document.getElementById('cost-breakdown'),
-    totalCost: document.getElementById('total-cost'),
-    scheduleTimeline: document.getElementById('schedule-timeline'),
-    confirmedRoster: document.getElementById('confirmed-roster'),
-    potentialRoster: document.getElementById('potential-roster'),
-    coursesGrid: document.getElementById('courses-grid'),
-    footerYear: document.getElementById('footer-year'),
-    menuToggle: document.querySelector('.menu-toggle'),
-    mainNav: document.querySelector('.main-nav'),
-    signupBtn: document.getElementById('signup-btn'),
-    registrationModal: document.getElementById('registration-modal'),
-    modalClose: document.getElementById('modal-close'),
-    cancelBtn: document.getElementById('cancel-btn'),
-    registrationForm: document.getElementById('registration-form')
-};
+// DOM Element Registry (to be populated in init)
+let elements = {};
 
-// Render Functions
+// Initialization
 async function init() {
-    renderTripDetails();
-    renderSchedule();
-    renderCourses();
-    await loadRosterData(); // Fetch from Supabase if possible
-    renderScoreboard();
-    setupEventListeners();
+    console.log('Site initializing...');
+    try {
+        // Map DOM elements safely
+        elements = {
+            tripYear: document.getElementById('trip-year'),
+            tripLocation: document.getElementById('trip-location'),
+            tripDates: document.getElementById('trip-dates'),
+            tripAccommodation: document.getElementById('trip-accommodation'),
+            costBreakdown: document.getElementById('cost-breakdown'),
+            totalCost: document.getElementById('total-cost'),
+            scheduleTimeline: document.getElementById('schedule-timeline'),
+            confirmedRoster: document.getElementById('confirmed-roster'),
+            potentialRoster: document.getElementById('potential-roster'),
+            coursesGrid: document.getElementById('courses-grid'),
+            footerYear: document.getElementById('footer-year'),
+            menuToggle: document.querySelector('.menu-toggle'),
+            mainNav: document.querySelector('.main-nav'),
+            signupBtn: document.getElementById('signup-btn'),
+            registrationModal: document.getElementById('registration-modal'),
+            modalClose: document.getElementById('modal-close'),
+            cancelBtn: document.getElementById('cancel-btn'),
+            registrationForm: document.getElementById('registration-form')
+        };
+
+        // Render static details immediately
+        renderTripDetails();
+        renderSchedule();
+        renderCourses();
+
+        // Start loading roster data (async)
+        loadRosterData().then(() => {
+            renderScoreboard();
+        }).catch(err => {
+            console.error('Data flow failed:', err);
+            renderScoreboard(); // Attempt anyway
+        });
+
+        setupEventListeners();
+        console.log('Site initialization complete.');
+    } catch (err) {
+        console.error('CRITICAL: Site failed to initialize.', err);
+    }
 }
 
 async function loadRosterData() {
@@ -161,38 +178,43 @@ async function loadRosterData() {
         return;
     }
 
-    const { data, error } = await supabaseInstance
-        .from('players')
-        .select('*')
-        .order('name');
+    try {
+        const { data, error } = await supabaseInstance
+            .from('players')
+            .select('*')
+            .order('name');
 
-    if (error) {
-        console.error('Error fetching roster:', error);
-        renderRoster(); // Fallback
-    } else if (data && data.length > 0) {
-        tripData.roster.confirmed = data.map(p => ({
-            name: p.name,
-            ghin: p.ghin,
-            handicap: p.handicap !== null ? parseFloat(p.handicap) : null
-        }));
+        if (error) {
+            console.error('Error fetching roster:', error);
+            renderRoster();
+        } else if (data && data.length > 0) {
+            tripData.roster.confirmed = data.map(p => ({
+                name: p.name,
+                ghin: p.ghin,
+                handicap: p.handicap !== null ? parseFloat(p.handicap) : null
+            }));
+            renderRoster();
+        } else {
+            renderRoster();
+        }
+    } catch (e) {
+        console.error('Roster fetch failed:', e);
         renderRoster();
-    } else {
-        renderRoster(); // No data yet, show hardcoded
     }
 }
 
 function renderTripDetails() {
+    if (!elements.tripYear) return;
+
     elements.tripYear.textContent = tripData.year;
     elements.tripLocation.textContent = tripData.location;
     elements.tripDates.textContent = tripData.dates;
     elements.tripAccommodation.textContent = tripData.accommodation;
     elements.footerYear.textContent = tripData.year;
 
-    // Update title
     document.title = `${tripData.tripName} ${tripData.year}`;
 
-    // Render Costs
-    if (tripData.costs) {
+    if (tripData.costs && elements.costBreakdown) {
         elements.costBreakdown.innerHTML = `
             <div class="cost-item">
                 <span class="cost-label">Entry Fee</span>
@@ -210,7 +232,9 @@ function renderTripDetails() {
         elements.totalCost.textContent = `$${tripData.costs.totalEstimate.toFixed(2)}`;
     }
 }
+
 function renderSchedule() {
+    if (!elements.scheduleTimeline) return;
     elements.scheduleTimeline.innerHTML = tripData.schedule.map((day, index) => `
         <div class="timeline-item">
             <div class="timeline-date">
@@ -231,7 +255,7 @@ function renderSchedule() {
 }
 
 function renderCourses() {
-    // Unique courses including Summit Rock
+    if (!elements.coursesGrid) return;
     const uniqueCourses = [
         {
             name: "Ram Rock",
@@ -281,21 +305,18 @@ function renderCourses() {
 }
 
 function renderScoreboard() {
-    // For now, mimic a "Field" list since we don't have matches yet.
-    // Just sorting by Handicap to give a "Ranked" look.
     const sortedRoster = [...tripData.roster.confirmed].sort((a, b) => {
-        // Handle null handicaps by pushing them to end
         if (a.handicap === null) return 1;
         if (b.handicap === null) return -1;
         return a.handicap - b.handicap;
     });
 
     const scoreboardElement = document.getElementById('main-scoreboard');
+    if (!scoreboardElement) return;
 
-    // Keep header row
     const headerRow = scoreboardElement.querySelector('.header-row');
     scoreboardElement.innerHTML = '';
-    scoreboardElement.appendChild(headerRow);
+    if (headerRow) scoreboardElement.appendChild(headerRow);
 
     sortedRoster.forEach((player, index) => {
         const row = document.createElement('div');
@@ -311,7 +332,7 @@ function renderScoreboard() {
 }
 
 function renderRoster() {
-    // Confirmed
+    if (!elements.confirmedRoster) return;
     elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => `
         <div class="attendee-card">
             <div class="attendee-avatar">
@@ -325,174 +346,126 @@ function renderRoster() {
         </div>
     `).join('');
 
-    // Potential
-    elements.potentialRoster.innerHTML = tripData.roster.potential.map(name => `
-        <div class="potential-badge">${name}</div>
-    `).join('');
+    if (elements.potentialRoster) {
+        elements.potentialRoster.innerHTML = tripData.roster.potential.map(name => `
+            <div class="potential-badge">${name}</div>
+        `).join('');
+    }
 }
 
 function getInitials(name) {
+    if (!name) return '??';
     return name.split(' ').map(n => n[0]).join('');
 }
 
 function setupEventListeners() {
-    // Mobile menu toggle
-    elements.menuToggle.addEventListener('click', () => {
-        elements.mainNav.classList.toggle('active');
-    });
+    if (elements.menuToggle) {
+        elements.menuToggle.addEventListener('click', () => {
+            elements.mainNav.classList.toggle('active');
+        });
+    }
 
     document.querySelectorAll('.main-nav a').forEach(link => {
         link.addEventListener('click', () => {
-            elements.mainNav.classList.remove('active');
+            if (elements.mainNav) elements.mainNav.classList.remove('active');
         });
     });
 
-    // Modal open/close
-    elements.signupBtn.addEventListener('click', openModal);
-    elements.modalClose.addEventListener('click', closeModal);
-    elements.cancelBtn.addEventListener('click', closeModal);
+    if (elements.signupBtn) elements.signupBtn.addEventListener('click', openModal);
+    if (elements.modalClose) elements.modalClose.addEventListener('click', closeModal);
+    if (elements.cancelBtn) elements.cancelBtn.addEventListener('click', closeModal);
 
-    // Close modal when clicking outside
-    elements.registrationModal.addEventListener('click', (e) => {
-        if (e.target === elements.registrationModal) {
-            closeModal();
-        }
-    });
+    if (elements.registrationModal) {
+        elements.registrationModal.addEventListener('click', (e) => {
+            if (e.target === elements.registrationModal) {
+                closeModal();
+            }
+        });
+    }
 
-    // Close modal with Escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && elements.registrationModal.classList.contains('active')) {
+        if (e.key === 'Escape' && elements.registrationModal && elements.registrationModal.classList.contains('active')) {
             closeModal();
         }
     });
 
-    // Form submission
-    elements.registrationForm.addEventListener('submit', handleFormSubmit);
+    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
 }
 
 function openModal() {
-    elements.registrationModal.classList.add('active');
-    document.body.style.overflow = 'hidden'; // Prevent scrolling
+    if (elements.registrationModal) elements.registrationModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
-    elements.registrationModal.classList.remove('active');
-    document.body.style.overflow = ''; // Restore scrolling
-    elements.registrationForm.reset();
+    if (elements.registrationModal) elements.registrationModal.classList.remove('active');
+    document.body.style.overflow = '';
+    if (elements.registrationForm) elements.registrationForm.reset();
 }
 
 function handleFormSubmit(e) {
     e.preventDefault();
-
-    // Get form data
     const formData = new FormData(elements.registrationForm);
-    const firstName = formData.get('firstName').trim();
-    const lastName = formData.get('lastName').trim();
-    const shirtsize = formData.get('shirt size').trim();
-    const ghinNumber = formData.get('ghinNumber').trim();
+    const firstName = (formData.get('firstName') || '').trim();
+    const lastName = (formData.get('lastName') || '').trim();
+    const ghinNumber = (formData.get('ghinNumber') || '').trim();
     const handicap = formData.get('handicap');
     const password = formData.get('password');
 
-    // Validate password
     const correctPassword = 'iLoveGolf2026!';
     if (password !== correctPassword) {
         alert('❌ Incorrect password. Please contact the trip organizer for the registration password.');
         return;
     }
 
-    // Create player object
     const newPlayer = {
         name: `${firstName} ${lastName}`,
         ghin: ghinNumber || null,
         handicap: handicap ? parseFloat(handicap) : null
     };
 
-    // Send email notification
     sendEmailNotification(newPlayer);
-
-    // Add to Supabase
     saveToSupabase(newPlayer);
-
-    // Add locally for instant UI update
     tripData.roster.confirmed.push(newPlayer);
 
-    // Re-render the roster and scoreboard
     renderRoster();
     renderScoreboard();
-
-    // Show success message
-    alert(`Welcome to the trip, ${newPlayer.name}! 🏌️‍♂️\n\nA confirmation email has been sent to the trip organizer.`);
-
-    // Close modal
+    alert(`Welcome to the trip, ${newPlayer.name}! 🏌️‍♂️`);
     closeModal();
-
-    // Scroll to roster section
-    document.getElementById('attendees').scrollIntoView({ behavior: 'smooth' });
+    const attendeeSection = document.getElementById('attendees');
+    if (attendeeSection) attendeeSection.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function saveToSupabase(player) {
     if (!supabaseInstance) return;
-
     try {
-        const { error } = await supabaseInstance
-            .from('players')
-            .insert([
-                {
-                    name: player.name,
-                    ghin: player.ghin,
-                    handicap: player.handicap,
-                    status: 'confirmed'
-                }
-            ]);
-
-        if (error) throw error;
-        console.log('Player saved to Supabase successfully');
+        await supabaseInstance.from('players').insert([{
+            name: player.name,
+            ghin: player.ghin,
+            handicap: player.handicap,
+            status: 'confirmed'
+        }]);
     } catch (err) {
         console.error('Failed to save to Supabase:', err);
     }
 }
 
-
 function sendEmailNotification(player) {
-    // Create email body
-    const subject = encodeURIComponent('New Bros before Boges Registration');
-    const body = encodeURIComponent(
-        `New Player Registration\n\n` +
-        `Name: ${player.name}\n` +
-        `GHIN Number: ${player.ghin || 'Not provided'}\n` +
-        `Handicap: ${player.handicap !== null ? player.handicap : 'Not provided'}\n\n` +
-        `Registration Time: ${new Date().toLocaleString()}\n\n` +
-        `---\n` +
-        `This is an automated notification from the Bros before Boges registration system.`
-    );
-
-    // Method 1: Using mailto (will open user's email client)
-    // Uncomment this if you want to use the simpler mailto approach
-    // window.location.href = `mailto:westin.tucker@gmail.com?subject=${subject}&body=${body}`;
-
-    // Method 2: Using FormSubmit.co (recommended - sends silently in background)
     fetch('https://formsubmit.co/ajax/westin.tucker@gmail.com', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
             name: player.name,
             ghin: player.ghin || 'Not provided',
             handicap: player.handicap !== null ? player.handicap : 'Not provided',
-            _subject: 'New Bros before Boges Registration',
-            _template: 'box'
+            _subject: 'New Bros before Boges Registration'
         })
-    })
-        .then(response => response.json())
-        .then(data => console.log('Email sent successfully:', data))
-        .catch(error => {
-            console.error('Error sending email:', error);
-            // Fallback to mailto if fetch fails
-            window.open(`mailto:westin.tucker@gmail.com?subject=${subject}&body=${body}`, '_blank');
-        });
+    }).catch(error => console.error('Error sending email:', error));
 }
 
-
-document.addEventListener('DOMContentLoaded', init);
+// Global initialization
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
