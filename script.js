@@ -18,7 +18,7 @@ const tripData = {
     year: 2026,
     location: "Horseshoe Bay, Texas",
     accommodation: "Horseshoe Bay Resort",
-    accommodationLink: "https://www.hsbresort.com/",
+    accommodationLink: "https://www.clubhsbresort.com/",
     dates: "April 9th - 13th, 2026",
     costs: {
         entryFee: 150,
@@ -223,7 +223,13 @@ function renderTripDetails() {
     elements.tripYear.textContent = tripData.year;
     elements.tripLocation.textContent = tripData.location;
     elements.tripDates.textContent = tripData.dates;
-    elements.tripAccommodation.textContent = tripData.accommodation;
+
+    if (tripData.accommodationLink) {
+        elements.tripAccommodation.innerHTML = `<a href="${tripData.accommodationLink}" target="_blank" style="color: var(--accent-emerald); text-decoration: none; border-bottom: 1px dashed var(--accent-emerald);">${tripData.accommodation}</a>`;
+    } else {
+        elements.tripAccommodation.textContent = tripData.accommodation;
+    }
+
     elements.footerYear.textContent = tripData.year;
 
     document.title = `${tripData.tripName} ${tripData.year}`;
