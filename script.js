@@ -148,7 +148,15 @@ async function init() {
             registrationModal: document.getElementById('registration-modal'),
             modalClose: document.getElementById('modal-close'),
             cancelBtn: document.getElementById('cancel-btn'),
-            registrationForm: document.getElementById('registration-form')
+            registrationForm: document.getElementById('registration-form'),
+            leaderboardBtn: document.getElementById('leaderboard-btn'),
+            startRoundBtn: document.getElementById('start-round-btn'),
+            leaderboardModal: document.getElementById('leaderboard-modal'),
+            leaderboardClose: document.getElementById('leaderboard-close'),
+            roundLoginModal: document.getElementById('round-login-modal'),
+            roundLoginClose: document.getElementById('round-login-close'),
+            roundLoginSubmit: document.getElementById('round-login-submit'),
+            dynamicLeaderboard: document.getElementById('dynamic-leaderboard')
         };
 
         // Render static details immediately
@@ -158,10 +166,10 @@ async function init() {
 
         // Start loading roster data (async)
         loadRosterData().then(() => {
-            renderScoreboard();
+            renderDynamicScoreboard();
         }).catch(err => {
             console.error('Data flow failed:', err);
-            renderScoreboard(); // Attempt anyway
+            renderDynamicScoreboard(); // Attempt anyway
         });
 
         setupEventListeners();
@@ -182,6 +190,7 @@ async function loadRosterData() {
         const { data, error } = await supabaseInstance
             .from('players')
             .select('*')
+            .eq('status', 'confirmed') // Only confirmed players
             .order('name');
 
         if (error) {
@@ -304,31 +313,132 @@ function renderCourses() {
     `).join('');
 }
 
-function renderScoreboard() {
+async function renderDynamicScoreboard() {
+    if (!elements.dynamicLeaderboard) return;
+
+    if (!supabaseInstance) {
+        renderFallbackLeaderboard();
+        return;
+    }
+
+    try {
+        // Fetch players and their scores for the most recent active round
+        const { data: activeRounds, error: roundError } = await supabaseInstance
+            .from('rounds')
+            .select('*')
+            .eq('status', 'active')
+            .order('date', { ascending: false })
+            .limit(1);
+
+        if (roundError || !activeRounds || activeRounds.length === 0) {
+            renderFallbackLeaderboard();
+            return;
+        }
+
+        const roundId = activeRounds[0].id;
+        const { data: scores, error: scoreError } = await supabaseInstance
+            .from('scores')
+            .select('*, players(*)')
+            .eq('round_id', roundId);
+
+        if (scoreError || !scores) {
+            renderFallbackLeaderboard();
+            return;
+        }
+
+        // Rank by total_to_par
+        const sortedScores = scores.sort((a, b) => (a.total_to_par || 0) - (b.total_to_par || 0));
+
+        elements.dynamicLeaderboard.innerHTML = `
+            <div class="m-board-header">
+                <div class="m-board-title">Bros before Boges 2026 - Live Scoreboard</div>
+                <div style="color: #1a4a1a; font-weight: 800;">ROUND ACTIVE</div>
+            </div>
+            <table class="m-table">
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th class="m-row-player">Player</th>
+                        <th>HCP</th>
+                        <th>Thru</th>
+                        <th>To Par</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedScores.map((s, index) => `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td class="m-row-player">${s.players.name}</td>
+                            <td>${s.players.handicap || '-'}</td>
+                            <td>${getThruHoles(s)}</td>
+                            <td class="${getScoreClass(s.total_to_par)}">${formatToPar(s.total_to_par)}</td>
+                            <td>${s.total_score || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (err) {
+        console.error('Leaderboard render failed:', err);
+        renderFallbackLeaderboard();
+    }
+}
+
+function renderFallbackLeaderboard() {
+    // Show confirmed players ranked by handicap
     const sortedRoster = [...tripData.roster.confirmed].sort((a, b) => {
         if (a.handicap === null) return 1;
         if (b.handicap === null) return -1;
         return a.handicap - b.handicap;
     });
 
-    const scoreboardElement = document.getElementById('main-scoreboard');
-    if (!scoreboardElement) return;
+    elements.dynamicLeaderboard.innerHTML = `
+        <div class="m-board-header">
+            <div class="m-board-title">Confirmed Players - Pre-Tournament Rankings</div>
+            <div style="color: var(--text-muted); font-size: 0.8rem;">Ranked by Handicap</div>
+        </div>
+        <table class="m-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th class="m-row-player">Player</th>
+                    <th>Handicap</th>
+                    <th>GHIN</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${sortedRoster.map((player, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td class="m-row-player">${player.name}</td>
+                        <td>${player.handicap !== null ? player.handicap : 'N/A'}</td>
+                        <td>${player.ghin || 'Missing'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
 
-    const headerRow = scoreboardElement.querySelector('.header-row');
-    scoreboardElement.innerHTML = '';
-    if (headerRow) scoreboardElement.appendChild(headerRow);
+function getThruHoles(score) {
+    let thru = 0;
+    for (let i = 1; i <= 18; i++) {
+        if (score[`h${i}`] !== null) thru++;
+    }
+    return thru === 0 ? '-' : thru === 18 ? 'F' : thru;
+}
 
-    sortedRoster.forEach((player, index) => {
-        const row = document.createElement('div');
-        row.className = 'board-row';
-        row.innerHTML = `
-            <div class="col-pos">${index + 1}</div>
-            <div class="col-player">${player.name}</div>
-            <div class="col-thru">-</div>
-            <div class="col-score">E</div>
-        `;
-        scoreboardElement.appendChild(row);
-    });
+function formatToPar(val) {
+    if (val === 0) return 'E';
+    if (val > 0) return `+${val}`;
+    return val;
+}
+
+function getScoreClass(val) {
+    if (val === 0) return 'm-score-even';
+    if (val < 0) return 'm-score-under';
+    return 'm-score-over';
 }
 
 function renderRoster() {
@@ -375,6 +485,35 @@ function setupEventListeners() {
     if (elements.modalClose) elements.modalClose.addEventListener('click', closeModal);
     if (elements.cancelBtn) elements.cancelBtn.addEventListener('click', closeModal);
 
+    if (elements.leaderboardBtn) {
+        elements.leaderboardBtn.addEventListener('click', () => {
+            elements.leaderboardModal.classList.add('active');
+            renderDynamicScoreboard();
+        });
+    }
+
+    if (elements.leaderboardClose) {
+        elements.leaderboardClose.addEventListener('click', () => {
+            elements.leaderboardModal.classList.remove('active');
+        });
+    }
+
+    if (elements.startRoundBtn) {
+        elements.startRoundBtn.addEventListener('click', () => {
+            elements.roundLoginModal.classList.add('active');
+        });
+    }
+
+    if (elements.roundLoginClose) {
+        elements.roundLoginClose.addEventListener('click', () => {
+            elements.roundLoginModal.classList.remove('active');
+        });
+    }
+
+    if (elements.roundLoginSubmit) {
+        elements.roundLoginSubmit.addEventListener('click', handleRoundLogin);
+    }
+
     if (elements.registrationModal) {
         elements.registrationModal.addEventListener('click', (e) => {
             if (e.target === elements.registrationModal) {
@@ -383,13 +522,15 @@ function setupEventListeners() {
         });
     }
 
+    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && elements.registrationModal && elements.registrationModal.classList.contains('active')) {
+        if (e.key === 'Escape') {
             closeModal();
+            if (elements.leaderboardModal) elements.leaderboardModal.classList.remove('active');
+            if (elements.roundLoginModal) elements.roundLoginModal.classList.remove('active');
         }
     });
-
-    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
 }
 
 function openModal() {
@@ -412,7 +553,7 @@ function handleFormSubmit(e) {
     const handicap = formData.get('handicap');
     const password = formData.get('password');
 
-    const correctPassword = 'iLoveGolf2026!';
+    const correctPassword = 'golftrip'; // Reverting to original or keeping consistent
     if (password !== correctPassword) {
         alert('❌ Incorrect password. Please contact the trip organizer for the registration password.');
         return;
@@ -429,11 +570,40 @@ function handleFormSubmit(e) {
     tripData.roster.confirmed.push(newPlayer);
 
     renderRoster();
-    renderScoreboard();
+    renderDynamicScoreboard();
     alert(`Welcome to the trip, ${newPlayer.name}! 🏌️‍♂️`);
     closeModal();
     const attendeeSection = document.getElementById('attendees');
     if (attendeeSection) attendeeSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function handleRoundLogin() {
+    const email = document.getElementById('round-email').value;
+    const password = document.getElementById('round-password').value;
+    const errorEl = document.getElementById('round-login-error');
+
+    if (!supabaseInstance) {
+        alert('Supabase not configured. Check script.js');
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseInstance.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            errorEl.textContent = error.message;
+            errorEl.style.display = 'block';
+        } else {
+            // Redirect to round tracker
+            window.location.href = 'round_tracker.html';
+        }
+    } catch (err) {
+        errorEl.textContent = 'An unexpected error occurred.';
+        errorEl.style.display = 'block';
+    }
 }
 
 async function saveToSupabase(player) {

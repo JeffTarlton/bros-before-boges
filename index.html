@@ -22,7 +22,8 @@
                     <li><a href="#overview">Trip Info</a></li>
                     <li><a href="#courses">The Links</a></li>
                     <li><a href="#attendees">The Squad</a></li>
-                    <li><a href="#scoreboard" class="btn-nav">Scoreboard</a></li>
+                    <li><button id="leaderboard-btn" class="btn-nav">Scoreboard</button></li>
+                    <li><button id="start-round-btn" class="btn-nav">Start Round</button></li>
                     <li><button id="signup-btn" class="btn-nav btn-signup">Sign Up</button></li>
                 </ul>
             </nav>
@@ -110,32 +111,6 @@
             </div>
         </section>
 
-        <section id="scoreboard" class="section-padding live-score-section">
-            <div class="container">
-                <h2 class="section-title">The <span class="text-stroke">Leaderboard</span></h2>
-
-                <div class="augusta-board">
-                    <div class="board-header">
-                        <div class="board-title">Official Scorecard</div>
-                        <div class="board-subtitle">Bros before Boges 2026</div>
-                    </div>
-                    <div class="board-grid" id="main-scoreboard">
-                        <div class="board-row header-row">
-                            <div class="col-pos">Hole</div>
-                            <div class="col-player">Player</div>
-                            <div class="col-rating">HCP</div>
-                            <div class="col-thru">Thru</div>
-                            <div class="col-score">Score</div>
-                        </div>
-                        <!-- Rows rendered by JS -->
-                    </div>
-                    <div class="board-footer">
-                        Attest: ____________________ Date: Oct 3, 2026
-                    </div>
-                </div>
-
-            </div>
-        </section>
     </main>
 
     <footer class="site-footer">
@@ -180,6 +155,46 @@
                     <button type="button" class="btn-nav" id="cancel-btn" style="flex: 1;">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="modal">
+        <div class="modal-content leaderboard-modal-content glass-panel">
+            <div class="modal-header">
+                <h2 class="section-title">Trip <span class="accent">Leaderboard</span></h2>
+                <button class="modal-close" id="leaderboard-close"
+                    style="background: none; border: none; font-size: 2rem; color: white; cursor: pointer; position: absolute; top: 20px; right: 20px;">&times;</button>
+            </div>
+            <div class="scoreboard-container">
+                <div class="masters-scoreboard" id="dynamic-leaderboard">
+                    <!-- Dynamic Scoreboard injected here -->
+                    <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">
+                        Loading Leaderboard...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Round Login Modal -->
+    <div id="round-login-modal" class="modal">
+        <div class="modal-content glass-panel" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 style="margin-bottom: 20px;">Admin Login</h2>
+                <button class="modal-close" id="round-login-close"
+                    style="background: none; border: none; font-size: 2rem; color: white; cursor: pointer; position: absolute; top: 20px; right: 20px;">&times;</button>
+            </div>
+            <div class="login-box" style="margin-top: 20px;">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Enter credentials to start a new round.</p>
+                <input type="email" id="round-email" class="admin-input" placeholder="Email Address"
+                    style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                <input type="password" id="round-password" class="admin-input" placeholder="Password"
+                    style="width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+                <button id="round-login-submit" class="btn btn-primary"
+                    style="width: 100%; padding: 12px;">Login</button>
+                <p id="round-login-error" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem; display: none;">
+                </p>
+            </div>
         </div>
     </div>
 

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Tracker | Bros before Boges</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
+        rel="stylesheet">
+    <style>
+        .tracker-container {
+            max-width: 1000px;
+            margin: 120px auto 40px;
+            padding: 20px;
+        }
+
+        .course-selector,
+        .player-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+
+        .tracker-grid {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 30px;
+        }
+
+        .score-input {
+            width: 50px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            color: white;
+            text-align: center;
+        }
+
+        .score-input:focus {
+            outline: none;
+            border-color: var(--accent-emerald);
+        }
+
+        .tracker-table {
+            width: 100%;
+            border-collapse: collapse;
+            color: white;
+        }
+
+        .tracker-table th,
+        .tracker-table td {
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .par-row {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-emerald);
+            font-weight: 700;
+        }
+
+        .player-row {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .btn-save {
+            margin-top: 30px;
+            width: 100%;
+        }
+
+        .setup-screen {
+            display: block;
+        }
+
+        .scoring-screen {
+            display: none;
+        }
+
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: white;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container header-container">
+            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Back to Home</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="tracker-container">
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="setup-screen glass-panel">
+            <h2 class="section-title">Round <span class="accent">Setup</span></h2>
+
+            <!-- Join Active Round Section -->
+            <div id="active-rounds-section"
+                style="display: none; margin-bottom: 30px; padding: 20px; border: 1px solid var(--accent-emerald); border-radius: 12px; background: rgba(16, 185, 129, 0.05);">
+                <h3 style="color: var(--accent-emerald); margin-bottom: 15px;">Active Round Detected</h3>
+                <p style="font-size: 0.9rem; margin-bottom: 15px;">There is already a round in progress. Would you like
+                    to join it?</p>
+                <button id="join-round-btn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">Join
+                    Active Round</button>
+                <div style="text-align: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">or create a new one below</span>
+                </div>
+            </div>
+
+            <div class="course-selector">
+                <h3>1. Select Course</h3>
+                <select id="course-select">
+                    <option value="">-- Choose a Course --</option>
+                    <!-- Courses loaded from Supabase -->
+                </select>
+            </div>
+
+            <div class="player-selector">
+                <h3>2. Players in your Group</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Select yourself and anyone
+                    else you are tracking scores for.</p>
+                <div id="player-checkboxes"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+                    <!-- Players loaded from Supabase (Confirmed Only) -->
+                    <div style="color: var(--text-muted); font-size: 0.9rem;">Loading players...</div>
+                </div>
+            </div>
+
+            <button id="start-scoring-btn" class="btn btn-primary" style="width: 100%;">Start New Session</button>
+        </div>
+
+        <!-- Scoring Screen -->
+        <div id="scoring-screen" class="scoring-screen glass-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="active-course-name">Live Scoring</h2>
+                <button id="back-to-setup" class="btn-nav" style="padding: 5px 15px; font-size: 0.8rem;">Change
+                    Setup</button>
+            </div>
+
+            <div class="tracker-grid">
+                <table class="tracker-table" id="scorecard-table">
+                    <!-- Dynamic Scorecard -->
+                </table>
+            </div>
+
+            <button id="finish-round-btn" class="btn btn-primary btn-save">Finish & Finalize Round</button>
+            <p style="text-align: center; margin-top: 15px; color: var(--text-muted); font-size: 0.9rem;">Scores are
+                saved automatically as you type.</p>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="round_tracker.js"></script>
+</body>
+
+</html>
