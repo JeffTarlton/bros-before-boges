@@ -18,7 +18,7 @@ const tripData = {
     year: 2026,
     location: "Horseshoe Bay, Texas",
     accommodation: "Horseshoe Bay Resort",
-    accommodationLink: "https://www.clubhsbresort.com/",
+    accommodationLink: "https://www.hsbresort.com/",
     dates: "April 9th - 13th, 2026",
     costs: {
         entryFee: 150,
