@@ -18,6 +18,8 @@ let elements = {};
 // State
 let players = [];
 let originalPlayers = []; // To track changes and allow discard
+let pairings = [];
+let originalPairings = [];
 let hasChanges = false;
 
 // Initial Load
@@ -36,7 +38,12 @@ function init() {
             passwordInput: document.getElementById('password'),
             addPlayerBtn: document.getElementById('add-player-btn'),
             saveBtn: document.getElementById('save-btn'),
-            discardBtn: document.getElementById('discard-btn')
+            discardBtn: document.getElementById('discard-btn'),
+            autoDraftBtn: document.getElementById('auto-draft-btn'),
+            team1List: document.getElementById('team1-list'),
+            team2List: document.getElementById('team2-list'),
+            pairingsList: document.getElementById('pairings-list'),
+            addPairingBtn: document.getElementById('add-pairing-btn')
         };
 
         checkInitialAuth();
@@ -112,10 +119,26 @@ function setupEventListeners() {
     // Tab switching
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', () => {
+            const tab = item.dataset.tab;
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+
             item.classList.add('active');
+            const targetTab = document.getElementById(`tab-${tab}`);
+            if (targetTab) targetTab.style.display = 'block';
+
+            if (tab === 'drafting') renderDraftingUI();
+            if (tab === 'pairings') renderPairingsUI();
         });
     });
+
+    if (elements.autoDraftBtn) {
+        elements.autoDraftBtn.addEventListener('click', autoDraft);
+    }
+
+    if (elements.addPairingBtn) {
+        elements.addPairingBtn.addEventListener('click', addPairing);
+    }
 }
 
 async function handleLogin() {
@@ -162,6 +185,7 @@ function showDashboard() {
     if (elements.dashboard) elements.dashboard.classList.add('active');
     if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
     loadRoster();
+    loadPairings();
 }
 
 async function loadRoster() {
@@ -190,6 +214,27 @@ async function loadRoster() {
         originalPlayers = JSON.parse(JSON.stringify(demoData));
     }
     renderRosterTable();
+    renderDraftingUI();
+    renderPairingsUI();
+    checkChanges();
+}
+
+async function loadPairings() {
+    if (supabaseInstance) {
+        try {
+            const { data, error } = await supabaseInstance
+                .from('pairings')
+                .select('*');
+
+            if (!error && data) {
+                pairings = JSON.parse(JSON.stringify(data));
+                originalPairings = JSON.parse(JSON.stringify(data));
+            }
+        } catch (e) {
+            console.error('Pairings load failed:', e);
+        }
+    }
+    renderPairingsUI();
     checkChanges();
 }
 
@@ -244,9 +289,8 @@ function removePlayer(index) {
 }
 
 function checkChanges() {
-    // Compare players to originalPlayers
-    const current = JSON.stringify(players);
-    const original = JSON.stringify(originalPlayers);
+    const current = JSON.stringify({ players, pairings });
+    const original = JSON.stringify({ players: originalPlayers, pairings: originalPairings });
 
     hasChanges = current !== original;
 
@@ -255,10 +299,155 @@ function checkChanges() {
     }
 }
 
+function renderDraftingUI() {
+    if (!elements.team1List || !elements.team2List) return;
+
+    elements.team1List.innerHTML = '';
+    elements.team2List.innerHTML = '';
+
+    // Create a pool for unassigned players (or just show all by team)
+    const playersByTeam = {
+        1: players.filter(p => p.team_id === 1),
+        2: players.filter(p => p.team_id === 2),
+        unassigned: players.filter(p => !p.team_id || (p.team_id !== 1 && p.team_id !== 2))
+    };
+
+    const renderPlayerItem = (p, currentTeam) => {
+        const div = document.createElement('div');
+        div.style = "display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);";
+        div.innerHTML = `
+            <div>
+                <div style="font-weight: 600; font-size: 0.9rem;">${p.name || 'Unnamed'}</div>
+                <div style="font-size: 0.75rem; color: var(--admin-accent);">HCP: ${p.handicap !== null ? p.handicap : 'N/A'}</div>
+            </div>
+            <div style="display: flex; gap: 5px;">
+                ${currentTeam !== 1 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="moveToTeam('${p.name}', 1)">To T1</button>` : ''}
+                ${currentTeam !== 2 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0; background: #ef4444;" onclick="moveToTeam('${p.name}', 2)">To T2</button>` : ''}
+                ${currentTeam !== null ? `<button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="moveToTeam('${p.name}', null)">Clear</button>` : ''}
+            </div>
+        `;
+        return div;
+    };
+
+    players.forEach(p => {
+        if (p.team_id === 1) elements.team1List.appendChild(renderPlayerItem(p, 1));
+        else if (p.team_id === 2) elements.team2List.appendChild(renderPlayerItem(p, 2));
+        else {
+            // Put unassigned in a temporary "Draft Pool" or just both lists with options
+            // For now, let's put unassigned in both as available
+            elements.team1List.appendChild(renderPlayerItem(p, null));
+            elements.team2List.appendChild(renderPlayerItem(p, null));
+        }
+    });
+
+    // Cleanup: If a player is in both but unassigned, that's fine for this UI choice
+}
+
+// Global exposure for drafting buttons
+window.moveToTeam = (playerName, teamId) => {
+    const player = players.find(p => p.name === playerName);
+    if (player) {
+        player.team_id = teamId;
+        renderDraftingUI();
+        checkChanges();
+    }
+};
+
+function autoDraft() {
+    if (!confirm('This will automatically assign all players with handicaps to teams using a Snake Draft (1, 3, 6) logic. Existing team assignments will be overwritten for these players. Continue?')) return;
+
+    // Filter and sort by handicap
+    const squad = players
+        .filter(p => p.handicap !== null)
+        .sort((a, b) => a.handicap - b.handicap);
+
+    squad.forEach((player, index) => {
+        const rank = index + 1;
+        if (rank % 4 === 1 || rank % 4 === 0) {
+            player.team_id = 1;
+        } else {
+            player.team_id = 2;
+        }
+    });
+
+    renderDraftingUI();
+    checkChanges();
+    alert('Auto-draft complete! Inspect the teams and click "Save Changes" to commit.');
+}
+
+function renderPairingsUI() {
+    if (!elements.pairingsList) return;
+
+    elements.pairingsList.innerHTML = '';
+
+    if (players.length === 0) {
+        elements.pairingsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Load players first to create pairings.</p>';
+        return;
+    }
+
+    pairings.forEach((pair, index) => {
+        const div = document.createElement('div');
+        div.className = 'glass-panel';
+        div.style = "padding: 20px; border-color: rgba(255,255,255,0.05);";
+
+        const player1 = players.find(p => p.id === pair.player1_id) || players.find(p => p.name === pair.player1_name);
+        const player2 = players.find(p => p.id === pair.player2_id) || players.find(p => p.name === pair.player2_name);
+
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                <h4 style="color: var(--admin-accent);">Pair ${index + 1}</h4>
+                <button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="removePairing(${index})">Remove</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <select class="admin-input" style="padding: 8px; font-size: 0.9rem;" onchange="updatePairing(${index}, 'player1_id', this.value)">
+                    <option value="">Select Player 1</option>
+                    ${players.map(p => `<option value="${p.id || p.name}" ${(p.id === pair.player1_id || p.name === pair.player1_name) ? 'selected' : ''}>${p.name} (Team ${p.team_id || '?'})</option>`).join('')}
+                </select>
+                <select class="admin-input" style="padding: 8px; font-size: 0.9rem;" onchange="updatePairing(${index}, 'player2_id', this.value)">
+                    <option value="">Select Player 2</option>
+                    ${players.map(p => `<option value="${p.id || p.name}" ${(p.id === pair.player2_id || p.name === pair.player2_name) ? 'selected' : ''}>${p.name} (Team ${p.team_id || '?'})</option>`).join('')}
+                </select>
+            </div>
+        `;
+        elements.pairingsList.appendChild(div);
+    });
+
+    if (pairings.length === 0) {
+        elements.pairingsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No pairings defined. Click "+ Create Pair" to start.</p>';
+    }
+}
+
+function addPairing() {
+    pairings.push({ player1_id: null, player2_id: null, team_id: null });
+    renderPairingsUI();
+    checkChanges();
+}
+
+window.removePairing = (index) => {
+    pairings.splice(index, 1);
+    renderPairingsUI();
+    checkChanges();
+};
+
+window.updatePairing = (index, field, value) => {
+    pairings[index][field] = value;
+
+    // Auto-detect team if possible
+    const player = players.find(p => p.id === value || p.name === value);
+    if (player && player.team_id) {
+        pairings[index].team_id = player.team_id;
+    }
+
+    checkChanges();
+};
+
 function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         players = JSON.parse(JSON.stringify(originalPlayers));
+        pairings = JSON.parse(JSON.stringify(originalPairings));
         renderRosterTable();
+        renderDraftingUI();
+        renderPairingsUI();
         checkChanges();
     }
 }
@@ -294,8 +483,34 @@ async function saveChanges() {
 
         if (upsertError) throw upsertError;
 
+        // 4. Update Pairings
+        // (Simplified: Delete all and re-insert for this POC, or do smart upsert)
+        // First, ensure all players have IDs for the foreign key
+        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name')).data;
+        const pairingsToSave = pairings.map(p => {
+            // Map names back to IDs if they were added as names in demo mode
+            const p1 = refreshedPlayers.find(rp => rp.id === p.player1_id || rp.name === p.player1_id);
+            const p2 = refreshedPlayers.find(rp => rp.id === p.player2_id || rp.name === p.player2_id);
+            return {
+                player1_id: p1 ? p1.id : null,
+                player2_id: p2 ? p2.id : null,
+                team_id: p.team_id
+            };
+        }).filter(p => p.player1_id && p.player2_id);
+
+        // Delete existing pairings (clean slate for Round 2)
+        await supabaseInstance.from('pairings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (pairingsToSave.length > 0) {
+            const { error: pairError } = await supabaseInstance
+                .from('pairings')
+                .insert(pairingsToSave);
+            if (pairError) throw pairError;
+        }
+
         alert('Changes saved successfully! 🎉');
         loadRoster(); // Refresh original state
+        loadPairings();
     } catch (err) {
         console.error('Save failed:', err);
         alert('Error saving changes: ' + err.message);

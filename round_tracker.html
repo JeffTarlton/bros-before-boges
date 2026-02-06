@@ -125,11 +125,23 @@
             </div>
 
             <div class="course-selector">
-                <h3>1. Select Course</h3>
-                <select id="course-select">
-                    <option value="">-- Choose a Course --</option>
-                    <!-- Courses loaded from Supabase -->
-                </select>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3>1. Select Round</h3>
+                        <select id="round-number-select">
+                            <option value="1">Round 1 (Stableford)</option>
+                            <option value="2">Round 2 (Match Play - Scramble)</option>
+                            <option value="3">Round 3 (Singles Match Play)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <h3>2. Select Course</h3>
+                        <select id="course-select">
+                            <option value="">-- Choose a Course --</option>
+                            <!-- Courses loaded from Supabase -->
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div class="player-selector">

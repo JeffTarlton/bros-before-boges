@@ -6,6 +6,7 @@ let supabaseInstance = null;
 let currentRoundId = null;
 let currentCourse = null;
 let selectedPlayers = [];
+let pairings = [];
 
 let currentUserPlayer = null;
 let activeRound = null;
@@ -57,23 +58,33 @@ async function loadInitialData() {
         });
     }
 
-    // 2. Load Confirmed Players
+    // 2. Load Confirmed Players & Group by Team
     const { data: players } = await supabaseInstance
         .from('players')
         .select('*')
-        .eq('status', 'confirmed') // Only confirmed players
+        .eq('status', 'confirmed')
+        .order('team_id', { ascending: true })
         .order('name');
 
     const playerContainer = document.getElementById('player-checkboxes');
     playerContainer.innerHTML = '';
     if (players) {
+        let currentTeam = null;
         players.forEach(p => {
+            if (p.team_id !== currentTeam) {
+                currentTeam = p.team_id;
+                const teamHeader = document.createElement('div');
+                teamHeader.style = "grid-column: 1 / -1; margin-top: 15px; font-weight: 800; color: var(--accent-gold); font-size: 0.8rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;";
+                teamHeader.textContent = currentTeam ? `Team ${currentTeam}` : 'No Team Assigned';
+                playerContainer.appendChild(teamHeader);
+            }
+
             const isSelf = currentUserPlayer && p.id === currentUserPlayer.id;
             const div = document.createElement('div');
             div.innerHTML = `
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; ${isSelf ? 'color: var(--accent-emerald); font-weight: 700;' : ''}">
                     <input type="checkbox" value="${p.id}" class="player-check" 
-                        data-name="${p.name}" ${isSelf ? 'checked' : ''}>
+                        data-name="${p.name}" data-team="${p.team_id || ''}" ${isSelf ? 'checked' : ''}>
                     ${p.name} ${isSelf ? '(You)' : ''}
                 </label>
             `;
@@ -116,6 +127,7 @@ async function startRound(joining = false) {
         coursePars = JSON.parse(JSON.stringify(Array.from({ length: 18 }, (_, i) => activeRound.courses[`h${i + 1}_par`])));
         currentRoundId = activeRound.id;
     } else {
+        const roundNumber = document.getElementById('round-number-select').value;
         courseId = document.getElementById('course-select').value;
         if (!courseId) {
             alert('Please select a course.');
@@ -125,10 +137,10 @@ async function startRound(joining = false) {
         courseName = courseOpt.textContent;
         coursePars = JSON.parse(courseOpt.dataset.pars);
 
-        // Create New Round
+        // Create New Round with round_number
         const { data: roundData, error: roundError } = await supabaseInstance
             .from('rounds')
-            .insert([{ course_id: courseId, status: 'active' }])
+            .insert([{ course_id: courseId, status: 'active', round_number: parseInt(roundNumber) }])
             .select();
 
         if (roundError) {
@@ -148,7 +160,8 @@ async function startRound(joining = false) {
 
     selectedPlayers = Array.from(playerChecks).map(chk => ({
         id: chk.value,
-        name: chk.dataset.name
+        name: chk.dataset.name,
+        team_id: chk.dataset.team
     }));
 
     // Fetch existing scores for this round to see who is already tracking
@@ -194,6 +207,15 @@ async function startRound(joining = false) {
         });
     }
 
+    // Load Round 2 Pairings if applicable
+    const roundNumber = activeRound ? activeRound.round_number : parseInt(document.getElementById('round-number-select').value);
+    if (roundNumber === 2) {
+        const { data: pairData } = await supabaseInstance
+            .from('pairings')
+            .select('*');
+        pairings = pairData || [];
+    }
+
     renderScorecard();
     document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('scoring-screen').style.display = 'block';
@@ -202,6 +224,7 @@ async function startRound(joining = false) {
 
 function renderScorecard() {
     const table = document.getElementById('scorecard-table');
+    const isRound2 = (activeRound && activeRound.round_number === 2) || (document.getElementById('round-number-select') && document.getElementById('round-number-select').value == 2);
 
     let html = `
         <thead>
@@ -221,33 +244,60 @@ function renderScorecard() {
         <tbody>
     `;
 
-    selectedPlayers.forEach(player => {
-        const total = player.scores.reduce((a, b) => a + (b || 0), 0);
-        let toPar = 0;
-        player.scores.forEach((s, i) => {
-            if (s !== null && currentCourse.pars[i]) {
-                toPar += (s - currentCourse.pars[i]);
-            }
-        });
-        const toParText = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
-        const toParColor = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+    const processedPlayerIds = new Set();
 
-        html += `
-            <tr class="player-row">
-                <td style="text-align: left; font-weight: 700;">${player.name}</td>
-                ${Array.from({ length: 18 }, (_, i) => `
-                    <td>
-                        <input type="number" class="score-input" 
-                            data-player-id="${player.id}" 
-                            data-hole="${i + 1}" 
-                            value="${player.scores[i] || ''}"
-                            onchange="updateScore('${player.id}', ${i + 1}, this.value)">
+    selectedPlayers.forEach(player => {
+        if (processedPlayerIds.has(player.id)) return;
+
+        let companion = null;
+        if (isRound2) {
+            const pair = pairings.find(p => p.player1_id === player.id || p.player2_id === player.id);
+            if (pair) {
+                const companionId = pair.player1_id === player.id ? pair.player2_id : pair.player1_id;
+                companion = selectedPlayers.find(p => p.id === companionId);
+            }
+        }
+
+        const renderRow = (p, isCompanion = false) => {
+            const total = p.scores.reduce((a, b) => a + (b || 0), 0);
+            let toPar = 0;
+            p.scores.forEach((s, i) => {
+                if (s !== null && currentCourse.pars[i]) {
+                    toPar += (s - currentCourse.pars[i]);
+                }
+            });
+            const toParText = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
+            const toParColor = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+
+            return `
+                <tr class="player-row ${isCompanion ? 'companion-row' : ''}" style="${isCompanion ? 'border-top: none;' : ''}">
+                    <td style="text-align: left; font-weight: 700; ${isCompanion ? 'padding-left: 25px;' : ''}">
+                        ${p.name}
+                        ${p.team_id ? `<br><small style="color: var(--accent-gold); font-size: 0.75rem;">TEAM ${p.team_id}</small>` : ''}
+                        ${isCompanion ? '<br><small style="color: var(--text-muted); font-size: 0.65rem;">PAIR PARTNER</small>' : ''}
                     </td>
-                `).join('')}
-                <td id="total-${player.id}">${total}</td>
-                <td id="topar-${player.id}" style="color: ${toParColor}">${toParText}</td>
-            </tr>
-        `;
+                    ${Array.from({ length: 18 }, (_, i) => `
+                        <td>
+                            <input type="number" class="score-input" 
+                                data-player-id="${p.id}" 
+                                data-hole="${i + 1}" 
+                                value="${p.scores[i] || ''}"
+                                onchange="updateScore('${p.id}', ${i + 1}, this.value)">
+                        </td>
+                    `).join('')}
+                    <td id="total-${p.id}">${total}</td>
+                    <td id="topar-${p.id}" style="color: ${toParColor}">${toParText}</td>
+                </tr>
+            `;
+        };
+
+        html += renderRow(player);
+        processedPlayerIds.add(player.id);
+
+        if (companion) {
+            html += renderRow(companion, true);
+            processedPlayerIds.add(companion.id);
+        }
     });
 
     html += `</tbody>`;
@@ -286,6 +336,22 @@ async function updateScore(playerId, hole, val) {
         .eq('id', player.scoreId);
 
     if (error) console.error('Save failed:', error);
+
+    // If Round 2 and paired, update the companion as well
+    const isRound2 = (activeRound && activeRound.round_number === 2) || (document.getElementById('round-number-select') && document.getElementById('round-number-select').value == 2);
+    if (isRound2) {
+        const pair = pairings.find(p => p.player1_id === playerId || p.player2_id === playerId);
+        if (pair) {
+            const companionId = pair.player1_id === playerId ? pair.player2_id : pair.player1_id;
+            const companion = selectedPlayers.find(p => p.id === companionId);
+            if (companion && companion.scores[hole - 1] !== scoreVal) {
+                companion.scores[hole - 1] = scoreVal;
+                const compInput = document.querySelector(`.score-input[data-player-id="${companionId}"][data-hole="${hole}"]`);
+                if (compInput) compInput.value = val;
+                updateScore(companionId, hole, val);
+            }
+        }
+    }
 }
 
 async function finalizeRound() {

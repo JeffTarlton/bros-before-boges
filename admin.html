@@ -257,6 +257,8 @@
             <!-- Sidebar -->
             <aside class="admin-sidebar">
                 <div class="sidebar-item active" data-tab="roster">Confirmed Roster</div>
+                <div class="sidebar-item" data-tab="drafting">Team Drafting</div>
+                <div class="sidebar-item" data-tab="pairings">Round 2 Pairings</div>
                 <div class="sidebar-item" data-tab="potential">Potential Players</div>
                 <div class="sidebar-item" data-tab="config">Trip Config</div>
                 <div class="sidebar-item" data-tab="schedule">Schedule</div>
@@ -292,6 +294,58 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div id="tab-drafting" class="tab-content" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Team Drafting</h2>
+                        <button id="auto-draft-btn" class="admin-btn secondary"
+                            style="width: auto; margin-top: 0; padding: 10px 20px;">
+                            Auto-Draft (1, 3, 6 Snake)
+                        </button>
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
+                        Assign players to Team 1 or Team 2. Changes are saved when you click "Save Changes" at the
+                        bottom.
+                    </p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;" id="drafting-grid">
+                        <!-- Column for Team 1 -->
+                        <div class="glass-panel" style="padding: 20px; border-color: rgba(16, 185, 129, 0.3);">
+                            <h3 style="color: var(--admin-accent); margin-bottom: 20px;">Team 1</h3>
+                            <div id="team1-list"
+                                style="display: flex; flex-direction: column; gap: 10px; min-height: 100px;">
+                                <!-- Players assigned to Team 1 -->
+                            </div>
+                        </div>
+                        <!-- Column for Team 2 -->
+                        <div class="glass-panel" style="padding: 20px; border-color: rgba(239, 68, 68, 0.3);">
+                            <h3 style="color: #ef4444; margin-bottom: 20px;">Team 2</h3>
+                            <div id="team2-list"
+                                style="display: flex; flex-direction: column; gap: 10px; min-height: 100px;">
+                                <!-- Players assigned to Team 2 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-pairings" class="tab-content" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Round 2 Pairings</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="add-pairing-btn" class="admin-btn"
+                                style="width: auto; margin-top: 0; padding: 10px 20px;">+ Create Pair</button>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
+                        Define player pairs for Round 2 (Scramble/Alternate Shot). Pairs must consist of two players
+                        from the same team.
+                    </p>
+                    <div id="pairings-list"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                        <!-- Pairings rendered here -->
+                    </div>
                 </div>
             </main>
         </div>

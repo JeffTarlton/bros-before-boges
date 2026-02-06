@@ -156,7 +156,8 @@ async function init() {
             roundLoginModal: document.getElementById('round-login-modal'),
             roundLoginClose: document.getElementById('round-login-close'),
             roundLoginSubmit: document.getElementById('round-login-submit'),
-            dynamicLeaderboard: document.getElementById('dynamic-leaderboard')
+            dynamicLeaderboard: document.getElementById('dynamic-leaderboard'),
+            teamSelectionDisplay: document.getElementById('team-selection-display')
         };
 
         // Render static details immediately
@@ -167,9 +168,11 @@ async function init() {
         // Start loading roster data (async)
         loadRosterData().then(() => {
             renderDynamicScoreboard();
+            renderTeamSelection();
         }).catch(err => {
             console.error('Data flow failed:', err);
             renderDynamicScoreboard(); // Attempt anyway
+            renderTeamSelection();
         });
 
         setupEventListeners();
@@ -198,9 +201,11 @@ async function loadRosterData() {
             renderRoster();
         } else if (data && data.length > 0) {
             tripData.roster.confirmed = data.map(p => ({
+                id: p.id,
                 name: p.name,
                 ghin: p.ghin,
-                handicap: p.handicap !== null ? parseFloat(p.handicap) : null
+                handicap: p.handicap !== null ? parseFloat(p.handicap) : null,
+                team_id: p.team_id
             }));
             renderRoster();
         } else {
@@ -335,7 +340,10 @@ async function renderDynamicScoreboard() {
             return;
         }
 
-        const roundId = activeRounds[0].id;
+        const roundData = activeRounds[0];
+        const roundId = roundData.id;
+        const roundNumber = roundData.round_number || 1;
+
         const { data: scores, error: scoreError } = await supabaseInstance
             .from('scores')
             .select('*, players(*)')
@@ -346,22 +354,62 @@ async function renderDynamicScoreboard() {
             return;
         }
 
-        // Rank by total_to_par
-        const sortedScores = scores.sort((a, b) => (a.total_to_par || 0) - (b.total_to_par || 0));
+        // Fetch course data for this round to get pars
+        const { data: courses, error: courseError } = await supabaseInstance
+            .from('courses')
+            .select('*')
+            .eq('id', roundData.course_id);
+
+        const course = courses && courses[0] ? courses[0] : null;
+
+        // Calculate Points/Ranking based on round format
+        const leaderboardData = scores.map(s => {
+            let points = 0;
+            if (roundNumber === 1 && course) {
+                // Round 1: Stableford Points logic
+                for (let i = 1; i <= 18; i++) {
+                    const holeScore = s[`h${i}`];
+                    const par = course[`h${i}_par`] || 4; // Fallback to 4
+                    if (holeScore !== null) {
+                        const diff = holeScore - par;
+                        if (diff <= -2) points += 5; // Eagle or better
+                        else if (diff === -1) points += 3; // Birdie
+                        else if (diff === 0) points += 2; // Par
+                        else if (diff === 1) points += 1; // Bogey
+                    }
+                }
+            } else {
+                points = s.total_to_par || 0;
+            }
+            return { ...s, calculationPoints: points };
+        });
+
+        // Sort: R1 by high points, others by low to par
+        const sortedScores = leaderboardData.sort((a, b) => {
+            if (roundNumber === 1) return b.calculationPoints - a.calculationPoints;
+            return (a.total_to_par || 0) - (b.total_to_par || 0);
+        });
+
+        // Team Standings
+        const team1Score = leaderboardData.filter(s => s.players.team_id === 1).reduce((acc, s) => acc + s.calculationPoints, 0);
+        const team2Score = leaderboardData.filter(s => s.players.team_id === 2).reduce((acc, s) => acc + s.calculationPoints, 0);
 
         elements.dynamicLeaderboard.innerHTML = `
             <div class="m-board-header">
-                <div class="m-board-title">Bros before Boges 2026 - Live Scoreboard</div>
-                <div style="color: #1a4a1a; font-weight: 800;">ROUND ACTIVE</div>
+                <div class="m-board-title">Round ${roundNumber} - ${getRoundFormat(roundNumber)}</div>
+                <div class="team-summary" style="display: flex; gap: 20px; font-weight: 800; font-size: 1.1rem;">
+                    <span style="color: #1a4a1a;">TEAM 1: ${roundNumber === 1 ? team1Score : formatToPar(team1Score)}</span>
+                    <span style="color: #a11;">TEAM 2: ${roundNumber === 1 ? team2Score : formatToPar(team2Score)}</span>
+                </div>
             </div>
             <table class="m-table">
                 <thead>
                     <tr>
                         <th>Pos</th>
                         <th class="m-row-player">Player</th>
-                        <th>HCP</th>
+                        <th>Team</th>
                         <th>Thru</th>
-                        <th>To Par</th>
+                        <th>${roundNumber === 1 ? 'Points' : 'To Par'}</th>
                         <th>Total</th>
                     </tr>
                 </thead>
@@ -370,9 +418,11 @@ async function renderDynamicScoreboard() {
                         <tr>
                             <td>${index + 1}</td>
                             <td class="m-row-player">${s.players.name}</td>
-                            <td>${s.players.handicap || '-'}</td>
+                            <td>${s.players.team_id || '-'}</td>
                             <td>${getThruHoles(s)}</td>
-                            <td class="${getScoreClass(s.total_to_par)}">${formatToPar(s.total_to_par)}</td>
+                            <td class="${roundNumber === 1 ? '' : getScoreClass(s.total_to_par)}">
+                                ${roundNumber === 1 ? s.calculationPoints : formatToPar(s.total_to_par)}
+                            </td>
                             <td>${s.total_score || '-'}</td>
                         </tr>
                     `).join('')}
@@ -441,6 +491,15 @@ function getScoreClass(val) {
     return 'm-score-over';
 }
 
+function getRoundFormat(num) {
+    switch (num) {
+        case 1: return "The Grind (Stableford)";
+        case 2: return "The Turn (Match Play)";
+        case 3: return "Championship Saturday";
+        default: return "Stroke Play";
+    }
+}
+
 function renderRoster() {
     if (!elements.confirmedRoster) return;
     elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => `
@@ -461,6 +520,64 @@ function renderRoster() {
             <div class="potential-badge glass-panel" style="padding: 10px 20px; border-radius: 99px; font-size: 0.9rem; color: var(--text-muted);">${name}</div>
         `).join('');
     }
+}
+
+function renderTeamSelection() {
+    if (!elements.teamSelectionDisplay) return;
+
+    // Filter for players with handicaps and sort them
+    const squad = tripData.roster.confirmed
+        .filter(p => p.handicap !== null)
+        .sort((a, b) => a.handicap - b.handicap);
+
+    if (squad.length === 0) {
+        elements.teamSelectionDisplay.innerHTML = `<div class="glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted);">No confirmed players with handicaps found.</div>`;
+        return;
+    }
+
+    const team1 = [];
+    const team2 = [];
+
+    // Apply Snake Draft Logic (1, 3, 6 pattern)
+    // Rank 1 -> T1, Rank 2/3 -> T2, Rank 4/5 -> T1, Rank 6/7 -> T2...
+    squad.forEach((player, index) => {
+        const rank = index + 1;
+        // Logic: 1 (T1), 2&3 (T2), 4&5 (T1), 6&7 (T2)...
+        // This is essentially: if (rank % 4 === 1 || rank % 4 === 0) -> T1?
+        // Let's re-verify: 1 (1%4=1), 2 (2%4=2), 3 (3%4=3), 4 (4%4=0), 5 (5%4=1), 6 (6%4=2), 7 (7%4=3), 8 (8%4=0)
+        // Values: T1: 1, 4, 5, 8, 9, 12...
+        // T2: 2, 3, 6, 7, 10, 11...
+        // The pattern for T1 is: rank % 4 is 1 or 0.
+        if (rank % 4 === 1 || rank % 4 === 0) {
+            team1.push(player);
+        } else {
+            team2.push(player);
+        }
+    });
+
+    const renderTeamList = (team, teamNum) => `
+        <div class="glass-panel team-card" style="padding: 30px;">
+            <h3 style="color: ${teamNum === 1 ? 'var(--accent-emerald)' : '#ef4444'}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+                TEAM ${teamNum}
+                <span style="font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 5px 12px; border-radius: 99px; color: var(--text-muted);">
+                    Avg HCP: ${(team.reduce((acc, p) => acc + p.handicap, 0) / team.length).toFixed(1)}
+                </span>
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                ${team.map(p => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="font-weight: 600;">${p.name}</span>
+                        <span style="color: var(--accent-emerald); font-weight: 800; font-family: monospace;">${p.handicap.toFixed(1)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    elements.teamSelectionDisplay.innerHTML = `
+        ${renderTeamList(team1, 1)}
+        ${renderTeamList(team2, 2)}
+    `;
 }
 
 function getInitials(name) {
