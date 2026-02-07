@@ -43,7 +43,10 @@ function init() {
             team1List: document.getElementById('team1-list'),
             team2List: document.getElementById('team2-list'),
             pairingsList: document.getElementById('pairings-list'),
-            addPairingBtn: document.getElementById('add-pairing-btn')
+            addPairingBtn: document.getElementById('add-pairing-btn'),
+            potentialList: document.getElementById('potential-list'),
+            newPotentialName: document.getElementById('new-potential-name'),
+            addPotentialBtn: document.getElementById('add-potential-btn')
         };
 
         checkInitialAuth();
@@ -129,6 +132,7 @@ function setupEventListeners() {
 
             if (tab === 'drafting') renderDraftingUI();
             if (tab === 'pairings') renderPairingsUI();
+            if (tab === 'potential') renderPotentialUI();
         });
     });
 
@@ -138,6 +142,10 @@ function setupEventListeners() {
 
     if (elements.addPairingBtn) {
         elements.addPairingBtn.addEventListener('click', addPairing);
+    }
+
+    if (elements.addPotentialBtn) {
+        elements.addPotentialBtn.addEventListener('click', addPotentialPlayer);
     }
 }
 
@@ -216,6 +224,7 @@ async function loadRoster() {
     renderRosterTable();
     renderDraftingUI();
     renderPairingsUI();
+    renderPotentialUI();
     checkChanges();
 }
 
@@ -241,13 +250,18 @@ async function loadPairings() {
 function renderRosterTable() {
     if (!elements.rosterTbody) return;
 
-    if (players.length === 0) {
-        elements.rosterTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No players found. Click "+ Add Player" to start.</td></tr>`;
+    const confirmedPlayers = players.filter(p => p.status !== 'potential');
+
+    if (confirmedPlayers.length === 0) {
+        elements.rosterTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>`;
         return;
     }
 
-    elements.rosterTbody.innerHTML = players.map((player, index) => `
-        <tr data-index="${index}">
+    elements.rosterTbody.innerHTML = confirmedPlayers.map((player) => {
+        // Find actual index in main array
+        const realIndex = players.indexOf(player);
+        return `
+        <tr data-index="${realIndex}">
             <td><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
             <td><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
             <td><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
@@ -256,7 +270,7 @@ function renderRosterTable() {
                 <button class="remove-player-btn admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
 function updatePlayerData(index, field, value) {
@@ -284,6 +298,7 @@ function removePlayer(index) {
     if (confirm(`Remove ${players[index].name || 'this player'}?`)) {
         players.splice(index, 1);
         renderRosterTable();
+        renderPotentialUI(); // Just in case
         checkChanges();
     }
 }
@@ -305,12 +320,7 @@ function renderDraftingUI() {
     elements.team1List.innerHTML = '';
     elements.team2List.innerHTML = '';
 
-    // Create a pool for unassigned players (or just show all by team)
-    const playersByTeam = {
-        1: players.filter(p => p.team_id === 1),
-        2: players.filter(p => p.team_id === 2),
-        unassigned: players.filter(p => !p.team_id || (p.team_id !== 1 && p.team_id !== 2))
-    };
+    const draftablePlayers = players.filter(p => p.status !== 'potential');
 
     const renderPlayerItem = (p, currentTeam) => {
         const div = document.createElement('div');
@@ -329,18 +339,14 @@ function renderDraftingUI() {
         return div;
     };
 
-    players.forEach(p => {
+    draftablePlayers.forEach(p => {
         if (p.team_id === 1) elements.team1List.appendChild(renderPlayerItem(p, 1));
         else if (p.team_id === 2) elements.team2List.appendChild(renderPlayerItem(p, 2));
         else {
-            // Put unassigned in a temporary "Draft Pool" or just both lists with options
-            // For now, let's put unassigned in both as available
             elements.team1List.appendChild(renderPlayerItem(p, null));
             elements.team2List.appendChild(renderPlayerItem(p, null));
         }
     });
-
-    // Cleanup: If a player is in both but unassigned, that's fine for this UI choice
 }
 
 // Global exposure for drafting buttons
@@ -358,7 +364,7 @@ function autoDraft() {
 
     // Filter and sort by handicap
     const squad = players
-        .filter(p => p.handicap !== null)
+        .filter(p => p.handicap !== null && p.status !== 'potential')
         .sort((a, b) => a.handicap - b.handicap);
 
     squad.forEach((player, index) => {
@@ -441,6 +447,60 @@ window.updatePairing = (index, field, value) => {
     checkChanges();
 };
 
+// New Potential Players Logic
+function renderPotentialUI() {
+    if (!elements.potentialList) return;
+    elements.potentialList.innerHTML = '';
+
+    const potentialPlayers = players.filter(p => p.status === 'potential');
+
+    if (potentialPlayers.length === 0) {
+        elements.potentialList.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No potential players added yet.</p>';
+        return;
+    }
+
+    potentialPlayers.forEach((p) => {
+        const realIndex = players.indexOf(p);
+        const div = document.createElement('div');
+        div.className = 'glass-panel';
+        div.style = "padding: 15px; display: flex; justify-content: space-between; align-items: center;";
+        div.innerHTML = `
+            <span style="font-weight: 600;">${p.name}</span>
+            <div style="display: flex; gap: 10px;">
+                <button class="admin-btn" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Promote</button>
+                <button class="admin-btn secondary" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Remove</button>
+            </div>
+        `;
+        elements.potentialList.appendChild(div);
+    });
+}
+
+function addPotentialPlayer() {
+    const name = elements.newPotentialName.value.trim();
+    if (!name) return;
+
+    players.push({
+        name: name,
+        ghin: null,
+        handicap: null,
+        status: 'potential'
+    });
+
+    elements.newPotentialName.value = '';
+    renderPotentialUI();
+    checkChanges();
+}
+
+window.promotePlayer = (index) => {
+    if (players[index]) {
+        players[index].status = 'confirmed';
+        renderRosterTable();
+        renderPotentialUI();
+        renderDraftingUI();
+        checkChanges();
+    }
+};
+
 function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         players = JSON.parse(JSON.stringify(originalPlayers));
@@ -448,6 +508,7 @@ function discardChanges() {
         renderRosterTable();
         renderDraftingUI();
         renderPairingsUI();
+        renderPotentialUI();
         checkChanges();
     }
 }
@@ -484,11 +545,8 @@ async function saveChanges() {
         if (upsertError) throw upsertError;
 
         // 4. Update Pairings
-        // (Simplified: Delete all and re-insert for this POC, or do smart upsert)
-        // First, ensure all players have IDs for the foreign key
         const refreshedPlayers = (await supabaseInstance.from('players').select('id, name')).data;
         const pairingsToSave = pairings.map(p => {
-            // Map names back to IDs if they were added as names in demo mode
             const p1 = refreshedPlayers.find(rp => rp.id === p.player1_id || rp.name === p.player1_id);
             const p2 = refreshedPlayers.find(rp => rp.id === p.player2_id || rp.name === p.player2_id);
             return {
@@ -498,7 +556,6 @@ async function saveChanges() {
             };
         }).filter(p => p.player1_id && p.player2_id);
 
-        // Delete existing pairings (clean slate for Round 2)
         await supabaseInstance.from('pairings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
         if (pairingsToSave.length > 0) {
@@ -509,7 +566,7 @@ async function saveChanges() {
         }
 
         alert('Changes saved successfully! 🎉');
-        loadRoster(); // Refresh original state
+        loadRoster();
         loadPairings();
     } catch (err) {
         console.error('Save failed:', err);

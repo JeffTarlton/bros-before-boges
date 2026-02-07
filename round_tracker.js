@@ -48,6 +48,9 @@ async function loadInitialData() {
         .select('*');
 
     const courseSelect = document.getElementById('course-select');
+    // Clear existing options except the default one (if any, though we're rebuilding)
+    courseSelect.innerHTML = '<option value="">-- Choose a Course --</option>';
+
     if (courses) {
         courses.forEach(c => {
             const opt = document.createElement('option');

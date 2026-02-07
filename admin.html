@@ -260,8 +260,6 @@
                 <div class="sidebar-item" data-tab="drafting">Team Drafting</div>
                 <div class="sidebar-item" data-tab="pairings">Round 2 Pairings</div>
                 <div class="sidebar-item" data-tab="potential">Potential Players</div>
-                <div class="sidebar-item" data-tab="config">Trip Config</div>
-                <div class="sidebar-item" data-tab="schedule">Schedule</div>
             </aside>
 
             <!-- Content Area -->
@@ -345,6 +343,27 @@
                     <div id="pairings-list"
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                         <!-- Pairings rendered here -->
+                    </div>
+                </div>
+
+                <div id="tab-potential" class="tab-content" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Potential Players</h2>
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
+                        Manage the list of players who are interested or invited but not yet confirmed.
+                    </p>
+
+                    <div class="glass-panel" style="padding: 20px; margin-bottom: 30px; display: flex; gap: 10px;">
+                        <input type="text" id="new-potential-name" class="admin-input" placeholder="Enter player name"
+                            style="margin: 0; flex: 1;">
+                        <button id="add-potential-btn" class="admin-btn"
+                            style="width: auto; margin: 0; padding: 10px 25px;">Add</button>
+                    </div>
+
+                    <div id="potential-list" style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- Content populated by JS -->
                     </div>
                 </div>
             </main>
