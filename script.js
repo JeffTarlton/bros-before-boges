@@ -27,27 +27,8 @@ const tripData = {
         totalEstimate: 1506.50
     },
     roster: {
-        confirmed: [
-            { name: "Colby Gibson", ghin: null, handicap: 5.0 },
-            { name: "Westin Tucker", ghin: null, handicap: 5.6 },
-            { name: "Zac Taylor", ghin: null, handicap: 3.5 },
-            { name: "Derrick Merchant", ghin: null, handicap: 10.0 },
-            { name: "Jeff Tarlton", ghin: 2360395, handicap: 9.0 },
-            { name: "Kelly Dennard", ghin: null, handicap: 8.4 },
-            { name: "Dillon Griffin", ghin: null, handicap: 14.4 },
-            { name: "Andy Mazzolini", ghin: null, handicap: 15.0 },
-            { name: "Jayme McCall", ghin: null, handicap: 7.1 },
-            { name: "David Owens", ghin: null, handicap: 9.3 },
-            { name: "Parker Davidson", ghin: null, handicap: 8.0 },
-            { name: "Tripp Harris", ghin: null, handicap: null },
-            { name: "Ty Buis", ghin: null, handicap: 17.0 }
-        ],
-        potential: [
-            "Tanner Terrell", "Brian Lewis", "Daniel Castro", "Tommy Wood",
-            "Jake Mahan", "Tyler Lyons", "Brad Elder", "Kyle Motheral",
-            "Hunter Scott", "Hunter Miller", "Jeremy Martin", "David Maupins",
-            "Trey Merchant", "Tyler Houk"
-        ]
+        confirmed: [],
+        potential: []
     },
     schedule: [
         {
@@ -184,7 +165,7 @@ async function init() {
 
 async function loadRosterData() {
     if (!supabaseInstance) {
-        console.warn('Supabase not configured. Using hardcoded roster.');
+        console.warn('Supabase not configured. Using empty roster.');
         renderRoster();
         return;
     }
@@ -193,20 +174,33 @@ async function loadRosterData() {
         const { data, error } = await supabaseInstance
             .from('players')
             .select('*')
-            .eq('status', 'confirmed') // Only confirmed players
             .order('name');
 
         if (error) {
             console.error('Error fetching roster:', error);
             renderRoster();
-        } else if (data && data.length > 0) {
-            tripData.roster.confirmed = data.map(p => ({
-                id: p.id,
-                name: p.name,
-                ghin: p.ghin,
-                handicap: p.handicap !== null ? parseFloat(p.handicap) : null,
-                team_id: p.team_id
-            }));
+            return;
+        }
+
+        if (data && data.length > 0) {
+            // Reset arrays
+            tripData.roster.confirmed = [];
+            tripData.roster.potential = [];
+
+            data.forEach(p => {
+                if (p.status === 'confirmed') {
+                    tripData.roster.confirmed.push({
+                        id: p.id,
+                        name: p.name,
+                        ghin: p.ghin,
+                        handicap: p.handicap !== null ? parseFloat(p.handicap) : null,
+                        team_id: p.team_id
+                    });
+                } else if (p.status === 'potential') {
+                    // Current renderRoster expects strings for potential players
+                    tripData.roster.potential.push(p.name);
+                }
+            });
             renderRoster();
         } else {
             renderRoster();
