@@ -395,39 +395,38 @@ async function renderDynamicScoreboard() {
         const team2Score = leaderboardData.filter(s => s.players.team_id === 2).reduce((acc, s) => acc + s.calculationPoints, 0);
 
         elements.dynamicLeaderboard.innerHTML = `
-            <div class="m-board-header">
-                <div class="m-board-title">Round ${roundNumber} - ${getRoundFormat(roundNumber)}</div>
-                <div class="team-summary" style="display: flex; gap: 20px; font-weight: 800; font-size: 1.1rem;">
-                    <span style="color: #1a4a1a;">TEAM 1: ${roundNumber === 1 ? team1Score : formatToPar(team1Score)}</span>
-                    <span style="color: #a11;">TEAM 2: ${roundNumber === 1 ? team2Score : formatToPar(team2Score)}</span>
+            <div class="m-board-header" style="border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <div class="m-board-title" style="color: white; font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;">Round ${roundNumber}</div>
+                    <div style="color: var(--accent-emerald); font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 5px;">${getRoundFormat(roundNumber)}</div>
+                </div>
+                <div class="team-summary" style="display: flex; gap: 15px; font-weight: 800; font-size: 1.05rem;">
+                    <span style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); padding: 6px 14px; border-radius: 99px;">T1: ${roundNumber === 1 ? team1Score : formatToPar(team1Score)}</span>
+                    <span style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 14px; border-radius: 99px;">T2: ${roundNumber === 1 ? team2Score : formatToPar(team2Score)}</span>
                 </div>
             </div>
-            <table class="m-table">
-                <thead>
-                    <tr>
-                        <th>Pos</th>
-                        <th class="m-row-player">Player</th>
-                        <th>Team</th>
-                        <th>Thru</th>
-                        <th>${roundNumber === 1 ? 'Points' : 'To Par'}</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${sortedScores.map((s, index) => `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td class="m-row-player">${s.players.name}</td>
-                            <td>${s.players.team_id || '-'}</td>
-                            <td>${getThruHoles(s)}</td>
-                            <td class="${roundNumber === 1 ? '' : getScoreClass(s.total_to_par)}">
-                                ${roundNumber === 1 ? s.calculationPoints : formatToPar(s.total_to_par)}
-                            </td>
-                            <td>${s.total_score || '-'}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            <div class="leaderboard-list">
+                <div class="leaderboard-row header-row">
+                    <div class="col-rank">Pos</div>
+                    <div class="col-player">Player</div>
+                    <div class="col-team">Team</div>
+                    <div class="col-thru">Thru</div>
+                    <div class="col-score">${roundNumber === 1 ? 'Points' : 'To Par'}</div>
+                    <div class="col-total">Total</div>
+                </div>
+                ${sortedScores.map((s, index) => `
+                    <div class="leaderboard-row">
+                        <div class="col-rank">${index + 1}</div>
+                        <div class="col-player" style="color: white; font-weight: 700;">${s.players.name}</div>
+                        <div class="col-team">${s.players.team_id || '-'}</div>
+                        <div class="col-thru" style="color: var(--text-muted);">${getThruHoles(s)}</div>
+                        <div class="col-score ${roundNumber === 1 ? 'score-neutral' : getCssScoreClass(s.total_to_par)}" style="font-weight: 800; font-family: monospace; font-size: 1.1rem;">
+                            ${roundNumber === 1 ? s.calculationPoints : formatToPar(s.total_to_par)}
+                        </div>
+                        <div class="col-total" style="font-family: monospace; color: var(--text-muted);">${s.total_score || '-'}</div>
+                    </div>
+                `).join('')}
+            </div>
         `;
     } catch (err) {
         console.error('Leaderboard render failed:', err);
@@ -444,31 +443,36 @@ function renderFallbackLeaderboard() {
     });
 
     elements.dynamicLeaderboard.innerHTML = `
-        <div class="m-board-header">
-            <div class="m-board-title">Confirmed Players - Pre-Tournament Rankings</div>
-            <div style="color: var(--text-muted); font-size: 0.8rem;">Ranked by Handicap</div>
+        <div class="m-board-header" style="border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+                <div class="m-board-title" style="color: white; font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;">Pre-Tournament Rankings</div>
+                <div style="color: var(--accent-emerald); font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 5px;">Confirmed Squad</div>
+            </div>
+            <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Ranked by Handicap</div>
         </div>
-        <table class="m-table">
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th class="m-row-player">Player</th>
-                    <th>Handicap</th>
-                    <th>GHIN</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${sortedRoster.map((player, index) => `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td class="m-row-player">${player.name}</td>
-                        <td>${player.handicap !== null ? player.handicap : 'N/A'}</td>
-                        <td>${player.ghin || 'Missing'}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
+        <div class="leaderboard-list">
+            <div class="leaderboard-row header-row">
+                <div class="col-rank">Rank</div>
+                <div class="col-player">Player</div>
+                <div class="col-hcp">Handicap</div>
+                <div class="col-ghin">GHIN</div>
+            </div>
+            ${sortedRoster.map((player, index) => `
+                <div class="leaderboard-row">
+                    <div class="col-rank">${index + 1}</div>
+                    <div class="col-player" style="color: white; font-weight: 700;">${player.name}</div>
+                    <div class="col-hcp" style="color: var(--accent-emerald); font-weight: 800; font-family: monospace; font-size: 1.1rem;">${player.handicap !== null ? player.handicap : '-'}</div>
+                    <div class="col-ghin" style="font-family: monospace; color: var(--text-muted);">${player.ghin || '-'}</div>
+                </div>
+            `).join('')}
+        </div>
     `;
+}
+
+function getCssScoreClass(val) {
+    if (val === 0) return 'score-even';
+    if (val < 0) return 'score-under';
+    return 'score-over';
 }
 
 function getThruHoles(score) {
