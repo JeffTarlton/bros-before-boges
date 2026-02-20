@@ -506,10 +506,14 @@ function getRoundFormat(num) {
 
 function renderRoster() {
     if (!elements.confirmedRoster) return;
-    elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => `
+    elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => {
+        // Assume picture name follows format FirstLast.jpg (e.g. JaymeMcCall.jpg)
+        const imagePath = `assets/PlayerCards/${player.name.replace(/\s+/g, '')}.jpg`;
+        return `
         <div class="attendee-card glass-panel">
-            <div class="attendee-avatar">
-                <span>${getInitials(player.name)}</span>
+            <div class="attendee-avatar" style="position: relative; overflow: hidden;">
+                <img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">
+                <span style="position: relative; z-index: 1;">${getInitials(player.name)}</span>
             </div>
             <h4 class="attendee-name">${player.name}</h4>
             <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
@@ -517,7 +521,7 @@ function renderRoster() {
                 <p style="color: var(--accent-emerald); font-weight: 700;">HCP: ${player.handicap !== null ? player.handicap : 'N/A'}</p>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     if (elements.potentialRoster) {
         elements.potentialRoster.innerHTML = tripData.roster.potential.map(name => `
