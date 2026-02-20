@@ -145,11 +145,15 @@
             <form id="registration-form" class="registration-form">
                 <div class="form-group">
                     <label for="first-name">First Name</label>
-                    <input type="text" id="first-name" name="firstName" required>
+                    <input type="text" id="first-name" name="firstName" required autofocus>
                 </div>
                 <div class="form-group">
                     <label for="last-name">Last Name</label>
                     <input type="text" id="last-name" name="lastName" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required placeholder="e.g. jeff@example.com">
                 </div>
                 <div class="form-group">
                     <label for="ghin-number">GHIN Number (Optional)</label>
@@ -166,7 +170,8 @@
                 <div class="form-actions" style="display: flex; gap: 15px; margin-top: 20px;">
                     <button type="submit" class="btn-primary" style="flex: 1; padding: 15px;">Submit
                         Registration</button>
-                    <button type="button" class="btn-nav" id="cancel-btn" style="flex: 1;">Cancel</button>
+                    <!-- <button type="button" class="btn-nav" id="cancel-btn" style="flex: 1;">Cancel</button> ROLLBACK -->
+                    <button type="button" class="btn-ghost" id="cancel-btn" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>

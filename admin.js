@@ -147,6 +147,27 @@ function setupEventListeners() {
     if (elements.addPotentialBtn) {
         elements.addPotentialBtn.addEventListener('click', addPotentialPlayer);
     }
+
+    // Add Player Modal wiring
+    const modal = document.getElementById('add-player-modal');
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeAddPlayerModal);
+    document.getElementById('modal-save-btn').addEventListener('click', saveNewPlayer);
+    // Close on overlay click (outside the box)
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeAddPlayerModal();
+    });
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('open')) closeAddPlayerModal();
+    });
+
+    // Enter key to submit in modal
+    modal.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+            e.preventDefault();
+            saveNewPlayer();
+        }
+    });
 }
 
 async function handleLogin() {
@@ -263,6 +284,7 @@ function renderRosterTable() {
         return `
         <tr data-index="${realIndex}">
             <td><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
+            <td><input type="email" class="edit-input" data-field="email" value="${player.email || ''}" placeholder="Email"></td>
             <td><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
             <td><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
             <td><span class="status-badge status-confirmed">${player.status || 'confirmed'}</span></td>
@@ -283,15 +305,76 @@ function updatePlayerData(index, field, value) {
 }
 
 function addNewPlayer() {
+    // Clear previous values & errors
+    document.getElementById('modal-name').value = '';
+    document.getElementById('modal-email').value = '';
+    document.getElementById('modal-ghin').value = '';
+    document.getElementById('modal-handicap').value = '';
+    const errEl = document.getElementById('modal-error');
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+    document.getElementById('modal-save-btn').disabled = false;
+    document.getElementById('modal-save-btn').textContent = 'Save Player';
+    // Open the modal
+    document.getElementById('add-player-modal').classList.add('open');
+    setTimeout(() => document.getElementById('modal-name').focus(), 50);
+}
+
+function closeAddPlayerModal() {
+    document.getElementById('add-player-modal').classList.remove('open');
+}
+
+async function saveNewPlayer() {
+    const name = document.getElementById('modal-name').value.trim();
+    const email = document.getElementById('modal-email').value.trim();
+    const ghin = document.getElementById('modal-ghin').value.trim();
+    const handicapRaw = document.getElementById('modal-handicap').value.trim();
+    const handicap = handicapRaw === '' ? null : parseFloat(handicapRaw);
+    const errEl = document.getElementById('modal-error');
+    const saveBtn = document.getElementById('modal-save-btn');
+
+    if (!name) {
+        errEl.textContent = 'Full name is required.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    errEl.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
     const newPlayer = {
-        name: "",
-        ghin: "",
-        handicap: 0,
-        status: "confirmed"
+        name,
+        email: email || null,
+        ghin: ghin || null,
+        handicap,
+        status: 'confirmed'
     };
-    players.push(newPlayer);
-    renderRosterTable();
-    checkChanges();
+
+    if (supabaseInstance) {
+        const { data, error } = await supabaseInstance
+            .from('players')
+            .insert([newPlayer])
+            .select();
+
+        if (error) {
+            errEl.textContent = 'Error saving: ' + error.message;
+            errEl.style.display = 'block';
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Player';
+            return;
+        }
+
+        closeAddPlayerModal();
+        // Refresh the live roster from DB
+        await loadRoster();
+    } else {
+        // Demo mode — add to local state only
+        players.push(newPlayer);
+        closeAddPlayerModal();
+        renderRosterTable();
+        checkChanges();
+    }
 }
 
 function removePlayer(index) {
@@ -466,10 +549,10 @@ function renderPotentialUI() {
         div.style = "padding: 15px; display: flex; justify-content: space-between; align-items: center;";
         div.innerHTML = `
             <span style="font-weight: 600;">${p.name}</span>
-            <div style="display: flex; gap: 10px;">
-                <button class="admin-btn" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Promote</button>
-                <button class="admin-btn secondary" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Remove</button>
-            </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="admin-btn" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Promote</button>
+                    <button class="admin-btn secondary" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Remove</button>
+                </div>
         `;
         elements.potentialList.appendChild(div);
     });

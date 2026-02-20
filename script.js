@@ -666,6 +666,7 @@ function handleFormSubmit(e) {
     const formData = new FormData(elements.registrationForm);
     const firstName = (formData.get('firstName') || '').trim();
     const lastName = (formData.get('lastName') || '').trim();
+    const email = (formData.get('email') || '').trim();
     const ghinNumber = (formData.get('ghinNumber') || '').trim();
     const handicap = formData.get('handicap');
     const password = formData.get('password');
@@ -678,6 +679,7 @@ function handleFormSubmit(e) {
 
     const newPlayer = {
         name: `${firstName} ${lastName}`,
+        email: email || null,
         ghin: ghinNumber || null,
         handicap: handicap ? parseFloat(handicap) : null
     };
@@ -728,6 +730,7 @@ async function saveToSupabase(player) {
     try {
         await supabaseInstance.from('players').insert([{
             name: player.name,
+            email: player.email,
             ghin: player.ghin,
             handicap: player.handicap,
             status: 'confirmed'
@@ -743,6 +746,7 @@ function sendEmailNotification(player) {
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
             name: player.name,
+            email: player.email || 'Not provided',
             ghin: player.ghin || 'Not provided',
             handicap: player.handicap !== null ? player.handicap : 'Not provided',
             _subject: 'New Bros before Boges Registration'

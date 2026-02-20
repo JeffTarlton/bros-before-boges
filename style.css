@@ -220,6 +220,23 @@ a {
     box-shadow: 0 15px 30px rgba(16, 185, 129, 0.5);
 }
 
+.btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-muted);
+    padding: 15px 25px;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: white;
+    color: white;
+}
+
 /* Section Titles */
 .section-title {
     font-size: clamp(2rem, 5vw, 3.5rem);
@@ -657,7 +674,8 @@ a {
     border: 1px solid var(--glass-border);
     border-radius: 30px;
     padding: 50px;
-    max-width: 600px;
+    /* max-width: 600px; START ROLLBACK OPTION */
+    max-width: 480px; /* END ROLLBACK OPTION */
 }
 
 .registration-form label {
@@ -681,6 +699,11 @@ a {
     outline: none;
     border-color: var(--accent-emerald);
     background: rgba(255, 255, 255, 0.1);
+}
+
+.registration-form input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
 }
 
 /* Footer */
