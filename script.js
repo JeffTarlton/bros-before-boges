@@ -677,11 +677,12 @@ function handleFormSubmit(e) {
     const email = (formData.get('email') || '').trim();
     const ghinNumber = (formData.get('ghinNumber') || '').trim();
     const handicap = formData.get('handicap');
-    const password = formData.get('password');
 
-    const correctPassword = 'golftrip'; // Reverting to original or keeping consistent
-    if (password !== correctPassword) {
-        alert('❌ Incorrect password. Please contact the trip organizer for the registration password.');
+    // NOTE: Registration access is enforced server-side via Supabase Row Level Security.
+    // Client-side password checks are insecure (visible in source) and have been removed.
+    // To restrict who can register, configure RLS policies on the `players` table in Supabase.
+    if (!firstName || !lastName) {
+        alert('Please enter your first and last name.');
         return;
     }
 
