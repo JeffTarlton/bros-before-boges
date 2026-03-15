@@ -35,8 +35,13 @@ const tripData = {
             day: "Thursday",
             date: "April 9",
             title: "Arrival & Practice",
-            details: "Practice round/travel day. Late afternoon or twilight at Austin CC or Spanish Oaks (TBD).",
-            courses: []
+            details: "On Thursday's arrival practice we have lined up two tee times. 2:00pm and 2:10pm at Summit Rock (Private Course).",
+            courses: [{
+                name: "Summit Rock",
+                teeTime: "2:00 PM & 2:10 PM",
+                image: "assets/course3.jpg",
+                description: "Private Course"
+            }]
         },
         {
             day: "Friday",
