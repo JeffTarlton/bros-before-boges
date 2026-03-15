@@ -143,10 +143,7 @@ async function init() {
             roundLoginClose: document.getElementById('round-login-close'),
             roundLoginSubmit: document.getElementById('round-login-submit'),
             dynamicLeaderboard: document.getElementById('dynamic-leaderboard'),
-            teamSelectionDisplay: document.getElementById('team-selection-display'),
-            videoModal: document.getElementById('video-modal'),
-            videoModalClose: document.getElementById('video-modal-close'),
-            courseVideoFrame: document.getElementById('course-video-frame')
+            teamSelectionDisplay: document.getElementById('team-selection-display')
         };
 
         // Render static details immediately
@@ -322,32 +319,26 @@ function renderCourses() {
             name: "Ram Rock",
             image: "assets/ram_rock.png",
             description: "Known as 'The Challenger'. Deep bunkers and water hazards.",
-            stats: { par: 71, yards: 6926, rating: 75.6 },
-            videoId: "gR-5uYQ6ZfA"
+            stats: { par: 71, yards: 6926, rating: 75.6 }
         },
         {
             name: "Slick Rock",
             image: "assets/slick_rock.png",
             description: "Home of the famous 'Million Dollar Hole' waterfall.",
-            stats: { par: 72, yards: 6834, rating: 72.8 },
-            videoId: "Q1d1TlvH8kE"
+            stats: { par: 72, yards: 6834, rating: 72.8 }
         },
         {
             name: "Slick Rock or Summit Rock",
             image: "assets/course3.jpg",
             description: "Jack Nicklaus Signature Course. (Pending Pro Approval)",
-            stats: { par: 72, yards: 7200, rating: 74.5 },
-            videoId: "7x_u1M5tHQQ"
+            stats: { par: 72, yards: 7200, rating: 74.5 }
         }
     ];
 
     elements.coursesGrid.innerHTML = uniqueCourses.map(course => `
         <div class="course-card glass-panel">
-            <div class="course-image" data-video-id="${course.videoId}">
+            <div class="course-image">
                 <img src="${course.image}" alt="${course.name}">
-                <div class="play-overlay">
-                    <div class="play-icon"></div>
-                </div>
             </div>
             <div class="course-content">
                 <h3 class="course-name">${course.name}</h3>
@@ -715,18 +706,6 @@ function setupEventListeners() {
         elements.roundLoginSubmit.addEventListener('click', handleRoundLogin);
     }
 
-    if (elements.videoModalClose) {
-        elements.videoModalClose.addEventListener('click', closeVideoModal);
-    }
-    
-    if (elements.videoModal) {
-        elements.videoModal.addEventListener('click', (e) => {
-            if (e.target === elements.videoModal) {
-                closeVideoModal();
-            }
-        });
-    }
-
     if (elements.registrationModal) {
         elements.registrationModal.addEventListener('click', (e) => {
             if (e.target === elements.registrationModal) {
@@ -737,32 +716,13 @@ function setupEventListeners() {
 
     if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
 
-    // Course Video Listeners
-    document.querySelectorAll('.course-image').forEach(imgContainer => {
-        imgContainer.addEventListener('click', () => {
-            const videoId = imgContainer.getAttribute('data-video-id');
-            if (videoId && elements.videoModal && elements.courseVideoFrame) {
-                elements.courseVideoFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0`;
-                elements.videoModal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
-        });
-    });
-
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeModal();
-            closeVideoModal();
             if (elements.leaderboardModal) elements.leaderboardModal.classList.remove('active');
             if (elements.roundLoginModal) elements.roundLoginModal.classList.remove('active');
         }
     });
-}
-
-function closeVideoModal() {
-    if (elements.videoModal) elements.videoModal.classList.remove('active');
-    if (elements.courseVideoFrame) elements.courseVideoFrame.src = ""; // Stop playback
-    document.body.style.overflow = '';
 }
 
 function openModal() {
