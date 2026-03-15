@@ -205,6 +205,44 @@ a {
     margin-bottom: 50px;
 }
 
+/* Countdown Timer */
+.countdown-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 50px;
+}
+
+.countdown-item {
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    padding: 15px 20px;
+    border-radius: 16px;
+    min-width: 90px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.time-val {
+    display: block;
+    font-size: 2.2rem;
+    font-weight: 900;
+    font-family: var(--font-heading);
+    color: var(--accent-emerald);
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.time-label {
+    display: block;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
 .btn-primary {
     background: linear-gradient(135deg, var(--accent-emerald), #059669);
     color: white;
@@ -265,6 +303,14 @@ a {
 .trip-info-card {
     padding: 50px 40px;
     text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.trip-info-card.visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .card-icon {
@@ -416,6 +462,14 @@ a {
     grid-template-columns: 1.2fr 1.8fr;
     overflow: hidden;
     min-height: 400px;
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1), border-color 0.4s ease;
+}
+
+.course-card.visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .course-image {
@@ -620,9 +674,39 @@ a {
 
 @media (max-width: 600px) {
     .col-ghin, .col-total, .col-team, .col-thru { display: none; }
-    .col-hcp, .col-score { flex: 0 0 60px; }
+    
     .scoreboard-container { padding: 20px 15px !important; }
     .scoreboard-hero { height: 180px !important; }
+    
+    /* Mobile Leaderboard Redesign (Card Layout) */
+    .header-row { display: none; } /* Hide headers on mobile */
+    
+    .leaderboard-row {
+        flex-wrap: wrap;
+        padding: 12px 15px;
+        position: relative;
+    }
+    
+    .col-rank {
+        flex: 0 0 auto;
+        font-size: 1.4rem;
+        font-weight: 900;
+        color: rgba(255,255,255,0.2);
+        margin-right: 15px;
+    }
+    
+    .col-player {
+        flex: 1;
+        font-size: 1.1rem;
+    }
+    
+    .col-hcp, .col-score {
+        flex: 0 0 auto;
+        background: rgba(0,0,0,0.3);
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 1.1rem;
+    }
 }
 
 .score-even { color: var(--text-muted); }
@@ -777,10 +861,24 @@ a {
         justify-content: center;
         transition: var(--transition);
         padding-top: 80px;
+        z-index: 1000;
     }
 
     .main-nav.active {
         right: 0;
+    }
+
+    /* Hamburger Animation to X */
+    .menu-toggle.is-open .bar:nth-child(1) {
+        transform: translateY(8px) rotate(45deg);
+    }
+    
+    .menu-toggle.is-open .bar:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .menu-toggle.is-open .bar:nth-child(3) {
+        transform: translateY(-8px) rotate(-45deg);
     }
 
     .main-nav ul {

@@ -68,7 +68,7 @@ const tripData = {
             }]
         },
         {
-            day: "Friday/Saturday",
+            day: "Friday/Saturday/Sunday",
             date: "Pre and Post-Round fun",
             title: "Lake Life",
             details: "Malibu Boat Session. Pre or Post round fun on the water.",
@@ -150,6 +150,8 @@ async function init() {
         renderTripDetails();
         renderSchedule();
         renderCourses();
+        initCountdown();
+        initScrollAnimations();
 
         // Start loading roster data (async)
         loadRosterData().then(() => {
@@ -250,6 +252,43 @@ function renderTripDetails() {
         `;
         elements.totalCost.textContent = `$${tripData.costs.totalEstimate.toFixed(2)}`;
     }
+}
+
+function initCountdown() {
+    const targetDate = new Date("April 9, 2026 14:00:00 CST").getTime();
+    
+    const daysEl = document.getElementById('cd-days');
+    const hoursEl = document.getElementById('cd-hours');
+    const minsEl = document.getElementById('cd-mins');
+    const secsEl = document.getElementById('cd-secs');
+
+    if (!daysEl || !hoursEl || !minsEl || !secsEl) return;
+
+    function updateTimer() {
+        const now = new Date().getTime();
+        const distance = targetDate - now;
+
+        if (distance < 0) {
+            daysEl.textContent = "00";
+            hoursEl.textContent = "00";
+            minsEl.textContent = "00";
+            secsEl.textContent = "00";
+            return;
+        }
+
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        daysEl.textContent = days.toString().padStart(2, '0');
+        hoursEl.textContent = hours.toString().padStart(2, '0');
+        minsEl.textContent = minutes.toString().padStart(2, '0');
+        secsEl.textContent = seconds.toString().padStart(2, '0');
+    }
+
+    updateTimer(); // run immediately
+    setInterval(updateTimer, 1000);
 }
 
 function renderSchedule() {
@@ -598,16 +637,39 @@ function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('');
 }
 
+function initScrollAnimations() {
+    const observer = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target); // Only animate once
+            }
+        });
+    }, {
+        threshold: 0.1, // Trigger when 10% of the element is visible
+        rootMargin: "0px 0px -50px 0px"
+    });
+
+    // We must wait briefly since courses are injected dynamically
+    setTimeout(() => {
+        document.querySelectorAll('.course-card, .trip-info-card').forEach(card => {
+            observer.observe(card);
+        });
+    }, 100);
+}
+
 function setupEventListeners() {
     if (elements.menuToggle) {
         elements.menuToggle.addEventListener('click', () => {
             elements.mainNav.classList.toggle('active');
+            elements.menuToggle.classList.toggle('is-open');
         });
     }
 
     document.querySelectorAll('.main-nav a').forEach(link => {
         link.addEventListener('click', () => {
             if (elements.mainNav) elements.mainNav.classList.remove('active');
+            if (elements.menuToggle) elements.menuToggle.classList.remove('is-open');
         });
     });
 
