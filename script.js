@@ -330,7 +330,7 @@ function renderCourses() {
             image: "assets/slick_rock.png",
             description: "Home of the famous 'Million Dollar Hole' waterfall.",
             stats: { par: 72, yards: 6834, rating: 72.8 },
-            videoId: "eEwS3v_Vn9k"
+            videoId: "Q1d1TlvH8kE"
         },
         {
             name: "Slick Rock or Summit Rock",
