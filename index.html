@@ -131,6 +131,24 @@
             </div>
         </section>
 
+        <!-- Past Trips Gallery Section -->
+        <section id="past-trips" class="section" style="padding-top: 50px;">
+            <div class="container">
+                <h2 class="section-title">Hall of Fame</h2>
+                <div class="masonry-grid">
+                    <div class="masonry-item"><img src="assets/past years/IMG_0574.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_0708.PNG" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_1181.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_1256.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_1359.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_1567.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_6933.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_6936.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                    <div class="masonry-item"><img src="assets/past years/IMG_6937.jpg" alt="Past Trip Memory" loading="lazy"></div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <footer class="site-footer">
@@ -139,6 +157,15 @@
             <p class="footer-motto">Swing hard in case you hit it.</p>
         </div>
     </footer>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox-modal" class="modal">
+        <button class="modal-close" id="lightbox-close"
+            style="background: rgba(0,0,0,0.5); border: none; font-size: 2.5rem; color: white; cursor: pointer; position: absolute; top: 15px; right: 15px; z-index: 10; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">&times;</button>
+        <div class="lightbox-content" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 20px;">
+            <img id="lightbox-image" src="" alt="Enlarged Memory" style="max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        </div>
+    </div>
 
     <!-- Registration Modal (Nuclear Placement: Outside main flow) -->
     <div id="registration-modal" class="modal">

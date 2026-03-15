@@ -143,7 +143,10 @@ async function init() {
             roundLoginClose: document.getElementById('round-login-close'),
             roundLoginSubmit: document.getElementById('round-login-submit'),
             dynamicLeaderboard: document.getElementById('dynamic-leaderboard'),
-            teamSelectionDisplay: document.getElementById('team-selection-display')
+            teamSelectionDisplay: document.getElementById('team-selection-display'),
+            lightboxModal: document.getElementById('lightbox-modal'),
+            lightboxImage: document.getElementById('lightbox-image'),
+            lightboxClose: document.getElementById('lightbox-close')
         };
 
         // Render static details immediately
@@ -716,13 +719,47 @@ function setupEventListeners() {
 
     if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
 
+    // Lightbox Modal Listeners
+    document.querySelectorAll('.masonry-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const img = item.querySelector('img');
+            if (img && elements.lightboxModal && elements.lightboxImage) {
+                elements.lightboxImage.src = img.src;
+                elements.lightboxModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        });
+    });
+
+    if (elements.lightboxClose) {
+        elements.lightboxClose.addEventListener('click', closeLightbox);
+    }
+
+    if (elements.lightboxModal) {
+        elements.lightboxModal.addEventListener('click', (e) => {
+            if (e.target === elements.lightboxModal) {
+                closeLightbox();
+            }
+        });
+    }
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeModal();
+            closeLightbox();
             if (elements.leaderboardModal) elements.leaderboardModal.classList.remove('active');
             if (elements.roundLoginModal) elements.roundLoginModal.classList.remove('active');
         }
     });
+}
+
+function closeLightbox() {
+    if (elements.lightboxModal) elements.lightboxModal.classList.remove('active');
+    setTimeout(() => {
+        // Clear src after a tiny delay so it doesn't blink out before fading
+        if (elements.lightboxImage) elements.lightboxImage.src = ""; 
+    }, 300);
+    document.body.style.overflow = '';
 }
 
 function openModal() {
