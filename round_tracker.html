@@ -91,6 +91,108 @@
             color: white;
             margin-top: 10px;
         }
+
+        /* Mobile Hole-by-Hole Styles */
+        .hole-nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .hole-nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .hole-nav-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hole-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .current-hole-info h3 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--accent-emerald);
+        }
+
+        .current-hole-info p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .player-score-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+        }
+
+        .player-score-info h4 {
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+        }
+
+        .player-score-info p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .score-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .score-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            border: none;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-emerald);
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .score-btn.minus {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .score-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .current-score-display {
+            font-size: 1.8rem;
+            font-weight: 800;
+            font-family: monospace;
+            width: 40px;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -159,22 +261,48 @@
         </div>
 
         <!-- Scoring Screen -->
-        <div id="scoring-screen" class="scoring-screen glass-panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 id="active-course-name">Live Scoring</h2>
-                <button id="back-to-setup" class="btn-nav" style="padding: 5px 15px; font-size: 0.8rem;">Change
-                    Setup</button>
-            </div>
+        <div id="scoring-screen" class="scoring-screen" style="display: none;">
+            <div class="glass-panel" style="margin-bottom: 20px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="active-course-name" style="margin: 0; font-size: 1.4rem;">Live Scoring</h2>
+                    <button id="back-to-setup" class="btn-nav" style="padding: 5px 15px; font-size: 0.8rem;">Setup</button>
+                </div>
 
-            <div class="tracker-grid">
-                <table class="tracker-table" id="scorecard-table">
-                    <!-- Dynamic Scorecard -->
-                </table>
-            </div>
+                <!-- Hole Navigation -->
+                <div class="hole-nav-header glass-panel">
+                    <button id="prev-hole-btn" class="hole-nav-btn">&larr; Prev</button>
+                    <div class="current-hole-info">
+                        <h3 id="current-hole-display">Hole 1</h3>
+                        <p id="current-par-display">Par 4</p>
+                    </div>
+                    <button id="next-hole-btn" class="hole-nav-btn">Next &rarr;</button>
+                </div>
 
-            <button id="finish-round-btn" class="btn btn-primary btn-save">Finish & Finalize Round</button>
-            <p style="text-align: center; margin-top: 15px; color: var(--text-muted); font-size: 0.9rem;">Scores are
-                saved automatically as you type.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; margin-bottom: 20px;">
+                    <button id="view-full-scorecard-btn" class="btn btn-secondary">Full Scorecard</button>
+                    <button id="finish-round-btn" class="btn btn-primary" style="margin-top: 0;">Finish Round</button>
+                </div>
+
+                <!-- Player Scoring List -->
+                <div id="hole-scoring-container" class="hole-scoring-container">
+                     <!-- Dynamically populated per hole -->
+                </div>
+
+                <p style="text-align: center; margin-top: 15px; color: var(--text-muted); font-size: 0.9rem;">Scores save automatically.</p>
+            </div>
+            
+            <!-- Full Scorecard Modal -->
+            <div id="full-scorecard-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto;">
+                <div class="glass-panel" style="max-width: 1000px; margin: 40px auto; padding: 20px; position: relative;">
+                    <button id="close-scorecard-btn" style="position: absolute; top: 15px; right: 20px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer;">&times;</button>
+                    <h3 style="margin-bottom: 20px;">Full Scorecard</h3>
+                    <div class="tracker-grid" style="margin-top: 0;">
+                        <table class="tracker-table" id="scorecard-table">
+                            <!-- Populated dynamically -->
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 

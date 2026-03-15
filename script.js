@@ -221,25 +221,7 @@ async function loadRosterData() {
     }
 }
 
-function initScrollAnimations() {
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: "0px 0px -50px 0px"
-    };
 
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, observerOptions);
-
-    document.querySelectorAll('.course-card, .trip-info-card, .masonry-item').forEach(el => {
-        observer.observe(el);
-    });
-}
 
 function renderTripDetails() {
     if (!elements.tripYear) return;
@@ -675,7 +657,7 @@ function initScrollAnimations() {
 
     // We must wait briefly since courses are injected dynamically
     setTimeout(() => {
-        document.querySelectorAll('.course-card, .trip-info-card').forEach(card => {
+        document.querySelectorAll('.course-card, .trip-info-card, .masonry-item').forEach(card => {
             observer.observe(card);
         });
     }, 100);

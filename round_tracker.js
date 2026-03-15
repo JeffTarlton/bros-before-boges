@@ -7,6 +7,7 @@ let currentRoundId = null;
 let currentCourse = null;
 let selectedPlayers = [];
 let pairings = [];
+let currentHole = 1;
 
 let currentUserPlayer = null;
 let activeRound = null;
@@ -117,8 +118,32 @@ function setupEventListeners() {
     document.getElementById('back-to-setup').addEventListener('click', () => {
         document.getElementById('setup-screen').style.display = 'block';
         document.getElementById('scoring-screen').style.display = 'none';
+        document.getElementById('full-scorecard-modal').style.display = 'none';
     });
     document.getElementById('finish-round-btn').addEventListener('click', finalizeRound);
+
+    document.getElementById('prev-hole-btn').addEventListener('click', () => {
+        if (currentHole > 1) {
+            currentHole--;
+            renderHoleView();
+        }
+    });
+
+    document.getElementById('next-hole-btn').addEventListener('click', () => {
+        if (currentHole < 18) {
+            currentHole++;
+            renderHoleView();
+        }
+    });
+
+    document.getElementById('view-full-scorecard-btn').addEventListener('click', () => {
+        renderScorecard();
+        document.getElementById('full-scorecard-modal').style.display = 'block';
+    });
+
+    document.getElementById('close-scorecard-btn').addEventListener('click', () => {
+        document.getElementById('full-scorecard-modal').style.display = 'none';
+    });
 }
 
 async function startRound(joining = false) {
@@ -219,10 +244,81 @@ async function startRound(joining = false) {
         pairings = pairData || [];
     }
 
-    renderScorecard();
+    currentHole = 1;
+    renderHoleView();
+    renderScorecard(); // populate the hidden scorecard
     document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('scoring-screen').style.display = 'block';
     document.getElementById('active-course-name').textContent = currentCourse.name;
+}
+
+function renderHoleView() {
+    const holePar = currentCourse.pars[currentHole - 1] || 4; // default to 4
+
+    document.getElementById('current-hole-display').textContent = `Hole ${currentHole}`;
+    document.getElementById('current-par-display').textContent = `Par ${holePar}`;
+
+    document.getElementById('prev-hole-btn').disabled = currentHole === 1;
+    document.getElementById('next-hole-btn').disabled = currentHole === 18;
+
+    const container = document.getElementById('hole-scoring-container');
+    const isRound2 = (activeRound && activeRound.round_number === 2) || (document.getElementById('round-number-select') && document.getElementById('round-number-select').value == 2);
+
+    let html = '';
+    const processedPlayerIds = new Set();
+
+    selectedPlayers.forEach(player => {
+        if (processedPlayerIds.has(player.id)) return;
+
+        let companion = null;
+        if (isRound2) {
+            const pair = pairings.find(p => p.player1_id === player.id || p.player2_id === player.id);
+            if (pair) {
+                const companionId = pair.player1_id === player.id ? pair.player2_id : pair.player1_id;
+                companion = selectedPlayers.find(p => p.id === companionId);
+            }
+        }
+
+        const renderPlayerCard = (p, isCompanion = false) => {
+            const currentScore = p.scores[currentHole - 1];
+            const displayScore = currentScore === null ? '-' : currentScore;
+            
+            let toPar = 0;
+            p.scores.forEach((s, i) => {
+                if (s !== null && currentCourse.pars[i]) {
+                    toPar += (s - currentCourse.pars[i]);
+                }
+            });
+            const toParText = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
+            const toParColor = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'var(--text-muted)');
+
+            return `
+                <div class="player-score-card ${isCompanion ? 'companion-card' : ''}" style="${isCompanion ? 'border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; background: rgba(255,255,255,0.02); margin-top: -10px;' : ''}">
+                    <div class="player-score-info">
+                        <h4>${p.name}</h4>
+                        <p>Total: <span style="color: ${toParColor}; font-weight: bold;">${toParText}</span>
+                         ${p.team_id ? ` | Team ${p.team_id}` : ''}
+                         ${isCompanion ? ' (Pair)' : ''}</p>
+                    </div>
+                    <div class="score-controls">
+                        <button class="score-btn minus" onclick="adjustScore('${p.id}', -1)">−</button>
+                        <div id="score-display-${p.id}" class="current-score-display">${displayScore}</div>
+                        <button class="score-btn plus" onclick="adjustScore('${p.id}', 1)">+</button>
+                    </div>
+                </div>
+            `;
+        };
+
+        html += renderPlayerCard(player);
+        processedPlayerIds.add(player.id);
+        
+        if (companion) {
+            html += renderPlayerCard(companion, true);
+            processedPlayerIds.add(companion.id);
+        }
+    });
+
+    container.innerHTML = html;
 }
 
 function renderScorecard() {
@@ -321,11 +417,14 @@ async function updateScore(playerId, hole, val) {
         }
     });
 
-    // Update UI
-    document.getElementById(`total-${playerId}`).textContent = total;
+    // Update UI (Full Scorecard elements)
+    const totalEl = document.getElementById(`total-${playerId}`);
+    if (totalEl) totalEl.textContent = total;
     const toParEl = document.getElementById(`topar-${playerId}`);
-    toParEl.textContent = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
-    toParEl.style.color = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+    if (toParEl) {
+        toParEl.textContent = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
+        toParEl.style.color = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+    }
 
     // Update Supabase
     const updateData = {};
@@ -372,6 +471,30 @@ async function finalizeRound() {
         window.location.href = 'index.html';
     }
 }
+
+window.adjustScore = function(playerId, delta) {
+    const player = selectedPlayers.find(p => p.id === playerId);
+    const holeIndex = currentHole - 1;
+    let currentVal = player.scores[holeIndex];
+    
+    const holePar = currentCourse.pars[holeIndex] || 4;
+    
+    if (currentVal === null) {
+        // Default to par + delta
+        currentVal = holePar + delta;
+    } else {
+        currentVal += delta;
+    }
+    
+    if (currentVal < 1) currentVal = 1;
+
+    updateScore(playerId, currentHole, currentVal);
+    
+    document.getElementById(`score-display-${playerId}`).textContent = currentVal;
+    renderHoleView();
+    // Update the scorecard dynamically in case the modal is opened
+    renderScorecard();
+};
 
 // Global exposure for onchange
 window.updateScore = updateScore;
