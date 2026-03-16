@@ -144,6 +144,15 @@ function setupEventListeners() {
     document.getElementById('close-scorecard-btn').addEventListener('click', () => {
         document.getElementById('full-scorecard-modal').style.display = 'none';
     });
+    
+    document.getElementById('view-leaderboard-btn').addEventListener('click', () => {
+        document.getElementById('leaderboard-modal').style.display = 'block';
+        renderLeaderboardModal();
+    });
+
+    document.getElementById('close-leaderboard-btn').addEventListener('click', () => {
+        document.getElementById('leaderboard-modal').style.display = 'none';
+    });
 }
 
 async function startRound(joining = false) {
@@ -453,6 +462,90 @@ async function updateScore(playerId, hole, val) {
                 updateScore(companionId, hole, val);
             }
         }
+    }
+}
+
+// ==========================================
+// Leaderboard Modal Rendering Logic
+// ==========================================
+async function renderLeaderboardModal() {
+    htmlElements.dynamicLeaderboardContainer.innerHTML = 'Loading latest rankings...';
+    try {
+        const { data, error } = await supabaseInstance
+            .from('rounds')
+            .select(`
+                total_score,
+                total_to_par,
+                round_number,
+                players ( name, team_id )
+            `)
+            .eq('status', 'active');
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            htmlElements.dynamicLeaderboardContainer.innerHTML = '<p style="color: var(--text-muted);">No active rounds found for leaderboard.</p>';
+            return;
+        }
+
+        // Aggregate scores dynamically across anyone currently playing
+        const playerScores = {};
+
+        data.forEach(round => {
+            const playerName = round.players.name;
+            const teamId = round.players.team_id;
+            const toPar = parseInt(round.total_to_par || 0);
+
+            if (!playerScores[playerName]) {
+                playerScores[playerName] = {
+                    name: playerName,
+                    team_id: teamId,
+                    total_to_par: 0
+                };
+            }
+            playerScores[playerName].total_to_par += toPar;
+        });
+
+        const sortedPlayers = Object.values(playerScores).sort((a, b) => a.total_to_par - b.total_to_par);
+
+        let tableHTML = `
+            <table class="tracker-table" style="width: 100%; margin: 0 auto;">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px;">Pos</th>
+                        <th style="padding: 10px; text-align: left;">Player</th>
+                        <th style="padding: 10px;">Team</th>
+                        <th style="padding: 10px;">To Par</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        if (sortedPlayers.length === 0) {
+            tableHTML += `<tr><td colspan="4" style="padding: 15px;">No scores recorded yet.</td></tr>`;
+        } else {
+            sortedPlayers.forEach((player, index) => {
+                let toParStr = player.total_to_par === 0 ? 'E' : (player.total_to_par > 0 ? `+${player.total_to_par}` : player.total_to_par);
+                let toParColor = player.total_to_par < 0 ? 'var(--accent-emerald)' : (player.total_to_par > 0 ? '#ef4444' : 'inherit');
+                let teamIcon = player.team_id === 'team1' ? '🔵' : '🔴';
+
+                tableHTML += `
+                    <tr>
+                        <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
+                        <td style="padding: 12px; text-align: left;">${player.name}</td>
+                        <td style="padding: 12px; font-size: 1.2rem;">${teamIcon}</td>
+                        <td style="padding: 12px; font-weight: bold; color: ${toParColor};">${toParStr}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        tableHTML += `</tbody></table>`;
+        htmlElements.dynamicLeaderboardContainer.innerHTML = tableHTML;
+
+    } catch (err) {
+        console.error("Error fetching leaderboard data:", err);
+        htmlElements.dynamicLeaderboardContainer.innerHTML = '<p style="color: #ef4444;">Failed to load leaderboard. Please try again.</p>';
     }
 }
 

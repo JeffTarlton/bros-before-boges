@@ -279,6 +279,7 @@
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; margin-bottom: 20px;">
+                    <button id="view-leaderboard-btn" class="btn btn-secondary" style="grid-column: span 2;">View Leaderboard</button>
                     <button id="view-full-scorecard-btn" class="btn btn-secondary">Full Scorecard</button>
                     <button id="finish-round-btn" class="btn btn-primary" style="margin-top: 0;">Finish Round</button>
                 </div>
@@ -300,6 +301,18 @@
                         <table class="tracker-table" id="scorecard-table">
                             <!-- Populated dynamically -->
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard Modal -->
+            <div id="leaderboard-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto;">
+                <div class="glass-panel" style="max-width: 1000px; margin: 40px auto; padding: 20px; position: relative;">
+                    <button id="close-leaderboard-btn" style="position: absolute; top: 15px; right: 20px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer;">&times;</button>
+                    <h3 style="margin-bottom: 20px; text-align: center;">Live <span class="accent">Leaderboard</span></h3>
+                    <div id="dynamic-leaderboard-container" style="color: white; text-align: center; padding: 20px;">
+                        <!-- Leaderboard table populated dynamically -->
+                        Loading Leaderboard...
                     </div>
                 </div>
             </div>
