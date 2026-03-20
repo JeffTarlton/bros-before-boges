@@ -558,8 +558,10 @@ function renderRoster() {
     elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => {
         // Assume picture name follows format FirstLast.jpg (e.g. JaymeMcCall.jpg)
         const imagePath = `assets/PlayerCards/${player.name.replace(/\s+/g, '')}.jpg`;
+        const isCaptain = player.name === 'Jeff Tarlton' || player.name === 'David Owens';
         return `
-        <div class="attendee-card glass-panel">
+        <div class="attendee-card glass-panel" style="position: relative;">
+            ${isCaptain ? \`<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, var(--accent-gold), #d97706); color: var(--primary-bg); font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">👑 Captain</div>\` : ''}
             <div class="attendee-avatar" style="position: relative; overflow: hidden;">
                 <img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">
                 <span style="position: relative; z-index: 1;">${getInitials(player.name)}</span>
@@ -582,35 +584,23 @@ function renderRoster() {
 function renderTeamSelection() {
     if (!elements.teamSelectionDisplay) return;
 
-    // Filter for players with handicaps and sort them
-    const squad = tripData.roster.confirmed
-        .filter(p => p.handicap !== null)
-        .sort((a, b) => a.handicap - b.handicap);
-
-    if (squad.length === 0) {
-        elements.teamSelectionDisplay.innerHTML = `<div class="glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted);">No confirmed players with handicaps found.</div>`;
-        return;
-    }
-
     const team1 = [];
     const team2 = [];
 
-    // Apply Snake Draft Logic (1, 3, 6 pattern)
-    // Rank 1 -> T1, Rank 2/3 -> T2, Rank 4/5 -> T1, Rank 6/7 -> T2...
-    squad.forEach((player, index) => {
-        const rank = index + 1;
-        // Logic: 1 (T1), 2&3 (T2), 4&5 (T1), 6&7 (T2)...
-        // This is essentially: if (rank % 4 === 1 || rank % 4 === 0) -> T1?
-        // Let's re-verify: 1 (1%4=1), 2 (2%4=2), 3 (3%4=3), 4 (4%4=0), 5 (5%4=1), 6 (6%4=2), 7 (7%4=3), 8 (8%4=0)
-        // Values: T1: 1, 4, 5, 8, 9, 12...
-        // T2: 2, 3, 6, 7, 10, 11...
-        // The pattern for T1 is: rank % 4 is 1 or 0.
-        if (rank % 4 === 1 || rank % 4 === 0) {
-            team1.push(player);
-        } else {
-            team2.push(player);
-        }
+    // Filter and group by team_id
+    tripData.roster.confirmed.forEach(player => {
+        if (player.team_id === 1) team1.push(player);
+        else if (player.team_id === 2) team2.push(player);
     });
+
+    if (team1.length === 0 && team2.length === 0) {
+        elements.teamSelectionDisplay.innerHTML = \`<div class="glass-panel" style="padding: 50px 40px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; border: 1px dashed rgba(255,255,255,0.1);">
+            <div style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;">📋</div>
+            <h3 style="color: white; margin-bottom: 15px; font-size: 1.5rem; font-family: var(--font-heading);">Draft Pending</h3>
+            <p style="font-size: 1.1rem; line-height: 1.6;">Teams will be drafted by <strong style="color: var(--accent-gold);">3/23</strong>.<br>Captains Jeff Tarlton and David Owens are reviewing the scouting reports.</p>
+        </div>\`;
+        return;
+    }
 
     const renderTeamList = (team, teamNum) => `
         <div class="glass-panel team-card" style="padding: 30px;">
