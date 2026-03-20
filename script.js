@@ -561,7 +561,7 @@ function renderRoster() {
         const isCaptain = player.name === 'Jeff Tarlton' || player.name === 'David Owens';
         return `
         <div class="attendee-card glass-panel" style="position: relative;">
-            ${isCaptain ? \`<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, var(--accent-gold), #d97706); color: var(--primary-bg); font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">👑 Captain</div>\` : ''}
+            ${isCaptain ? `<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, var(--accent-gold), #d97706); color: var(--primary-bg); font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">👑 Captain</div>` : ''}
             <div class="attendee-avatar" style="position: relative; overflow: hidden;">
                 <img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">
                 <span style="position: relative; z-index: 1;">${getInitials(player.name)}</span>
@@ -594,11 +594,11 @@ function renderTeamSelection() {
     });
 
     if (team1.length === 0 && team2.length === 0) {
-        elements.teamSelectionDisplay.innerHTML = \`<div class="glass-panel" style="padding: 50px 40px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; border: 1px dashed rgba(255,255,255,0.1);">
+        elements.teamSelectionDisplay.innerHTML = `<div class="glass-panel" style="padding: 50px 40px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; border: 1px dashed rgba(255,255,255,0.1);">
             <div style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;">📋</div>
             <h3 style="color: white; margin-bottom: 15px; font-size: 1.5rem; font-family: var(--font-heading);">Draft Pending</h3>
             <p style="font-size: 1.1rem; line-height: 1.6;">Teams will be drafted by <strong style="color: var(--accent-gold);">3/23</strong>.<br>Captains Jeff Tarlton and David Owens are reviewing the scouting reports.</p>
-        </div>\`;
+        </div>`;
         return;
     }
 
