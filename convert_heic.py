@@ -9,7 +9,7 @@ except ImportError:
 
 register_heif_opener()
 
-folder_path = r"assets\past years"
+folder_path = r"assets\past_years"
 for filename in os.listdir(folder_path):
     if filename.lower().endswith(".heic"):
         heic_path = os.path.join(folder_path, filename)
