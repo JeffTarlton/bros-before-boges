@@ -561,7 +561,7 @@ function renderRoster() {
         const isCaptain = player.name === 'Jeff Tarlton' || player.name === 'David Owens';
         return `
         <div class="attendee-card glass-panel" style="position: relative;">
-            ${isCaptain ? `<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, var(--accent-gold), #d97706); color: var(--primary-bg); font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">👑 Captain</div>` : ''}
+            ${isCaptain ? `<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, #1B5E20, #0A5640); color: #F2C811; font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(10, 86, 64, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">⛳ Captain</div>` : ''}
             <div class="attendee-avatar" style="position: relative; overflow: hidden;">
                 <img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">
                 <span style="position: relative; z-index: 1;">${getInitials(player.name)}</span>
