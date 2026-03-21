@@ -311,8 +311,50 @@
             .admin-table {
                 display: block;
                 width: 100%;
-                overflow-x: auto;
-                white-space: nowrap;
+            }
+
+            .admin-table thead {
+                display: none;
+            }
+
+            .admin-table tbody, .admin-table tr, .admin-table td {
+                display: block;
+                width: 100%;
+            }
+
+            .admin-table tr {
+                margin-bottom: 20px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                padding: 15px;
+            }
+
+            .admin-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 0;
+                border: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            }
+
+            .admin-table td:last-child {
+                border-bottom: none;
+            }
+
+            .admin-table td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.75rem;
+                color: rgba(255, 255, 255, 0.5);
+                padding-right: 15px;
+            }
+
+            .admin-table .edit-input {
+                text-align: right;
+                width: 60%;
             }
 
             .admin-header {

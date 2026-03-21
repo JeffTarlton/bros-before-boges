@@ -283,12 +283,12 @@ function renderRosterTable() {
         const realIndex = players.indexOf(player);
         return `
         <tr data-index="${realIndex}">
-            <td><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
-            <td><input type="email" class="edit-input" data-field="email" value="${player.email || ''}" placeholder="Email"></td>
-            <td><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
-            <td><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
-            <td><span class="status-badge status-confirmed">${player.status || 'confirmed'}</span></td>
-            <td>
+            <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
+            <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${player.email || ''}" placeholder="Email"></td>
+            <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
+            <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
+            <td data-label="Status"><span class="status-badge status-confirmed">${player.status || 'confirmed'}</span></td>
+            <td data-label="Actions">
                 <button class="remove-player-btn admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
             </td>
         </tr>
