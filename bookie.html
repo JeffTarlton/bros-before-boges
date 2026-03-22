@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Bookie - Bros before Boges</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .bet-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .bet-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .bet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .bet-type-badge {
+            background: rgba(251, 191, 36, 0.1);
+            color: var(--accent-gold);
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .bet-amount {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--accent-emerald);
+        }
+
+        .pot-total {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--accent-emerald);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .bookie-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .bookie-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Sub-navigation specific to bookie */
+        .bookie-nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        
+        .bookie-nav button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            padding: 10px 20px;
+            border-radius: 99px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+
+        .bookie-nav button.active {
+            background: rgba(251, 191, 36, 0.15);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="site-header" style="background: rgba(15, 23, 42, 0.95);">
+        <div class="container header-container">
+            <h1 class="logo">The <span class="accent" style="color: var(--accent-gold);">Bookie</span></h1>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Back to Home</a></li>
+                    <li><button id="bookie-login-btn" class="btn-nav">Login / Register</button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="section-padding" style="margin-top: 80px;">
+        <div class="container">
+            <!-- Authentication Required Warning -->
+            <div id="auth-wall" class="glass-panel" style="text-align: center; padding: 60px 40px; margin-bottom: 50px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">🕵️‍♂️</div>
+                <h2 style="font-family: var(--font-heading); margin-bottom: 15px;">Members Only</h2>
+                <p style="color: var(--text-muted); margin-bottom: 30px; max-width: 500px; margin-left: auto; margin-right: auto;">
+                    You must be logged in to access the sportsbook, place wagers, and view the ledger.
+                </p>
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button class="btn btn-primary" id="wall-login-btn" style="background: linear-gradient(135deg, var(--accent-gold), #b45309); border: none;">Log In as Existing Player</button>
+                    <button class="btn" id="wall-register-btn" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white;">Create Betting Account</button>
+                </div>
+            </div>
+
+            <!-- Main Dashboard (Hidden until auth) -->
+            <div id="bookie-dashboard" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
+                    <div>
+                        <h2 class="section-title" style="margin-bottom: 0;">Active <span class="text-stroke">Action</span></h2>
+                        <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
+                    </div>
+                    <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ Propose Bet</button>
+                </div>
+
+                <div class="bookie-nav">
+                    <button class="active" data-filter="all">All Action</button>
+                    <button data-filter="ryder">Ryder Cup</button>
+                    <button data-filter="pools">Pools & Props</button>
+                    <button data-filter="h2h">Head-to-Head</button>
+                    <button data-filter="me">My Wagers</button>
+                </div>
+
+                <div class="bookie-grid">
+                    <!-- Left Column: Open Wagers -->
+                    <div>
+                        <!-- Main Event (Always pinned) -->
+                        <div class="bet-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">🏆</div>
+                            <div class="bet-header">
+                                <span class="bet-type-badge" style="background: var(--accent-gold); color: #000;">Main Event</span>
+                                <span class="bet-amount" style="color: var(--accent-gold);">$1,600 Pot</span>
+                            </div>
+                            <h3 style="font-size: 1.4rem; margin-bottom: 10px;">The 2026 Ryder Cup <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(Blue vs Red)</span></h3>
+                            <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 25px;">
+                                The winning team takes all. 8 players per team. Winners receive <strong style="color: white;">$200/man</strong>. Losers pay $200.
+                            </p>
+                            
+                            <div class="pot-total" style="background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.3);">
+                                <div style="display: flex; justify-content: space-around; align-items: center;">
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 1.8rem; font-weight: 900; color: #60a5fa;">BLUE</div>
+                                        <div style="font-size: 0.85rem; color: var(--text-muted);">Current Pts: <span id="ryder-blue-pts">0</span></div>
+                                    </div>
+                                    <div style="font-size: 1.2rem; color: var(--text-muted); font-weight: 900;">VS</div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 1.8rem; font-weight: 900; color: #fca5a5;">RED</div>
+                                        <div style="font-size: 0.85rem; color: var(--text-muted);">Current Pts: <span id="ryder-red-pts">0</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Wagers Container -->
+                        <div id="wagers-container">
+                            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                Loading active wagers...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: The Ledger -->
+                    <div>
+                        <div class="glass-panel" style="padding: 25px;">
+                            <h3 style="margin-bottom: 20px; font-family: var(--font-heading); display: flex; justify-content: space-between; align-items: center;">
+                                The Ledger
+                                <span style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 99px; font-weight: normal;">Net Balance</span>
+                            </h3>
+
+                            <div id="ledger-container" style="display: flex; flex-direction: column; gap: 15px;">
+                                <!-- Ledger items injected here -->
+                                <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">Crunching numbers...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Generic Modal for Login/Register/Create Wager -->
+    <div id="bookie-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <button class="modal-close" id="bookie-modal-close">×</button>
+            <h3 id="modal-title" style="margin-bottom: 20px; font-family: var(--font-heading); font-size: 1.5rem;">Authenticate</h3>
+            
+            <!-- Auth Form -->
+            <form id="auth-form" class="registration-form">
+                <div id="register-fields" style="display: none;">
+                    <label>First & Last Name (Must match roster exactly)</label>
+                    <input type="text" id="auth-name" placeholder="E.g., Jeff Tarlton">
+                </div>
+                
+                <label>Email Address</label>
+                <input type="email" id="auth-email" required placeholder="player@example.com">
+                
+                <label>Password</label>
+                <input type="password" id="auth-password" required placeholder="••••••••">
+                
+                <p id="auth-error" style="color: #ef4444; margin-bottom: 15px; display: none; font-size: 0.9rem;"></p>
+                
+                <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; margin-bottom: 15px;">Log In</button>
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                    <a href="#" id="toggle-auth-mode" style="color: var(--accent-emerald); text-decoration: underline;">Need an account? Sign up here.</a>
+                </p>
+            </form>
+
+            <!-- Create Wager Form -->
+            <form id="create-wager-form" class="registration-form" style="display: none;">
+                <label>Wager Type</label>
+                <select id="wager-type" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
+                    <option value="pool">Prop Bet / Pool (Anyone can join)</option>
+                    <option value="h2h">Head-to-Head (Challenge a specific player)</option>
+                </select>
+
+                <div id="h2h-target-container" style="display: none;">
+                    <label>Player to Challenge</label>
+                    <select id="wager-target" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
+                        <option value="">Select an opponent...</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <label>Terms of the Bet</label>
+                <input type="text" id="wager-desc" required placeholder="E.g., Lowest raw score on Friday">
+
+                <label>Wager Amount ($)</label>
+                <input type="number" id="wager-amt" required min="1" placeholder="20">
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Propose Wager</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="bookie.js"></script>
+</body>
+</html>
