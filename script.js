@@ -298,23 +298,66 @@ function initCountdown() {
 
 function renderSchedule() {
     if (!elements.scheduleTimeline) return;
-    elements.scheduleTimeline.innerHTML = tripData.schedule.map((day, index) => `
-        <div class="timeline-item">
+    
+    // Check if we are on mobile to auto-collapse
+    const isMobile = window.innerWidth <= 768;
+
+    elements.scheduleTimeline.innerHTML = tripData.schedule.map((day, index) => {
+        // First item open on desktop, all collapsed on mobile
+        const isOpen = isMobile ? false : index === 0; 
+        return `
+        <div class="timeline-item ${isOpen ? 'open' : ''}">
             <div class="timeline-date">
                 ${day.day}<br>${day.date}
             </div>
-            <div class="timeline-content">
-                <h3 class="timeline-title">${day.title}</h3>
-                <p class="timeline-details">${day.details}</p>
-                ${day.courses.map(course => `
-                    <div class="timeline-course">
-                        <strong>⛳ ${course.name}</strong>
-                        ${course.teeTime ? `<span>⏰ ${course.teeTime}</span>` : ''}
+            <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
+                <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <h3 class="timeline-title" style="margin: 0;">${day.title}</h3>
+                    <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
+                </div>
+                <div class="timeline-content-wrapper" style="display: ${isOpen ? 'block' : 'none'}; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <p class="timeline-details">${day.details}</p>
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+                        ${day.courses.map(course => `
+                            <div class="timeline-course">
+                                <strong>⛳ ${course.name}</strong>
+                                ${course.teeTime ? `<span style="margin-left: auto;">⏰ ${course.teeTime}</span>` : ''}
+                            </div>
+                        `).join('')}
                     </div>
-                `).join('')}
+                </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
+
+    // Attach click listeners for the accordion effect
+    setTimeout(() => {
+        const headers = elements.scheduleTimeline.querySelectorAll('.timeline-header');
+        headers.forEach(header => {
+            header.addEventListener('click', function() {
+                const item = this.closest('.timeline-item');
+                const content = item.querySelector('.timeline-content-wrapper');
+                const icon = item.querySelector('.accordion-icon');
+                
+                const isOpen = item.classList.contains('open');
+                
+                if (isOpen) {
+                    content.style.display = 'none';
+                    icon.style.transform = 'rotate(0deg)';
+                    item.classList.remove('open');
+                } else {
+                    content.style.display = 'block';
+                    icon.style.transform = 'rotate(180deg)';
+                    item.classList.add('open');
+                }
+            });
+        });
+        
+        // Ensure starting rotation is correct for pre-opened items
+        elements.scheduleTimeline.querySelectorAll('.timeline-item.open .accordion-icon').forEach(icon => {
+            icon.style.transform = 'rotate(180deg)';
+        });
+    }, 0);
 }
 
 function renderCourses() {

@@ -141,18 +141,80 @@ function setupEventListeners() {
         document.getElementById('full-scorecard-modal').style.display = 'block';
     });
 
-    document.getElementById('close-scorecard-btn').addEventListener('click', () => {
-        document.getElementById('full-scorecard-modal').style.display = 'none';
+    document.getElementById('close-leaderboard-btn').addEventListener('click', () => {
+        document.getElementById('leaderboard-modal').style.display = 'none';
     });
+
+    // Mobile Bottom Nav Event Listeners
+    const navButtons = document.querySelectorAll('.tracker-bottom-nav button');
     
-    document.getElementById('view-leaderboard-btn').addEventListener('click', () => {
+    function setActiveNav(btnId) {
+        navButtons.forEach(btn => btn.classList.remove('active'));
+        if (btnId) document.getElementById(btnId).classList.add('active');
+    }
+
+    document.getElementById('nav-scoring-btn').addEventListener('click', () => {
+        setActiveNav('nav-scoring-btn');
+        document.getElementById('full-scorecard-modal').style.display = 'none';
+        document.getElementById('leaderboard-modal').style.display = 'none';
+    });
+
+    document.getElementById('nav-scorecard-btn').addEventListener('click', () => {
+        setActiveNav('nav-scorecard-btn');
+        renderScorecard();
+        document.getElementById('full-scorecard-modal').style.display = 'block';
+    });
+
+    document.getElementById('nav-leaderboard-btn').addEventListener('click', () => {
+        setActiveNav('nav-leaderboard-btn');
         document.getElementById('leaderboard-modal').style.display = 'block';
         renderLeaderboardModal();
     });
 
+    document.getElementById('nav-finish-btn').addEventListener('click', () => {
+        finalizeRound();
+    });
+
+    // When closing modals from the "X" button, reset bottom nav to Scoring
+    document.getElementById('close-scorecard-btn').addEventListener('click', () => {
+        document.getElementById('full-scorecard-modal').style.display = 'none';
+        setActiveNav('nav-scoring-btn');
+    });
+
     document.getElementById('close-leaderboard-btn').addEventListener('click', () => {
         document.getElementById('leaderboard-modal').style.display = 'none';
+        setActiveNav('nav-scoring-btn');
     });
+
+    // Swipe-to-change holes logic
+    let touchStartX = 0;
+    let touchEndX = 0;
+    const swipeThreshold = 50; // minimum pixels to be considered a swipe
+    const scoringContainer = document.getElementById('hole-scoring-container');
+
+    scoringContainer.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    scoringContainer.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+        const swipeDist = touchEndX - touchStartX;
+        
+        // Swipe Left -> Next Hole
+        if (swipeDist < -swipeThreshold && currentHole < 18) {
+            currentHole++;
+            renderHoleView();
+        }
+        // Swipe Right -> Prev Hole
+        if (swipeDist > swipeThreshold && currentHole > 1) {
+            currentHole--;
+            renderHoleView();
+        }
+    }
 }
 
 async function startRound(joining = false) {
