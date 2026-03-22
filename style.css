@@ -190,8 +190,10 @@ a {
     letter-spacing: 0.2em;
     color: var(--accent-emerald);
     text-transform: uppercase;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
     display: block;
+    position: relative;
+    z-index: 5;
 }
 
 .hero-title {
