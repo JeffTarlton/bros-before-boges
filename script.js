@@ -602,24 +602,32 @@ function renderTeamSelection() {
         return;
     }
 
-    const renderTeamList = (team, teamNum) => `
-        <div class="glass-panel team-card" style="padding: 30px;">
-            <h3 style="color: ${teamNum === 1 ? 'var(--accent-emerald)' : '#ef4444'}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
-                TEAM ${teamNum}
+    const renderTeamList = (team, teamNum) => {
+        const teamName = teamNum === 1 ? '🔵 Blue Team' : '🔴 Red Team';
+        const teamColor = teamNum === 1 ? '#3b82f6' : '#ef4444';
+        return `
+        <div class="glass-panel team-card" style="padding: 30px; border-top: 3px solid ${teamColor};">
+            <h3 style="color: ${teamColor}; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+                ${teamName}
                 <span style="font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 5px 12px; border-radius: 99px; color: var(--text-muted);">
                     Avg HCP: ${(team.reduce((acc, p) => acc + p.handicap, 0) / team.length).toFixed(1)}
                 </span>
             </h3>
             <div style="display: flex; flex-direction: column; gap: 12px;">
-                ${team.map(p => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <span style="font-weight: 600;">${p.name}</span>
+                ${team.map(p => {
+                    const isCaptain = p.name === 'Jeff Tarlton' || p.name === 'David Owens';
+                    return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid ${isCaptain ? teamColor + '40' : 'rgba(255,255,255,0.05)'};">
+                        <span style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                            ${p.name}
+                            ${isCaptain ? `<span style="background: linear-gradient(135deg, ${teamColor}33, ${teamColor}22); color: ${teamColor}; font-size: 0.65rem; font-weight: 900; padding: 3px 10px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid ${teamColor}55;">⛳ Captain</span>` : ''}
+                        </span>
                         <span style="color: var(--accent-emerald); font-weight: 800; font-family: monospace;">${p.handicap.toFixed(1)}</span>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         </div>
-    `;
+    `};
 
     elements.teamSelectionDisplay.innerHTML = `
         ${renderTeamList(team1, 1)}

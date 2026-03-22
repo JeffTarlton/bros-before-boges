@@ -469,32 +469,49 @@ async function updateScore(playerId, hole, val) {
 // Leaderboard Modal Rendering Logic
 // ==========================================
 async function renderLeaderboardModal() {
-    htmlElements.dynamicLeaderboardContainer.innerHTML = 'Loading latest rankings...';
+    const container = document.getElementById('dynamic-leaderboard-container');
+    container.innerHTML = 'Loading latest rankings...';
     try {
-        const { data, error } = await supabaseInstance
+        // First, find all active rounds
+        const { data: activeRounds, error: roundError } = await supabaseInstance
             .from('rounds')
+            .select('id')
+            .eq('status', 'active');
+
+        if (roundError) throw roundError;
+
+        if (!activeRounds || activeRounds.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted);">No active rounds found for leaderboard.</p>';
+            return;
+        }
+
+        const activeRoundIds = activeRounds.map(r => r.id);
+
+        // Fetch scores for those active rounds, joined with player info
+        const { data, error } = await supabaseInstance
+            .from('scores')
             .select(`
                 total_score,
                 total_to_par,
-                round_number,
+                round_id,
                 players ( name, team_id )
             `)
-            .eq('status', 'active');
+            .in('round_id', activeRoundIds);
 
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            htmlElements.dynamicLeaderboardContainer.innerHTML = '<p style="color: var(--text-muted);">No active rounds found for leaderboard.</p>';
+            container.innerHTML = '<p style="color: var(--text-muted);">No scores recorded yet.</p>';
             return;
         }
 
         // Aggregate scores dynamically across anyone currently playing
         const playerScores = {};
 
-        data.forEach(round => {
-            const playerName = round.players.name;
-            const teamId = round.players.team_id;
-            const toPar = parseInt(round.total_to_par || 0);
+        data.forEach(score => {
+            const playerName = score.players.name;
+            const teamId = score.players.team_id;
+            const toPar = parseInt(score.total_to_par || 0);
 
             if (!playerScores[playerName]) {
                 playerScores[playerName] = {
@@ -527,7 +544,7 @@ async function renderLeaderboardModal() {
             sortedPlayers.forEach((player, index) => {
                 let toParStr = player.total_to_par === 0 ? 'E' : (player.total_to_par > 0 ? `+${player.total_to_par}` : player.total_to_par);
                 let toParColor = player.total_to_par < 0 ? 'var(--accent-emerald)' : (player.total_to_par > 0 ? '#ef4444' : 'inherit');
-                let teamIcon = player.team_id === 'team1' ? '🔵' : '🔴';
+                let teamIcon = player.team_id === 1 ? '🔵' : (player.team_id === 2 ? '🔴' : '⚪');
 
                 tableHTML += `
                     <tr>
@@ -541,11 +558,11 @@ async function renderLeaderboardModal() {
         }
 
         tableHTML += `</tbody></table>`;
-        htmlElements.dynamicLeaderboardContainer.innerHTML = tableHTML;
+        container.innerHTML = tableHTML;
 
     } catch (err) {
         console.error("Error fetching leaderboard data:", err);
-        htmlElements.dynamicLeaderboardContainer.innerHTML = '<p style="color: #ef4444;">Failed to load leaderboard. Please try again.</p>';
+        container.innerHTML = '<p style="color: #ef4444;">Failed to load leaderboard. Please try again.</p>';
     }
 }
 
