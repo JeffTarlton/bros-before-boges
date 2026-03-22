@@ -382,4 +382,9 @@ async function handleCreateWager(e) {
 }
 
 // Kickoff
-document.addEventListener('DOMContentLoaded', initBookie);
+console.log('The Bookie JS loaded. Initializing...');
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBookie);
+} else {
+    initBookie();
+}
