@@ -385,6 +385,11 @@ async function handleCreateWager(e) {
     }
 }
 
-// Kickoff — window.onload guarantees DOM + all external scripts (Supabase CDN) are ready
-console.log('The Bookie JS loaded. Waiting for full page load...');
-window.addEventListener('load', initBookie);
+// Kickoff — handles both early and late script execution
+console.log('The Bookie JS loaded. readyState:', document.readyState);
+if (document.readyState === 'complete') {
+    // Page already fully loaded (common with defer scripts on GitHub Pages)
+    initBookie();
+} else {
+    window.addEventListener('load', initBookie);
+}
