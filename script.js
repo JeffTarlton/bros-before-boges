@@ -622,6 +622,29 @@ function renderRoster() {
             <div class="potential-badge glass-panel" style="padding: 10px 20px; border-radius: 99px; font-size: 0.9rem; color: var(--text-muted);">${name}</div>
         `).join('');
     }
+
+    // Auto-hide roster sections if all confirmed players have been drafted to a team
+    const allDrafted = tripData.roster.confirmed.length > 0 &&
+        tripData.roster.confirmed.every(p => p.team_id === 1 || p.team_id === 2);
+
+    const rosterSection1 = document.getElementById('confirmed-roster-title');
+    const rosterSection2 = document.getElementById('potential-roster-title');
+    const hideStyle = 'display: none;';
+
+    if (allDrafted) {
+        // Hide the grid divs
+        if (elements.confirmedRoster) elements.confirmedRoster.style.display = 'none';
+        if (elements.potentialRoster) elements.potentialRoster.style.display = 'none';
+        // Hide the heading labels
+        if (rosterSection1) rosterSection1.style.display = 'none';
+        if (rosterSection2) rosterSection2.style.display = 'none';
+    } else {
+        // Make sure they're visible if draft is reset
+        if (elements.confirmedRoster) elements.confirmedRoster.style.display = '';
+        if (elements.potentialRoster) elements.potentialRoster.style.display = '';
+        if (rosterSection1) rosterSection1.style.display = '';
+        if (rosterSection2) rosterSection2.style.display = '';
+    }
 }
 
 function renderTeamSelection() {
