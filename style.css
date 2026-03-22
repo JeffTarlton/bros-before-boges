@@ -934,8 +934,9 @@ a {
     }
 
     /* Push hero content down so the 2026 year clears the fixed header (~70px) */
-    .hero-content {
-        padding-top: 80px;
+    .hero-section {
+        align-items: flex-start;
+        padding-top: 90px;
     }
 
     .hero-year {
