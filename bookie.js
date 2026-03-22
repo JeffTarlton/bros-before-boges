@@ -1,7 +1,7 @@
 // Supabase Configuration from main app
 const SUPABASE_URL = 'https://gxpwgrdyizruzfczzqwn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null; // Initialized inside initBookie after CDN loads
 
 // State
 let currentUser = null;
@@ -50,6 +50,10 @@ const filterBtns = document.querySelectorAll('.bookie-nav button');
 // Initialization
 // ==========================================
 async function initBookie() {
+    // Create the Supabase client here so we know the CDN script has run
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('The Bookie initialized. Supabase client ready.');
+
     setupEventListeners();
     await checkUserSession();
     if (currentUser) {
@@ -381,10 +385,6 @@ async function handleCreateWager(e) {
     }
 }
 
-// Kickoff
-console.log('The Bookie JS loaded. Initializing...');
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initBookie);
-} else {
-    initBookie();
-}
+// Kickoff — window.onload guarantees DOM + all external scripts (Supabase CDN) are ready
+console.log('The Bookie JS loaded. Waiting for full page load...');
+window.addEventListener('load', initBookie);
