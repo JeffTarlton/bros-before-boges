@@ -436,8 +436,29 @@ function renderScorecard() {
                     toPar += (s - currentCourse.pars[i]);
                 }
             });
-            const toParText = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
-            const toParColor = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+            let toParText = toPar === 0 ? 'E' : (toPar > 0 ? `+${toPar}` : toPar);
+            let toParColor = toPar < 0 ? 'var(--accent-emerald)' : (toPar > 0 ? '#ff4d4d' : 'white');
+
+            // Override for Match Play
+            if (isRound2 && companion) {
+                let compToPar = 0;
+                companion.scores.forEach((s, i) => {
+                    if (s !== null && currentCourse.pars[i]) {
+                        compToPar += (s - currentCourse.pars[i]);
+                    }
+                });
+
+                if (toPar < compToPar) {
+                    toParText = `${compToPar - toPar} UP`;
+                    toParColor = 'var(--accent-emerald)';
+                } else if (toPar > compToPar) {
+                    toParText = `${toPar - compToPar} DN`;
+                    toParColor = '#ff4d4d';
+                } else {
+                    toParText = 'AS';
+                    toParColor = 'var(--text-muted)';
+                }
+            }
 
             return `
                 <tr class="player-row ${isCompanion ? 'companion-row' : ''}" style="${isCompanion ? 'border-top: none;' : ''}">
@@ -446,15 +467,34 @@ function renderScorecard() {
                         ${p.team_id ? `<br><small style="color: var(--accent-gold); font-size: 0.75rem;">TEAM ${p.team_id}</small>` : ''}
                         ${isCompanion ? '<br><small style="color: var(--text-muted); font-size: 0.65rem;">PAIR PARTNER</small>' : ''}
                     </td>
-                    ${Array.from({ length: 18 }, (_, i) => `
+                    ${Array.from({ length: 18 }, (_, i) => {
+                        const score = p.scores[i];
+                        const par = currentCourse.pars[i];
+                        let pgaClass = '';
+                        
+                        if (score !== null && score !== undefined && par) {
+                            const diff = score - par;
+                            if (diff <= -2) pgaClass = 'pga-score score-eagle';
+                            else if (diff === -1) pgaClass = 'pga-score score-birdie';
+                            else if (diff === 0) pgaClass = 'pga-score score-par';
+                            else if (diff === 1) pgaClass = 'pga-score score-bogey';
+                            else if (diff >= 2) pgaClass = 'pga-score score-double';
+                        }
+                        
+                        return `
                         <td>
-                            <input type="number" class="score-input" 
-                                data-player-id="${p.id}" 
-                                data-hole="${i + 1}" 
-                                value="${p.scores[i] || ''}"
-                                onchange="updateScore('${p.id}', ${i + 1}, this.value)">
+                            <div style="display: flex; justify-content: center; align-items: center;">
+                                <div class="${pgaClass}">
+                                    <input type="number" class="score-input" 
+                                        style="background: transparent; border: none; padding: 0; margin: 0; width: 30px; ${pgaClass ? 'color: inherit;' : ''}"
+                                        data-player-id="${p.id}" 
+                                        data-hole="${i + 1}" 
+                                        value="${score || ''}"
+                                        onchange="updateScore('${p.id}', ${i + 1}, this.value)">
+                                </div>
+                            </div>
                         </td>
-                    `).join('')}
+                    `}).join('')}
                     <td id="total-${p.id}">${total}</td>
                     <td id="topar-${p.id}" style="color: ${toParColor}">${toParText}</td>
                 </tr>
@@ -537,7 +577,7 @@ async function renderLeaderboardModal() {
         // First, find all active rounds
         const { data: activeRounds, error: roundError } = await supabaseInstance
             .from('rounds')
-            .select('id')
+            .select('id, round_number')
             .eq('status', 'active');
 
         if (roundError) throw roundError;
@@ -548,6 +588,7 @@ async function renderLeaderboardModal() {
         }
 
         const activeRoundIds = activeRounds.map(r => r.id);
+        const isMatchPlayRound = activeRounds.some(r => r.round_number === 2 || r.round_number === 3);
 
         // Fetch scores for those active rounds, joined with player info
         const { data, error } = await supabaseInstance
@@ -556,6 +597,7 @@ async function renderLeaderboardModal() {
                 total_score,
                 total_to_par,
                 round_id,
+                player_id,
                 players ( name, team_id )
             `)
             .in('round_id', activeRoundIds);
@@ -567,42 +609,86 @@ async function renderLeaderboardModal() {
             return;
         }
 
-        // Aggregate scores dynamically across anyone currently playing
-        const playerScores = {};
-
-        data.forEach(score => {
-            const playerName = score.players.name;
-            const teamId = score.players.team_id;
-            const toPar = parseInt(score.total_to_par || 0);
-
-            if (!playerScores[playerName]) {
-                playerScores[playerName] = {
-                    name: playerName,
-                    team_id: teamId,
-                    total_to_par: 0
-                };
-            }
-            playerScores[playerName].total_to_par += toPar;
-        });
-
-        const sortedPlayers = Object.values(playerScores).sort((a, b) => a.total_to_par - b.total_to_par);
-
         let tableHTML = `
-            <table class="tracker-table" style="width: 100%; margin: 0 auto;">
+            <table class="tracker-table" style="width: 100%; margin: 0 auto; text-align: left;">
                 <thead>
                     <tr>
                         <th style="padding: 10px;">Pos</th>
-                        <th style="padding: 10px; text-align: left;">Player</th>
-                        <th style="padding: 10px;">Team</th>
-                        <th style="padding: 10px;">To Par</th>
+                        <th style="padding: 10px;">Player</th>
+                        <th style="padding: 10px; text-align: right;">${isMatchPlayRound ? 'Match Status' : 'To Par'}</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-        if (sortedPlayers.length === 0) {
-            tableHTML += `<tr><td colspan="4" style="padding: 15px;">No scores recorded yet.</td></tr>`;
+        if (isMatchPlayRound && pairings.length > 0) {
+            // MATCH PLAY VIEW
+            // Group players by matchup
+            pairings.forEach((pair, index) => {
+                const s1 = data.find(d => d.player_id === pair.player1_id);
+                const s2 = data.find(d => d.player_id === pair.player2_id);
+
+                if (s1 && s2) {
+                    const toPar1 = parseInt(s1.total_to_par || 0);
+                    const toPar2 = parseInt(s2.total_to_par || 0);
+                    
+                    let status1 = 'AS';
+                    let statusColor1 = 'var(--text-muted)';
+                    let status2 = 'AS';
+                    let statusColor2 = 'var(--text-muted)';
+
+                    if (toPar1 < toPar2) {
+                        const diff = toPar2 - toPar1;
+                        status1 = `${diff} UP`;
+                        statusColor1 = 'var(--accent-emerald)';
+                        status2 = `${diff} DN`;
+                        statusColor2 = '#ef4444';
+                    } else if (toPar2 < toPar1) {
+                        const diff = toPar1 - toPar2;
+                        status2 = `${diff} UP`;
+                        statusColor2 = 'var(--accent-emerald)';
+                        status1 = `${diff} DN`;
+                        statusColor1 = '#ef4444';
+                    }
+
+                    const t1Icon = s1.players.team_id === 1 ? '🔵' : '🔴';
+                    const t2Icon = s2.players.team_id === 1 ? '🔵' : '🔴';
+
+                    tableHTML += `
+                        <tr style="border-top: 2px solid rgba(255,255,255,0.1);">
+                            <td rowspan="2" style="padding: 12px; font-weight: bold; color: var(--text-muted);">Match ${index+1}</td>
+                            <td style="padding: 12px;">${t1Icon} ${s1.players.name}</td>
+                            <td style="padding: 12px; font-weight: 900; text-align: right; color: ${statusColor1};">${status1}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border-top: none;">${t2Icon} ${s2.players.name}</td>
+                            <td style="padding: 12px; border-top: none; font-weight: 900; text-align: right; color: ${statusColor2};">${status2}</td>
+                        </tr>
+                    `;
+                }
+            });
         } else {
+            // STROKE PLAY VIEW (Default)
+            // Aggregate scores dynamically across anyone currently playing
+            const playerScores = {};
+
+            data.forEach(score => {
+                const playerName = score.players.name;
+                const teamId = score.players.team_id;
+                const toPar = parseInt(score.total_to_par || 0);
+
+                if (!playerScores[playerName]) {
+                    playerScores[playerName] = {
+                        name: playerName,
+                        team_id: teamId,
+                        total_to_par: 0
+                    };
+                }
+                playerScores[playerName].total_to_par += toPar;
+            });
+
+            const sortedPlayers = Object.values(playerScores).sort((a, b) => a.total_to_par - b.total_to_par);
+
             sortedPlayers.forEach((player, index) => {
                 let toParStr = player.total_to_par === 0 ? 'E' : (player.total_to_par > 0 ? `+${player.total_to_par}` : player.total_to_par);
                 let toParColor = player.total_to_par < 0 ? 'var(--accent-emerald)' : (player.total_to_par > 0 ? '#ef4444' : 'inherit');
@@ -611,9 +697,8 @@ async function renderLeaderboardModal() {
                 tableHTML += `
                     <tr>
                         <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
-                        <td style="padding: 12px; text-align: left;">${player.name}</td>
-                        <td style="padding: 12px; font-size: 1.2rem;">${teamIcon}</td>
-                        <td style="padding: 12px; font-weight: bold; color: ${toParColor};">${toParStr}</td>
+                        <td style="padding: 12px;">${teamIcon} ${player.name}</td>
+                        <td style="padding: 12px; font-weight: 900; text-align: right; color: ${toParColor};">${toParStr}</td>
                     </tr>
                 `;
             });

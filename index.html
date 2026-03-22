@@ -40,6 +40,20 @@
             <div class="hero-overlay"></div>
             <div class="container hero-content">
                 <p class="hero-year" id="trip-year">2026</p>
+                
+                <!-- Live Team Scoreboard Widget -->
+                <div id="team-scoreboard-widget" class="glass-panel team-scoreboard-hidden" style="margin: 0 auto 30px auto; max-width: 600px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 99px;">
+                   <div style="display: flex; align-items: center; gap: 15px;">
+                       <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #60a5fa; padding: 5px 15px; border-radius: 99px; font-weight: 800; text-transform: uppercase;">Blue</span>
+                       <span id="score-team-1" style="font-size: 2rem; font-weight: 900; font-family: var(--font-heading); color: white;">0</span>
+                   </div>
+                   <div style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">Vs</div>
+                   <div style="display: flex; align-items: center; gap: 15px;">
+                       <span id="score-team-2" style="font-size: 2rem; font-weight: 900; font-family: var(--font-heading); color: white;">0</span>
+                       <span style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 5px 15px; border-radius: 99px; font-weight: 800; text-transform: uppercase;">Red</span>
+                   </div>
+                </div>
+
                 <h2 class="hero-title">Drive for Show,<br>Putt for <span class="accent">Dough</span></h2>
                 <p class="hero-subtitle">The tradition continues. Higher stakes, faster greens, same idiots.</p>
                 <div id="trip-countdown" class="countdown-container">

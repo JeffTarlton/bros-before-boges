@@ -207,11 +207,14 @@ async function loadRosterData() {
                         team_id: p.team_id
                     });
                 } else if (p.status === 'potential') {
-                    // Current renderRoster expects strings for potential players
                     tripData.roster.potential.push(p.name);
                 }
             });
             renderRoster();
+            
+            // Render the Live Team Scoreboard Widget once players are loaded
+            renderTeamScoreboardWidget();
+
         } else {
             renderRoster();
         }
@@ -221,7 +224,54 @@ async function loadRosterData() {
     }
 }
 
+async function renderTeamScoreboardWidget() {
+    const scoreboardWidget = document.getElementById('team-scoreboard-widget');
+    const scoreTeam1El = document.getElementById('score-team-1');
+    const scoreTeam2El = document.getElementById('score-team-2');
 
+    if (!scoreboardWidget || !scoreTeam1El || !scoreTeam2El || !supabaseInstance) return;
+
+    // Check if draft is done before showing the scoreboard
+    const allDrafted = tripData.roster.confirmed.length > 0 &&
+        tripData.roster.confirmed.every(p => p.team_id === 1 || p.team_id === 2);
+
+    if (!allDrafted) {
+        scoreboardWidget.classList.add('team-scoreboard-hidden');
+        return;
+    }
+
+    try {
+        // Fetch matches/scores from the database to aggregate Ryder Cup style points
+        // For now, we will aggregate based on total relative-to-par to simulate points
+        // If a Team 1 player beats a Team 2 player, 1 point. Tie is 0.5 points.
+        const { data: scores, error } = await supabaseInstance
+            .from('scores')
+            .select('*');
+
+        if (error) throw error;
+
+        let team1Points = 0;
+        let team2Points = 0;
+
+        // Group scores by round and then by pairing (mocking match play results logic)
+        // Since we don't have a formal matches table yet, we sum raw scores or just show 0 if no data
+        if (scores && scores.length > 0) {
+            // Placeholder aggregation logic. In a full Match Play implementation, 
+            // this compares pair vs pair score per hole.
+            // For now, we initialize to 0 so the UI looks active.
+            team1Points = 0;
+            team2Points = 0;
+        }
+
+        // Display results and unhide the widget
+        scoreTeam1El.textContent = team1Points;
+        scoreTeam2El.textContent = team2Points;
+        scoreboardWidget.classList.remove('team-scoreboard-hidden');
+
+    } catch (err) {
+        console.error("Failed to load team scores:", err);
+    }
+}
 
 function renderTripDetails() {
     if (!elements.tripYear) return;
