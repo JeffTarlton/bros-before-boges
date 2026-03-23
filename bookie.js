@@ -120,7 +120,7 @@ async function checkUserSession() {
     
     if (session) {
         // Find them in our players table
-        const { data: player } = await supabase
+        const { data: player } = await supabaseClient
             .from('players')
             .select('*')
             .eq('user_id', session.user.id)
@@ -197,7 +197,7 @@ async function handleAuthSubmit(e) {
         if (authMode === 'register') {
             // 1. Double check the name matches someone on the roster
             // (We usually don't want randos signing up, just guys actually going)
-            const { data: rosterMatch } = await supabase
+            const { data: rosterMatch } = await supabaseClient
                 .from('players')
                 .select('id, name, user_id')
                 .ilike('name', name)
@@ -221,7 +221,7 @@ async function handleAuthSubmit(e) {
 
             // 3. Link their newly created Auth User ID to their Player record
             if (authData.user) {
-                const { error: linkError } = await supabase
+                const { error: linkError } = await supabaseClient
                     .from('players')
                     .update({ user_id: authData.user.id })
                     .eq('id', rosterMatch.id);
@@ -266,7 +266,7 @@ async function handleLogout() {
 // ==========================================
 async function fetchBaseData() {
     // Get all drafted players to populate dropdowns
-    const { data: players } = await supabase
+    const { data: players } = await supabaseClient
         .from('players')
         .select('id, name, team_id')
         .order('name');
@@ -275,7 +275,7 @@ async function fetchBaseData() {
 
     // Fetch wagers (We'll implement the actual wagers table later, this avoids breaking if the table doesn't exist yet)
     try {
-        const { data: wagers, error } = await supabase
+        const { data: wagers, error } = await supabaseClient
             .from('wagers')
             .select(`
                 *,
