@@ -1,7 +1,7 @@
 -- Run this in the Supabase SQL Editor to update the database for The Bookie --
 
 -- 1. Add user_id to players table to link auth accounts to roster players
-ALTER TABLE players ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- 1b. Allow authenticated users to claim their roster spot by updating the user_id
 CREATE POLICY "Allow users to claim their roster spot" 
@@ -41,4 +41,17 @@ CREATE POLICY "Allow authenticated users to insert wagers"
 -- Allow authenticated users to update wagers (e.g. joining a pool or accepting a bet)
 CREATE POLICY "Allow authenticated users to update wagers" 
   ON wagers FOR UPDATE
-  USING (auth.role() = 'authenticated');
+  TO authenticated 
+  USING (true) 
+  WITH CHECK (true);
+
+-- Allow creator to delete open/proposed wagers if no one else has joined
+CREATE POLICY "Allow creator to delete open wagers"
+  ON wagers FOR DELETE
+  TO authenticated
+  USING (
+    auth.uid() = creator_id AND (
+      (type = 'h2h' AND status = 'proposed') OR
+      (type = 'pool' AND jsonb_array_length(participants) <= 1)
+    )
+  );
