@@ -1017,3 +1017,12 @@ a {
         padding: 15px 40px;
     }
 }
+/* Fix for dropdown menus ignoring dark theme */
+select {
+    color-scheme: dark;
+}
+select option {
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+}
+
