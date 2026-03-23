@@ -50,6 +50,13 @@ const filterBtns = document.querySelectorAll('.bookie-nav button');
 // Initialization
 // ==========================================
 async function initBookie() {
+    // Check if CDN loaded properly
+    if (!window.supabase) {
+        console.error('CRITICAL: window.supabase is undefined. The Supabase CDN script may be blocked by an adblocker or failed to load.');
+        alert('Error: Betting backend failed to load. Please disable any strict ad-blockers or try refreshing the page.');
+        return;
+    }
+
     // Create the Supabase client here so we know the CDN script has run
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('The Bookie initialized. Supabase client ready.');
