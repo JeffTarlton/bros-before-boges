@@ -319,13 +319,24 @@ function renderWagers(filter) {
         const isCreator = currentUser && wager.creator_id === currentUser.id;
         const isTarget = currentUser && wager.target_id === currentUser.id;
         const isParticipant = currentUser && wager.participants && wager.participants.includes(currentUser.id);
+        const participantsCount = wager.participants ? wager.participants.length : 0;
         
+        const canDelete = isCreator && (
+            (wager.type === 'h2h' && wager.status === 'proposed') ||
+            (wager.type === 'pool' && participantsCount <= 1)
+        );
+
         let statusBadge = '';
         if (wager.status === 'open') statusBadge = `<span style="background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Open</span>`;
         if (wager.status === 'proposed') statusBadge = `<span style="background: rgba(251, 191, 36, 0.2); color: var(--accent-gold); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Proposed</span>`;
         if (wager.status === 'active') statusBadge = `<span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Active</span>`;
         if (wager.status === 'settled') statusBadge = `<span style="background: rgba(255, 255, 255, 0.1); color: var(--text-muted); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Settled</span>`;
         
+        let deleteBtnHtml = '';
+        if (canDelete) {
+            deleteBtnHtml = `<div style="margin-top: 8px;"><button style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;" onclick="window.deleteWager('${wager.id}')"><i class="fas fa-trash" style="margin-right: 4px;"></i>Delete</button></div>`;
+        }
+
         let actionHtml = '';
         if (wager.status === 'open' && !isParticipant) {
             actionHtml = `<button class="btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
@@ -337,7 +348,6 @@ function renderWagers(filter) {
         
         const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : 'Pool';
         const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${wager.target.name}</div>` : '';
-        const participantsCount = wager.participants ? wager.participants.length : 0;
         const potSize = participantsCount * wager.amount;
 
         return `
@@ -348,7 +358,10 @@ function renderWagers(filter) {
                         <h4 style="font-size: 1.1rem; margin-bottom: 5px;">${wager.description}</h4>
                         ${targetLabel}
                     </div>
-                    <div>${statusBadge}</div>
+                    <div style="text-align: right;">
+                        <div>${statusBadge}</div>
+                        ${deleteBtnHtml}
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
@@ -378,6 +391,24 @@ window.joinWager = function(id) {
 
 window.acceptWager = function(id) {
     alert("Accepting challenges is coming in the next Phase update!");
+};
+
+window.deleteWager = async function(id) {
+    if (!confirm("Are you sure you want to delete this wager?")) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('wagers')
+            .delete()
+            .eq('id', id);
+            
+        if (error) throw error;
+        
+        await fetchBaseData();
+        renderDashboard();
+    } catch (err) {
+        alert("Error deleting wager: " + err.message);
+    }
 };
 
 function renderLedger() {
