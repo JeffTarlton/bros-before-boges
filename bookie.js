@@ -1,7 +1,7 @@
 // Supabase Configuration from main app
 const SUPABASE_URL = 'https://gxpwgrdyizruzfczzqwn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
-let supabase = null; // Initialized inside initBookie after CDN loads
+let supabaseClient = null; // Initialized inside initBookie after CDN loads
 
 // State
 let currentUser = null;
@@ -58,7 +58,7 @@ async function initBookie() {
     }
 
     // Create the Supabase client here so we know the CDN script has run
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('The Bookie initialized. Supabase client ready.');
 
     setupEventListeners();
@@ -116,7 +116,7 @@ function setupEventListeners() {
 // Auth Logic
 // ==========================================
 async function checkUserSession() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (session) {
         // Find them in our players table
@@ -137,7 +137,7 @@ async function checkUserSession() {
         showWall();
     }
 
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
             currentUser = null;
             showWall();
@@ -212,7 +212,7 @@ async function handleAuthSubmit(e) {
             }
 
             // 2. Register them with Supabase Auth
-            const { data: authData, error: regError } = await supabase.auth.signUp({
+            const { data: authData, error: regError } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
             });
@@ -233,7 +233,7 @@ async function handleAuthSubmit(e) {
 
         } else {
             // Login flow
-            const { error: loginError } = await supabase.auth.signInWithPassword({
+            const { error: loginError } = await supabaseClient.auth.signInWithPassword({
                 email: email,
                 password: password,
             });
@@ -258,7 +258,7 @@ async function handleAuthSubmit(e) {
 }
 
 async function handleLogout() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
 }
 
 // ==========================================
@@ -381,7 +381,7 @@ async function handleCreateWager(e) {
     }
 
     try {
-        const { error } = await supabase.from('wagers').insert([newWager]);
+        const { error } = await supabaseClient.from('wagers').insert([newWager]);
         if (error) throw error;
         
         closeModal();
