@@ -649,14 +649,18 @@ function getRoundFormat(num) {
 function renderRoster() {
     if (!elements.confirmedRoster) return;
     elements.confirmedRoster.innerHTML = tripData.roster.confirmed.map(player => {
-        // Assume picture name follows format FirstLast.jpg (e.g. JaymeMcCall.jpg)
-        const imagePath = `assets/PlayerCards/${player.name.replace(/\s+/g, '')}.jpg`;
+        // Only attempt to load images for players who actually have them to prevent console 404 errors
+        const nameKey = player.name.replace(/\s+/g, '');
+        const PLAYERS_WITH_CARDS = ['JaymeMcCall']; // Add names here when you upload their photos
+        const hasCard = PLAYERS_WITH_CARDS.includes(nameKey);
+        
+        const imagePath = `assets/PlayerCards/${nameKey}.jpg`;
         const isCaptain = player.name === 'Jeff Tarlton' || player.name === 'David Owens';
         return `
         <div class="attendee-card glass-panel" style="position: relative;">
             ${isCaptain ? `<div style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, #1B5E20, #0A5640); color: #F2C811; font-size: 0.75rem; font-weight: 900; padding: 6px 14px; border-radius: 99px; box-shadow: 0 4px 15px rgba(10, 86, 64, 0.4); z-index: 10; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.05em; transform: rotate(5deg);">⛳ Captain</div>` : ''}
             <div class="attendee-avatar" style="position: relative; overflow: hidden;">
-                <img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">
+                ${hasCard ? `<img src="${imagePath}" alt="${player.name}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2;" onerror="this.style.display='none';">` : ''}
                 <span style="position: relative; z-index: 1;">${getInitials(player.name)}</span>
             </div>
             <h4 class="attendee-name">${player.name}</h4>
