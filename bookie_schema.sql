@@ -46,11 +46,12 @@ CREATE POLICY "Allow authenticated users to update wagers"
   WITH CHECK (true);
 
 -- Allow creator to delete open/proposed wagers if no one else has joined
+DROP POLICY IF EXISTS "Allow creator to delete open wagers" ON wagers;
 CREATE POLICY "Allow creator to delete open wagers"
   ON wagers FOR DELETE
   TO authenticated
   USING (
-    auth.uid() = creator_id AND (
+    creator_id IN (SELECT id FROM players WHERE user_id = auth.uid()) AND (
       (type = 'h2h' AND status = 'proposed') OR
       (type = 'pool' AND jsonb_array_length(participants) <= 1)
     )

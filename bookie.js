@@ -103,6 +103,7 @@ function setupEventListeners() {
     createWagerForm.addEventListener('submit', handleCreateWager);
 
     // Filters
+    const filterBtns = document.querySelectorAll('.bookie-nav button');
     filterBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             filterBtns.forEach(b => b.classList.remove('active'));
@@ -110,6 +111,7 @@ function setupEventListeners() {
             renderWagers(e.target.dataset.filter);
         });
     });
+
 }
 
 // ==========================================
@@ -305,7 +307,24 @@ function renderRyderCupMainEvent() {
 }
 
 function renderWagers(filter) {
-    if (allWagers.length === 0) {
+    let displayWagers = allWagers;
+    
+    // The Ryder Cup card logic could overlap, but for now filtering specifically to standard wagers
+    if (filter === 'pools') {
+        displayWagers = allWagers.filter(w => w.type === 'pool');
+    } else if (filter === 'h2h') {
+        displayWagers = allWagers.filter(w => w.type === 'h2h');
+    } else if (filter === 'me') {
+        displayWagers = allWagers.filter(w => {
+            if (!currentUser) return false;
+            return w.creator_id === currentUser.id || (w.target_id && w.target_id === currentUser.id) || (w.participants && w.participants.includes(currentUser.id));
+        });
+    } else if (filter === 'ryder') {
+        // Just hide custom wagers when Ryder Cup is selected
+        displayWagers = [];
+    }
+
+    if (displayWagers.length === 0) {
         wagersContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
                 <p style="color: var(--text-muted); margin-bottom: 15px;">No active wagers found for this filter.</p>
@@ -315,7 +334,7 @@ function renderWagers(filter) {
         return;
     }
 
-    wagersContainer.innerHTML = allWagers.map(wager => {
+    wagersContainer.innerHTML = displayWagers.map(wager => {
         const isCreator = currentUser && wager.creator_id === currentUser.id;
         const isTarget = currentUser && wager.target_id === currentUser.id;
         const isParticipant = currentUser && wager.participants && wager.participants.includes(currentUser.id);
