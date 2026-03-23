@@ -1022,7 +1022,7 @@ select {
     color-scheme: dark;
 }
 select option {
-    background-color: var(--bg-dark);
-    color: var(--text-light);
+    background-color: var(--primary-bg-alt);
+    color: var(--text-main);
 }
 
