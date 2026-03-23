@@ -406,7 +406,7 @@ function openWagerModal() {
 
     wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>';
     dbPlayers.forEach(p => {
-        if (p.id !== currentUser.id) {
+        if (p.id !== currentUser.id && p.team_id !== null) {
             wagerTargetSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
         }
     });
