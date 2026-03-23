@@ -315,9 +315,70 @@ function renderWagers(filter) {
         return;
     }
 
-    // TODO: Implement actual loop to draw bet cards once the `wagers` table exists
-    wagersContainer.innerHTML = `<div style="padding: 20px; color: var(--text-muted);">Rendering wagers...</div>`;
+    wagersContainer.innerHTML = allWagers.map(wager => {
+        const isCreator = currentUser && wager.creator_id === currentUser.id;
+        const isTarget = currentUser && wager.target_id === currentUser.id;
+        const isParticipant = currentUser && wager.participants && wager.participants.includes(currentUser.id);
+        
+        let statusBadge = '';
+        if (wager.status === 'open') statusBadge = `<span style="background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Open</span>`;
+        if (wager.status === 'proposed') statusBadge = `<span style="background: rgba(251, 191, 36, 0.2); color: var(--accent-gold); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Proposed</span>`;
+        if (wager.status === 'active') statusBadge = `<span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Active</span>`;
+        if (wager.status === 'settled') statusBadge = `<span style="background: rgba(255, 255, 255, 0.1); color: var(--text-muted); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Settled</span>`;
+        
+        let actionHtml = '';
+        if (wager.status === 'open' && !isParticipant) {
+            actionHtml = `<button class="btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
+        } else if (wager.status === 'proposed' && isTarget) {
+            actionHtml = `<button class="btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
+        } else if (isParticipant || isCreator) {
+            actionHtml = `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">You are in this bet</div>`;
+        }
+        
+        const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : 'Pool';
+        const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${wager.target.name}</div>` : '';
+        const participantsCount = wager.participants ? wager.participants.length : 0;
+        const potSize = participantsCount * wager.amount;
+
+        return `
+            <div class="glass-panel" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'};">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                    <div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? wager.creator.name : 'Unknown'} • ${typeLabel}</div>
+                        <h4 style="font-size: 1.1rem; margin-bottom: 5px;">${wager.description}</h4>
+                        ${targetLabel}
+                    </div>
+                    <div>${statusBadge}</div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">Buy-In</div>
+                        <div style="font-weight: 700;">$${wager.amount}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">Pot</div>
+                        <div style="font-weight: 700; color: var(--accent-emerald);">$${potSize}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">In</div>
+                        <div style="font-weight: 700;">${participantsCount} <i class="fas fa-users" style="font-size: 0.8rem;"></i></div>
+                    </div>
+                </div>
+                ${actionHtml}
+            </div>
+        `;
+    }).join('');
 }
+
+// Temporary action handlers for Phase 2
+window.joinWager = function(id) {
+    alert("Joining pools is coming in the next Phase update!");
+};
+
+window.acceptWager = function(id) {
+    alert("Accepting challenges is coming in the next Phase update!");
+};
 
 function renderLedger() {
     // Aggregates won/lost balances.
