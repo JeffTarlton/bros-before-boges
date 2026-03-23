@@ -3,6 +3,14 @@
 -- 1. Add user_id to players table to link auth accounts to roster players
 ALTER TABLE players ADD COLUMN IF NOT EXISTS user_id uuid;
 
+-- 1b. Allow authenticated users to claim their roster spot by updating the user_id
+CREATE POLICY "Allow users to claim their roster spot" 
+  ON players 
+  FOR UPDATE 
+  TO authenticated 
+  USING (user_id IS NULL) 
+  WITH CHECK (user_id = auth.uid());
+
 -- 2. Create the wagers table
 CREATE TABLE wagers (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
