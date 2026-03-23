@@ -350,6 +350,20 @@ function renderWagers(filter) {
         const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${wager.target.name}</div>` : '';
         const potSize = participantsCount * wager.amount;
 
+        let resultsHtml = '';
+        if (wager.status === 'settled' && wager.winner_id) {
+            const losers = wager.participants.filter(id => id !== wager.winner_id);
+            const loserNames = losers.map(id => getPlayerName(id)).join(', ');
+            const totalWon = losers.length * wager.amount;
+            
+            resultsHtml = `
+                <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                    <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> Won by ${wager.winner.name}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">${loserNames || 'Nobody'} each owe $${wager.amount} to ${wager.winner.name}</div>
+                </div>
+            `;
+        }
+
         return `
             <div class="glass-panel" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'};">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
@@ -379,6 +393,7 @@ function renderWagers(filter) {
                     </div>
                 </div>
                 ${actionHtml}
+                ${resultsHtml}
             </div>
         `;
     }).join('');
@@ -412,16 +427,50 @@ window.deleteWager = async function(id) {
 };
 
 function renderLedger() {
-    // Aggregates won/lost balances.
-    ledgerContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <span>${currentUser.name}</span>
-            <span style="color: var(--text-muted);">$0</span>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">
-            (Ledger will update once wagers are settled)
-        </div>
-    `;
+    const balances = {}; 
+    
+    dbPlayers.forEach(p => { balances[p.id] = 0; });
+
+    allWagers.forEach(wager => {
+        if (wager.status === 'settled' && wager.winner_id && wager.participants) {
+            const losers = wager.participants.filter(id => id !== wager.winner_id);
+            const wAmount = wager.amount;
+            
+            losers.forEach(loserId => {
+                balances[loserId] = (balances[loserId] || 0) - wAmount;
+                balances[wager.winner_id] = (balances[wager.winner_id] || 0) + wAmount;
+            });
+        }
+    });
+
+    const sortedBalances = Object.keys(balances)
+        .map(id => ({ id, name: getPlayerName(id), balance: balances[id] }))
+        .sort((a, b) => b.balance - a.balance);
+
+    let ledgerHtml = '';
+    sortedBalances.forEach(b => {
+        if (b.balance !== 0 || b.id === currentUser.id) {
+            const color = b.balance > 0 ? 'var(--accent-emerald)' : (b.balance < 0 ? '#ef4444' : 'var(--text-muted)');
+            const sign = b.balance > 0 ? '+' : '';
+            ledgerHtml += `
+                <div style="display: flex; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <span style="font-weight: ${b.id === currentUser.id ? '700' : 'normal'}">${b.name} ${b.id === currentUser.id ? '(You)' : ''}</span>
+                    <span style="color: ${color}; font-weight: 700;">${sign}$${b.balance}</span>
+                </div>
+            `;
+        }
+    });
+
+    if (!ledgerHtml) {
+         ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">No settled bets yet</div>`;
+    }
+
+    ledgerContainer.innerHTML = ledgerHtml;
+}
+
+function getPlayerName(id) {
+    const p = dbPlayers.find(player => player.id === id);
+    return p ? p.name : 'Unknown';
 }
 
 // ==========================================
