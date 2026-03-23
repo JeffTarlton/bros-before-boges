@@ -1,5 +1,9 @@
--- Run this in the Supabase SQL Editor to create the wagers table for The Bookie --
+-- Run this in the Supabase SQL Editor to update the database for The Bookie --
 
+-- 1. Add user_id to players table to link auth accounts to roster players
+ALTER TABLE players ADD COLUMN IF NOT EXISTS user_id uuid;
+
+-- 2. Create the wagers table
 CREATE TABLE wagers (
   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
