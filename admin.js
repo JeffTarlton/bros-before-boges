@@ -67,10 +67,34 @@ async function checkInitialAuth() {
     try {
         const { data: { session } } = await supabaseInstance.auth.getSession();
         if (session) {
-            showDashboard();
+            await verifyAdminAndShowDashboard(session.user.email);
         }
     } catch (e) {
         console.error('Auth check failed:', e);
+    }
+}
+
+async function verifyAdminAndShowDashboard(email) {
+    try {
+        const { data: player, error } = await supabaseInstance
+            .from('players')
+            .select('is_admin')
+            .eq('email', email)
+            .single();
+
+        if (error || !player || !player.is_admin) {
+            alert("Access Denied: You do not have administrator privileges.");
+            await supabaseInstance.auth.signOut();
+            // Stay on login screen
+        } else {
+            showDashboard();
+        }
+    } catch (e) {
+        console.error("Admin verification failed:", e);
+        if (elements.loginError) {
+            elements.loginError.textContent = "Error verifying admin privileges.";
+            elements.loginError.style.display = 'block';
+        }
     }
 }
 
@@ -196,14 +220,16 @@ async function handleLogin() {
                 elements.loginError.style.display = 'block';
             }
         } else {
-            showDashboard();
+            await verifyAdminAndShowDashboard(email);
         }
-    } catch (e) {
-        console.error('Login error:', e);
-        alert('An unexpected error occurred during login.');
+    } catch (err) {
+        console.error('Login error:', err);
+        if (elements.loginError) {
+            elements.loginError.textContent = 'An unexpected error occurred.';
+            elements.loginError.style.display = 'block';
+        }
     }
 }
-
 async function handleLogout() {
     if (supabaseInstance) {
         await supabaseInstance.auth.signOut();

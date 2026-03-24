@@ -6,6 +6,7 @@ let supabaseInstance = null;
 let currentRoundId = null;
 let currentCourse = null;
 let selectedPlayers = [];
+let allConfirmedPlayers = [];
 let currentRoundMatchups = [];
 let currentHole = 1;
 
@@ -62,7 +63,6 @@ async function loadInitialData() {
         });
     }
 
-    // 2. Load Confirmed Players & Group by Team
     const { data: players } = await supabaseInstance
         .from('players')
         .select('*')
@@ -70,30 +70,9 @@ async function loadInitialData() {
         .order('team_id', { ascending: true })
         .order('name');
 
-    const playerContainer = document.getElementById('player-checkboxes');
-    playerContainer.innerHTML = '';
     if (players) {
-        let currentTeam = null;
-        players.forEach(p => {
-            if (p.team_id !== currentTeam) {
-                currentTeam = p.team_id;
-                const teamHeader = document.createElement('div');
-                teamHeader.style = "grid-column: 1 / -1; margin-top: 15px; font-weight: 800; color: var(--accent-gold); font-size: 0.8rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;";
-                teamHeader.textContent = currentTeam ? `Team ${currentTeam}` : 'No Team Assigned';
-                playerContainer.appendChild(teamHeader);
-            }
-
-            const isSelf = currentUserPlayer && p.id === currentUserPlayer.id;
-            const div = document.createElement('div');
-            div.innerHTML = `
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; ${isSelf ? 'color: var(--accent-emerald); font-weight: 700;' : ''}">
-                    <input type="checkbox" value="${p.id}" class="player-check" 
-                        data-name="${p.name}" data-team="${p.team_id || ''}" ${isSelf ? 'checked' : ''}>
-                    ${p.name} ${isSelf ? '(You)' : ''}
-                </label>
-            `;
-            playerContainer.appendChild(div);
-        });
+        allConfirmedPlayers = players;
+        await renderPlayerSelectionUI(document.getElementById('round-number-select').value);
     }
 
     // 3. Check for Active Rounds
@@ -135,6 +114,10 @@ async function loadInitialData() {
 }
 
 function setupEventListeners() {
+    document.getElementById('round-number-select').addEventListener('change', (e) => {
+        renderPlayerSelectionUI(e.target.value);
+    });
+
     document.getElementById('start-scoring-btn').addEventListener('click', () => startRound(false));
     document.getElementById('join-round-btn').addEventListener('click', () => startRound(true));
     document.getElementById('back-to-setup').addEventListener('click', () => {
@@ -231,11 +214,119 @@ function setupEventListeners() {
             currentHole++;
             renderHoleView();
         }
-        // Swipe Right -> Prev Hole
         if (swipeDist > swipeThreshold && currentHole > 1) {
             currentHole--;
             renderHoleView();
         }
+    }
+}
+
+async function renderPlayerSelectionUI(roundNumStr) {
+    const container = document.getElementById('player-selection-container');
+    if (!container) return;
+    
+    container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem;">Loading groupings...</div>';
+    
+    const renderIndividualCheckboxes = () => {
+        container.style = "display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;";
+        container.innerHTML = '';
+        let currentTeam = null;
+        allConfirmedPlayers.forEach(p => {
+            if (p.team_id !== currentTeam) {
+                currentTeam = p.team_id;
+                const teamHeader = document.createElement('div');
+                teamHeader.style = "grid-column: 1 / -1; margin-top: 15px; font-weight: 800; color: var(--accent-gold); font-size: 0.8rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;";
+                teamHeader.textContent = currentTeam ? `Team ${currentTeam}` : 'No Team Assigned';
+                container.appendChild(teamHeader);
+            }
+
+            const isSelf = currentUserPlayer && p.id === currentUserPlayer.id;
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; ${isSelf ? 'color: var(--accent-emerald); font-weight: 700;' : ''}">
+                    <input type="checkbox" value="${p.id}" class="player-check" 
+                        data-name="${p.name}" data-team="${p.team_id || ''}" ${isSelf ? 'checked' : ''}>
+                    ${p.name} ${isSelf ? '(You)' : ''}
+                </label>
+            `;
+            container.appendChild(div);
+        });
+    };
+
+    const roundNum = parseInt(roundNumStr);
+    
+    try {
+        const { data: matchups } = await supabaseInstance
+            .from('matchups')
+            .select('*')
+            .eq('round_number', roundNum);
+            
+        if (!matchups || matchups.length === 0) {
+            renderIndividualCheckboxes();
+            return;
+        }
+
+        // Render Matchup Cards
+        container.style = "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 10px;";
+        container.innerHTML = '';
+
+        matchups.forEach((match, index) => {
+            const getPlayerInfo = id => allConfirmedPlayers.find(pl => pl.id === id);
+
+            const p1t1 = getPlayerInfo(match.t1_player1_id);
+            const p2t1 = getPlayerInfo(match.t1_player2_id);
+            const p1t2 = getPlayerInfo(match.t2_player1_id);
+            const p2t2 = getPlayerInfo(match.t2_player2_id);
+
+            const t1names = p2t1 ? `${p1t1.name.split(' ')[0]} & ${p2t1.name.split(' ')[0]}` : (p1t1 ? p1t1.name.split(' ')[0] : 'TBD');
+            const t2names = p2t2 ? `${p1t2.name.split(' ')[0]} & ${p2t2.name.split(' ')[0]}` : (p1t2 ? p1t2.name.split(' ')[0] : 'TBD');
+
+            const isMyMatch = currentUserPlayer && (
+                match.t1_player1_id === currentUserPlayer.id || match.t1_player2_id === currentUserPlayer.id ||
+                match.t2_player1_id === currentUserPlayer.id || match.t2_player2_id === currentUserPlayer.id
+            );
+
+            const card = document.createElement('div');
+            card.className = \`matchup-select-card \${isMyMatch ? 'selected' : ''}\`;
+
+            // Function to generate the injected hidden checkbox markup safely mapping startRound dependencies
+            const createHiddenCb = (pNumObj) => {
+                if (!pNumObj) return '';
+                return \`<input type="checkbox" class="player-check" value="\${pNumObj.id}" data-name="\${pNumObj.name}" data-team="\${pNumObj.team_id}" \${isMyMatch ? 'checked' : ''}>\`;
+            };
+
+            card.innerHTML = \`
+                <h4 style="margin: 0 0 10px 0; color: var(--accent-gold); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Match \${index + 1}</h4>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 1: \${t1names}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin: 5px 0;">VS</div>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: \${t2names}</div>
+                
+                <div style="display: none;" class="hidden-player-checks">
+                    \${createHiddenCb(p1t1)}
+                    \${createHiddenCb(p2t1)}
+                    \${createHiddenCb(p1t2)}
+                    \${createHiddenCb(p2t2)}
+                </div>
+            \`;
+
+            card.addEventListener('click', () => {
+                // Deselect all
+                document.querySelectorAll('.matchup-select-card').forEach(c => {
+                    c.classList.remove('selected');
+                    c.querySelectorAll('.player-check').forEach(cb => cb.checked = false);
+                });
+                
+                // Select clicked
+                card.classList.add('selected');
+                card.querySelectorAll('.player-check').forEach(cb => cb.checked = true);
+            });
+
+            container.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error("Matchup fetch error:", e);
+        renderIndividualCheckboxes();
     }
 }
 
