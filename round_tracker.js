@@ -109,6 +109,28 @@ async function loadInitialData() {
         const section = document.getElementById('active-rounds-section');
         section.querySelector('p').textContent = `Round active at ${activeRound.courses.name}. Started on ${activeRound.date}.`;
         section.style.display = 'block';
+
+        // Auto-resume logic
+        const savedRoundId = localStorage.getItem('bbb_active_round_id');
+        const savedPlayerIds = JSON.parse(localStorage.getItem('bbb_tracked_players') || '[]');
+
+        if (savedRoundId === activeRound.id && savedPlayerIds.length > 0) {
+            const checkboxes = document.querySelectorAll('.player-check');
+            let checkedAny = false;
+            checkboxes.forEach(cb => {
+                if (savedPlayerIds.includes(cb.value)) {
+                    cb.checked = true;
+                    checkedAny = true;
+                } else {
+                    cb.checked = false;
+                }
+            });
+
+            if (checkedAny) {
+                console.log("Auto-resuming active round session.");
+                startRound(true);
+            }
+        }
     }
 }
 
@@ -321,6 +343,10 @@ async function startRound(joining = false) {
     document.getElementById('setup-screen').style.display = 'none';
     document.getElementById('scoring-screen').style.display = 'block';
     document.getElementById('active-course-name').textContent = currentCourse.name;
+
+    // Cache the active tracking session
+    localStorage.setItem('bbb_active_round_id', currentRoundId);
+    localStorage.setItem('bbb_tracked_players', JSON.stringify(selectedPlayers.map(p => p.id)));
 }
 
 function renderHoleView() {
@@ -740,6 +766,8 @@ async function finalizeRound() {
     if (error) {
         alert('Error finalizing: ' + error.message);
     } else {
+        localStorage.removeItem('bbb_active_round_id');
+        localStorage.removeItem('bbb_tracked_players');
         alert('Round finalized! Redirecting...');
         window.location.href = 'index.html';
     }
