@@ -287,27 +287,27 @@ async function renderPlayerSelectionUI(roundNumStr) {
             );
 
             const card = document.createElement('div');
-            card.className = \`matchup-select-card \${isMyMatch ? 'selected' : ''}\`;
+            card.className = `matchup-select-card ${isMyMatch ? 'selected' : ''}`;
 
             // Function to generate the injected hidden checkbox markup safely mapping startRound dependencies
             const createHiddenCb = (pNumObj) => {
                 if (!pNumObj) return '';
-                return \`<input type="checkbox" class="player-check" value="\${pNumObj.id}" data-name="\${pNumObj.name}" data-team="\${pNumObj.team_id}" \${isMyMatch ? 'checked' : ''}>\`;
+                return `<input type="checkbox" class="player-check" value="${pNumObj.id}" data-name="${pNumObj.name}" data-team="${pNumObj.team_id}" ${isMyMatch ? 'checked' : ''}>`;
             };
 
-            card.innerHTML = \`
-                <h4 style="margin: 0 0 10px 0; color: var(--accent-gold); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Match \${index + 1}</h4>
-                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 1: \${t1names}</div>
+            card.innerHTML = `
+                <h4 style="margin: 0 0 10px 0; color: var(--accent-gold); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Match ${index + 1}</h4>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 1: ${t1names}</div>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin: 5px 0;">VS</div>
-                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: \${t2names}</div>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: ${t2names}</div>
                 
                 <div style="display: none;" class="hidden-player-checks">
-                    \${createHiddenCb(p1t1)}
-                    \${createHiddenCb(p2t1)}
-                    \${createHiddenCb(p1t2)}
-                    \${createHiddenCb(p2t2)}
+                    ${createHiddenCb(p1t1)}
+                    ${createHiddenCb(p2t1)}
+                    ${createHiddenCb(p1t2)}
+                    ${createHiddenCb(p2t2)}
                 </div>
-            \`;
+            `;
 
             card.addEventListener('click', () => {
                 // Deselect all
