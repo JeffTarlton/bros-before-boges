@@ -1164,18 +1164,7 @@ select option {
         to { transform: translateY(0); }
     }
     
-    /* Sticky Headers */
-    .bookie-grid > div:first-child {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .bookie-grid > div:first-child > .bet-card:first-child {
-        position: sticky;
-        top: 75px; 
-        z-index: 10;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    }
+    /* Removed sticky Ryder Cup card because it obscures the wager feed on mobile */
     
     #wagers-container {
         padding-bottom: 90px;
