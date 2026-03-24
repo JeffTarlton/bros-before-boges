@@ -6,7 +6,7 @@ let supabaseInstance = null;
 let currentRoundId = null;
 let currentCourse = null;
 let selectedPlayers = [];
-let pairings = [];
+let currentRoundMatchups = [];
 let currentHole = 1;
 
 let currentUserPlayer = null;
@@ -328,13 +328,14 @@ async function startRound(joining = false) {
         });
     }
 
-    // Load Round 2 Pairings if applicable
+    // Load Round 2 Matchups for Scramble/Alt-Shot Auto-Copy logic
     const roundNumber = activeRound ? activeRound.round_number : parseInt(document.getElementById('round-number-select').value);
     if (roundNumber === 2) {
-        const { data: pairData } = await supabaseInstance
-            .from('pairings')
-            .select('*');
-        pairings = pairData || [];
+        const { data: mData } = await supabaseInstance
+            .from('matchups')
+            .select('*')
+            .eq('round_number', 2);
+        currentRoundMatchups = mData || [];
     }
 
     currentHole = 1;
@@ -446,11 +447,19 @@ function renderScorecard() {
         if (processedPlayerIds.has(player.id)) return;
 
         let companion = null;
-        if (isRound2) {
-            const pair = pairings.find(p => p.player1_id === player.id || p.player2_id === player.id);
-            if (pair) {
-                const companionId = pair.player1_id === player.id ? pair.player2_id : pair.player1_id;
-                companion = selectedPlayers.find(p => p.id === companionId);
+        if (isRound2 && currentRoundMatchups.length > 0) {
+            const match = currentRoundMatchups.find(m => 
+                m.t1_player1_id === player.id || m.t1_player2_id === player.id || 
+                m.t2_player1_id === player.id || m.t2_player2_id === player.id
+            );
+            if (match) {
+                let companionId = null;
+                if (match.t1_player1_id === player.id) companionId = match.t1_player2_id;
+                else if (match.t1_player2_id === player.id) companionId = match.t1_player1_id;
+                else if (match.t2_player1_id === player.id) companionId = match.t2_player2_id;
+                else if (match.t2_player2_id === player.id) companionId = match.t2_player1_id;
+                
+                if (companionId) companion = selectedPlayers.find(p => p.id === companionId);
             }
         }
 
@@ -578,16 +587,26 @@ async function updateScore(playerId, hole, val) {
 
     // If Round 2 and paired, update the companion as well
     const isRound2 = (activeRound && activeRound.round_number === 2) || (document.getElementById('round-number-select') && document.getElementById('round-number-select').value == 2);
-    if (isRound2) {
-        const pair = pairings.find(p => p.player1_id === playerId || p.player2_id === playerId);
-        if (pair) {
-            const companionId = pair.player1_id === playerId ? pair.player2_id : pair.player1_id;
-            const companion = selectedPlayers.find(p => p.id === companionId);
-            if (companion && companion.scores[hole - 1] !== scoreVal) {
-                companion.scores[hole - 1] = scoreVal;
-                const compInput = document.querySelector(`.score-input[data-player-id="${companionId}"][data-hole="${hole}"]`);
-                if (compInput) compInput.value = val;
-                updateScore(companionId, hole, val);
+    if (isRound2 && currentRoundMatchups.length > 0) {
+        const match = currentRoundMatchups.find(m => 
+            m.t1_player1_id === playerId || m.t1_player2_id === playerId || 
+            m.t2_player1_id === playerId || m.t2_player2_id === playerId
+        );
+        if (match) {
+            let companionId = null;
+            if (match.t1_player1_id === playerId) companionId = match.t1_player2_id;
+            else if (match.t1_player2_id === playerId) companionId = match.t1_player1_id;
+            else if (match.t2_player1_id === playerId) companionId = match.t2_player2_id;
+            else if (match.t2_player2_id === playerId) companionId = match.t2_player1_id;
+
+            if (companionId) {
+                const companion = selectedPlayers.find(p => p.id === companionId);
+                if (companion && companion.scores[hole - 1] !== scoreVal) {
+                    companion.scores[hole - 1] = scoreVal;
+                    const compInput = document.querySelector(`.score-input[data-player-id="${companionId}"][data-hole="${hole}"]`);
+                    if (compInput) compInput.value = val;
+                    updateScore(companionId, hole, val);
+                }
             }
         }
     }
@@ -640,13 +659,16 @@ async function renderLeaderboardModal() {
             return;
         }
 
+        let isMatchPlayDisplay = isMatchPlayRound && retrievedMatchups && retrievedMatchups.length > 0;
+        let rightColumnHeader = isMatchPlayDisplay ? 'Match Status' : (roundNumber === 1 ? 'Points' : 'To Par');
+
         let tableHTML = `
             <table class="tracker-table" style="width: 100%; margin: 0 auto; text-align: left;">
                 <thead>
                     <tr>
                         <th style="padding: 10px;">Pos</th>
                         <th style="padding: 10px;">Player</th>
-                        <th style="padding: 10px; text-align: right;">${isMatchPlayRound ? 'Match Status' : 'To Par'}</th>
+                        <th style="padding: 10px; text-align: right;">${rightColumnHeader}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -787,31 +809,59 @@ async function renderLeaderboardModal() {
                 `;
             });
         } else {
-            // FALLBACK STROKE PLAY VIEW (If not R1, R2, R3)
+            // FALLBACK INDIVIDUAL VIEWS (If Matchups are not set up yet)
             const playerScores = {};
             scoresData.forEach(score => {
                 const playerName = score.players.name;
                 const teamId = score.players.team_id;
-                const toPar = parseInt(score.total_to_par || 0);
-
+                
                 if (!playerScores[playerName]) {
-                    playerScores[playerName] = { name: playerName, team_id: teamId, total_to_par: 0 };
+                    playerScores[playerName] = { name: playerName, team_id: teamId, value: 0 };
                 }
-                playerScores[playerName].total_to_par += toPar;
+
+                if (roundNumber === 1) {
+                    // Quota Points
+                    for (let i = 1; i <= 18; i++) {
+                        const holeScore = score[`h${i}`];
+                        const par = currentCourseData[`h${i}_par`] || 4;
+                        if (holeScore) {
+                            const diff = holeScore - par;
+                            if (diff <= -2) playerScores[playerName].value += 5;
+                            else if (diff === -1) playerScores[playerName].value += 3;
+                            else if (diff === 0) playerScores[playerName].value += 2;
+                            else if (diff === 1) playerScores[playerName].value += 1;
+                        }
+                    }
+                } else {
+                    // Stroke Play Total To Par
+                    playerScores[playerName].value += parseInt(score.total_to_par || 0);
+                }
             });
 
-            const sortedPlayers = Object.values(playerScores).sort((a, b) => a.total_to_par - b.total_to_par);
+            // Sort: Round 1 (Desc: Highest Points wins), Others (Asc: Lowest To Par wins)
+            const sortedPlayers = Object.values(playerScores).sort((a, b) => {
+                return roundNumber === 1 ? b.value - a.value : a.value - b.value;
+            });
 
             sortedPlayers.forEach((player, index) => {
-                let toParStr = player.total_to_par === 0 ? 'E' : (player.total_to_par > 0 ? `+${player.total_to_par}` : player.total_to_par);
-                let toParColor = player.total_to_par < 0 ? 'var(--accent-emerald)' : (player.total_to_par > 0 ? '#ef4444' : 'inherit');
+                let rightColStr = '';
+                let rightColColor = 'inherit';
+
+                if (roundNumber === 1) {
+                    rightColStr = `${player.value} pts`;
+                    rightColColor = 'var(--accent-gold)';
+                } else {
+                    rightColStr = player.value === 0 ? 'E' : (player.value > 0 ? `+${player.value}` : player.value);
+                    rightColColor = player.value < 0 ? 'var(--accent-emerald)' : (player.value > 0 ? '#ef4444' : 'inherit');
+                }
+
                 let teamIcon = player.team_id === 1 ? '🔵' : (player.team_id === 2 ? '🔴' : '⚪');
 
                 tableHTML += `
                     <tr>
                         <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
                         <td style="padding: 12px;">${teamIcon} ${player.name}</td>
-                        <td style="padding: 12px; font-weight: 900; text-align: right; color: ${toParColor};">${toParStr}</td>
+                        <td style="padding: 12px; font-weight: 900; text-align: right; color: ${rightColColor};">${rightColStr}</td>
                     </tr>
                 `;
             });

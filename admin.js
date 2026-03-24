@@ -18,8 +18,6 @@ let elements = {};
 // State
 let players = [];
 let originalPlayers = []; // To track changes and allow discard
-let pairings = [];
-let originalPairings = [];
 let matchups = [];
 let originalMatchups = [];
 let currentMatchupRound = 1;
@@ -45,8 +43,6 @@ function init() {
             autoDraftBtn: document.getElementById('auto-draft-btn'),
             team1List: document.getElementById('team1-list'),
             team2List: document.getElementById('team2-list'),
-            pairingsList: document.getElementById('pairings-list'),
-            addPairingBtn: document.getElementById('add-pairing-btn'),
             matchupsList: document.getElementById('matchups-list'),
             addMatchupBtn: document.getElementById('add-matchup-btn'),
             potentialList: document.getElementById('potential-list'),
@@ -136,7 +132,6 @@ function setupEventListeners() {
             if (targetTab) targetTab.style.display = 'block';
 
             if (tab === 'drafting') renderDraftingUI();
-            if (tab === 'pairings') renderPairingsUI();
             if (tab === 'matchups') renderMatchupsUI();
             if (tab === 'potential') renderPotentialUI();
         });
@@ -146,9 +141,6 @@ function setupEventListeners() {
         elements.autoDraftBtn.addEventListener('click', autoDraft);
     }
 
-    if (elements.addPairingBtn) {
-        elements.addPairingBtn.addEventListener('click', addPairing);
-    }
 
     if (elements.addMatchupBtn) {
         elements.addMatchupBtn.addEventListener('click', addMatchup);
@@ -224,7 +216,6 @@ function showDashboard() {
     if (elements.dashboard) elements.dashboard.classList.add('active');
     if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
     loadRoster();
-    loadPairings();
     loadMatchups();
 }
 
@@ -255,7 +246,6 @@ async function loadRoster() {
     }
     renderRosterTable();
     renderDraftingUI();
-    renderPairingsUI();
     renderMatchupsUI();
     renderPotentialUI();
     checkChanges();
@@ -280,24 +270,7 @@ async function loadMatchups() {
     checkChanges();
 }
 
-async function loadPairings() {
-    if (supabaseInstance) {
-        try {
-            const { data, error } = await supabaseInstance
-                .from('pairings')
-                .select('*');
 
-            if (!error && data) {
-                pairings = JSON.parse(JSON.stringify(data));
-                originalPairings = JSON.parse(JSON.stringify(data));
-            }
-        } catch (e) {
-            console.error('Pairings load failed:', e);
-        }
-    }
-    renderPairingsUI();
-    checkChanges();
-}
 
 function renderRosterTable() {
     if (!elements.rosterTbody) return;
@@ -418,8 +391,8 @@ function removePlayer(index) {
 }
 
 function checkChanges() {
-    const current = JSON.stringify({ players, pairings, matchups });
-    const original = JSON.stringify({ players: originalPlayers, pairings: originalPairings, matchups: originalMatchups });
+    const current = JSON.stringify({ players, matchups });
+    const original = JSON.stringify({ players: originalPlayers, matchups: originalMatchups });
 
     hasChanges = current !== original;
 
@@ -494,72 +467,6 @@ function autoDraft() {
     checkChanges();
     alert('Auto-draft complete! Inspect the teams and click "Save Changes" to commit.');
 }
-
-function renderPairingsUI() {
-    if (!elements.pairingsList) return;
-
-    elements.pairingsList.innerHTML = '';
-
-    if (players.length === 0) {
-        elements.pairingsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Load players first to create pairings.</p>';
-        return;
-    }
-
-    pairings.forEach((pair, index) => {
-        const div = document.createElement('div');
-        div.className = 'glass-panel';
-        div.style = "padding: 20px; border-color: rgba(255,255,255,0.05);";
-
-        const player1 = players.find(p => p.id === pair.player1_id) || players.find(p => p.name === pair.player1_name);
-        const player2 = players.find(p => p.id === pair.player2_id) || players.find(p => p.name === pair.player2_name);
-
-        div.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-                <h4 style="color: var(--admin-accent);">Pair ${index + 1}</h4>
-                <button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="removePairing(${index})">Remove</button>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <select class="admin-input" style="padding: 8px; font-size: 0.9rem;" onchange="updatePairing(${index}, 'player1_id', this.value)">
-                    <option value="">Select Player 1</option>
-                    ${players.map(p => `<option value="${p.id || p.name}" ${(p.id === pair.player1_id || p.name === pair.player1_name) ? 'selected' : ''}>${p.name} (Team ${p.team_id || '?'})</option>`).join('')}
-                </select>
-                <select class="admin-input" style="padding: 8px; font-size: 0.9rem;" onchange="updatePairing(${index}, 'player2_id', this.value)">
-                    <option value="">Select Player 2</option>
-                    ${players.map(p => `<option value="${p.id || p.name}" ${(p.id === pair.player2_id || p.name === pair.player2_name) ? 'selected' : ''}>${p.name} (Team ${p.team_id || '?'})</option>`).join('')}
-                </select>
-            </div>
-        `;
-        elements.pairingsList.appendChild(div);
-    });
-
-    if (pairings.length === 0) {
-        elements.pairingsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No pairings defined. Click "+ Create Pair" to start.</p>';
-    }
-}
-
-function addPairing() {
-    pairings.push({ player1_id: null, player2_id: null, team_id: null });
-    renderPairingsUI();
-    checkChanges();
-}
-
-window.removePairing = (index) => {
-    pairings.splice(index, 1);
-    renderPairingsUI();
-    checkChanges();
-};
-
-window.updatePairing = (index, field, value) => {
-    pairings[index][field] = value;
-
-    // Auto-detect team if possible
-    const player = players.find(p => p.id === value || p.name === value);
-    if (player && player.team_id) {
-        pairings[index].team_id = player.team_id;
-    }
-
-    checkChanges();
-};
 
 // Matchups Logic
 window.filterMatchupRound = (roundNum) => {
@@ -707,11 +614,9 @@ window.promotePlayer = (index) => {
 function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         players = JSON.parse(JSON.stringify(originalPlayers));
-        pairings = JSON.parse(JSON.stringify(originalPairings));
         matchups = JSON.parse(JSON.stringify(originalMatchups));
         renderRosterTable();
         renderDraftingUI();
-        renderPairingsUI();
         renderMatchupsUI();
         renderPotentialUI();
         checkChanges();
@@ -749,28 +654,7 @@ async function saveChanges() {
 
         if (upsertError) throw upsertError;
 
-        // 4. Update Pairings
-        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name')).data;
-        const pairingsToSave = pairings.map(p => {
-            const p1 = refreshedPlayers.find(rp => rp.id === p.player1_id || rp.name === p.player1_id);
-            const p2 = refreshedPlayers.find(rp => rp.id === p.player2_id || rp.name === p.player2_id);
-            return {
-                player1_id: p1 ? p1.id : null,
-                player2_id: p2 ? p2.id : null,
-                team_id: p.team_id
-            };
-        }).filter(p => p.player1_id && p.player2_id);
-
-        await supabaseInstance.from('pairings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-        if (pairingsToSave.length > 0) {
-            const { error: pairError } = await supabaseInstance
-                .from('pairings')
-                .insert(pairingsToSave);
-            if (pairError) throw pairError;
-        }
-
-        // 5. Update Matchups
+        // 4. Update Matchups
         const matchupsToSave = matchups.map(m => {
             const t1p1 = refreshedPlayers.find(rp => rp.id === m.t1_player1_id || rp.name === m.t1_player1_id);
             const t1p2 = refreshedPlayers.find(rp => rp.id === m.t1_player2_id || rp.name === m.t1_player2_id);
@@ -796,7 +680,6 @@ async function saveChanges() {
 
         alert('Changes saved successfully! 🎉');
         loadRoster();
-        loadPairings();
     } catch (err) {
         console.error('Save failed:', err);
         alert('Error saving changes: ' + err.message);
