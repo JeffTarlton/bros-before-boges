@@ -151,7 +151,9 @@
 
                 <div class="bookie-nav">
                     <button class="active" data-filter="all">All Action</button>
-                    <button data-filter="ryder">Ryder Cup</button>
+                    <button onclick="window.location.href='round_tracker.html'" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: var(--accent-emerald);">
+                        <i class="fas fa-satellite-dish" style="margin-right: 6px;"></i>Live Tracker
+                    </button>
                     <button data-filter="pools">Pools & Props</button>
                     <button data-filter="h2h">Head-to-Head</button>
                     <button data-filter="me">My Wagers</button>
@@ -220,9 +222,9 @@
             <i class="fas fa-list"></i>
             <span>Action</span>
         </button>
-        <button class="bottom-nav-btn" data-filter="ryder">
-            <i class="fas fa-trophy"></i>
-            <span>Ryder</span>
+        <button class="bottom-nav-btn" onclick="window.location.href='round_tracker.html'">
+            <i class="fas fa-satellite-dish"></i>
+            <span>Live Play</span>
         </button>
         <button class="bottom-nav-btn" data-filter="me">
             <i class="fas fa-user"></i>
