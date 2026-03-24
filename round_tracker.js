@@ -603,7 +603,7 @@ async function renderLeaderboardModal() {
         // First, find all active rounds
         const { data: activeRounds, error: roundError } = await supabaseInstance
             .from('rounds')
-            .select('id, round_number')
+            .select('id, round_number, course_id, courses(*)')
             .eq('status', 'active');
 
         if (roundError) throw roundError;
@@ -614,16 +614,15 @@ async function renderLeaderboardModal() {
         }
 
         const activeRoundIds = activeRounds.map(r => r.id);
-        const isMatchPlayRound = activeRounds.some(r => r.round_number === 2 || r.round_number === 3);
+        const roundNumber = activeRounds[0].round_number;
+        const isMatchPlayRound = roundNumber === 1 || roundNumber === 2 || roundNumber === 3;
+        const currentCourseData = activeRounds[0].courses;
 
-        // Fetch scores for those active rounds, joined with player info
-        const { data, error } = await supabaseInstance
+        // Fetch ALL score data for these active rounds
+        const { data: scoresData, error } = await supabaseInstance
             .from('scores')
             .select(`
-                total_score,
-                total_to_par,
-                round_id,
-                player_id,
+                *,
                 players ( name, team_id )
             `)
             .in('round_id', activeRoundIds);
@@ -636,7 +635,7 @@ async function renderLeaderboardModal() {
             .select('*')
             .in('round_number', activeRounds.map(r => r.round_number));
 
-        if (!data || data.length === 0) {
+        if (!scoresData || scoresData.length === 0) {
             container.innerHTML = '<p style="color: var(--text-muted);">No scores recorded yet.</p>';
             return;
         }
@@ -654,48 +653,126 @@ async function renderLeaderboardModal() {
         `;
 
         if (isMatchPlayRound && retrievedMatchups && retrievedMatchups.length > 0) {
-            // MATCH PLAY VIEW
-            // Group players by matchup
+            // MATCH PLAY VIEW FOR ALL 3 ROUNDS
             retrievedMatchups.forEach((match, index) => {
-                // Team 1 players
-                const t1p1 = data.find(d => d.player_id === match.t1_player1_id);
-                const t1p2 = data.find(d => d.player_id === match.t1_player2_id);
-                // Team 2 players
-                const t2p1 = data.find(d => d.player_id === match.t2_player1_id);
-                const t2p2 = data.find(d => d.player_id === match.t2_player2_id);
-                
-                // For singles, p2 might be undefined. That's fine.
-                const t1Score = (t1p1 ? parseInt(t1p1.total_to_par || 0) : 0) + (t1p2 ? parseInt(t1p2.total_to_par || 0) : 0);
-                const t2Score = (t2p1 ? parseInt(t2p1.total_to_par || 0) : 0) + (t2p2 ? parseInt(t2p2.total_to_par || 0) : 0);
-                
-                // Note: For Scramble/Alt-Shot the players in the pair enter the *exact same score* in the UI, 
-                // so simply summing their to_par values doubles the actual score difference.
-                // We divide by 2 if it's a paired event to get the true team-to-par to compare.
-                const isPaired = t1p1 && t1p2;
-                const toPar1 = isPaired ? t1Score / 2 : t1Score;
-                const toPar2 = (t2p1 && t2p2) ? t2Score / 2 : t2Score;
+                const sT1P1 = scoresData.find(d => d.player_id === match.t1_player1_id);
+                const sT1P2 = scoresData.find(d => d.player_id === match.t1_player2_id);
+                const sT2P1 = scoresData.find(d => d.player_id === match.t2_player1_id);
+                const sT2P2 = scoresData.find(d => d.player_id === match.t2_player2_id);
 
                 let status1 = 'AS';
                 let statusColor1 = 'var(--text-muted)';
                 let status2 = 'AS';
                 let statusColor2 = 'var(--text-muted)';
+                let isPaired = sT1P1 && sT1P2;
 
-                if (toPar1 < toPar2) {
-                    const diff = toPar2 - toPar1;
-                    status1 = `${diff} UP`;
-                    statusColor1 = 'var(--accent-emerald)';
-                    status2 = `${diff} DN`;
-                    statusColor2 = '#ef4444';
-                } else if (toPar2 < toPar1) {
-                    const diff = toPar1 - toPar2;
-                    status2 = `${diff} UP`;
-                    statusColor2 = 'var(--accent-emerald)';
-                    status1 = `${diff} DN`;
-                    statusColor1 = '#ef4444';
+                if (roundNumber === 1) {
+                    // Round 1: Modified Stableford Quota
+                    // Compare total points
+                    const calcPoints = (scoreObj) => {
+                        if (!scoreObj) return 0;
+                        let pts = 0;
+                        for (let i = 1; i <= 18; i++) {
+                            const holeScore = scoreObj[`h${i}`];
+                            const par = currentCourseData[`h${i}_par`] || 4;
+                            if (holeScore) {
+                                const diff = holeScore - par;
+                                if (diff <= -2) pts += 5;       // Eagle
+                                else if (diff === -1) pts += 3; // Birdie
+                                else if (diff === 0) pts += 2;  // Par
+                                else if (diff === 1) pts += 1;  // Bogey
+                            }
+                        }
+                        return pts;
+                    };
+                    const t1Total = calcPoints(sT1P1) + calcPoints(sT1P2);
+                    const t2Total = calcPoints(sT2P1) + calcPoints(sT2P2);
+
+                    if (t1Total > t2Total) {
+                        const diff = t1Total - t2Total;
+                        status1 = `${diff} UP`; statusColor1 = 'var(--accent-emerald)';
+                        status2 = `${diff} DN`; statusColor2 = '#ef4444';
+                    } else if (t2Total > t1Total) {
+                        const diff = t2Total - t1Total;
+                        status2 = `${diff} UP`; statusColor2 = 'var(--accent-emerald)';
+                        status1 = `${diff} DN`; statusColor1 = '#ef4444';
+                    }
+                } 
+                else if (roundNumber === 2) {
+                    // Round 2: Split Decision (Front 9 Scramble, Back 9 Alt Shot)
+                    const t1obj = sT1P1 || sT1P2;
+                    const t2obj = sT2P1 || sT2P2;
+                    let t1Strokes = 0; let t2Strokes = 0;
+                    
+                    if (t1obj || t2obj) {
+                        // Check if they are on back 9
+                        let isOnBack9 = false;
+                        for(let i=10; i<=18; i++) {
+                            if ((t1obj && t1obj[`h${i}`]) || (t2obj && t2obj[`h${i}`])) {
+                                isOnBack9 = true;
+                                break;
+                            }
+                        }
+
+                        let startHole = isOnBack9 ? 10 : 1;
+                        let endHole = isOnBack9 ? 18 : 9;
+
+                        for (let i = startHole; i <= endHole; i++) {
+                            if (t1obj && t1obj[`h${i}`]) t1Strokes += t1obj[`h${i}`];
+                            if (t2obj && t2obj[`h${i}`]) t2Strokes += t2obj[`h${i}`];
+                        }
+
+                        if (t1Strokes < t2Strokes) {
+                            const diff = t2Strokes - t1Strokes;
+                            status1 = `${diff} UP`; statusColor1 = 'var(--accent-emerald)';
+                            status2 = `${diff} DN`; statusColor2 = '#ef4444';
+                        } else if (t2Strokes < t1Strokes) {
+                            const diff = t1Strokes - t2Strokes;
+                            status2 = `${diff} UP`; statusColor2 = 'var(--accent-emerald)';
+                            status1 = `${diff} DN`; statusColor1 = '#ef4444';
+                        }
+                    }
+                }
+                else if (roundNumber === 3) {
+                    // Round 3: Singles Match Play
+                    const t1obj = sT1P1;
+                    const t2obj = sT2P1;
+                    let t1HolesWon = 0;
+                    let t2HolesWon = 0;
+                    isPaired = false;
+
+                    for (let i = 1; i <= 18; i++) {
+                        const h1 = t1obj ? t1obj[`h${i}`] : null;
+                        const h2 = t2obj ? t2obj[`h${i}`] : null;
+                        if (h1 && h2) {
+                            if (h1 < h2) t1HolesWon++;
+                            else if (h2 < h1) t2HolesWon++;
+                        } else if (h1) {
+                            t1HolesWon++;
+                        } else if (h2) {
+                            t2HolesWon++;
+                        }
+                    }
+
+                    if (t1HolesWon > t2HolesWon) {
+                        const diff = t1HolesWon - t2HolesWon;
+                        status1 = `${diff} UP`; statusColor1 = 'var(--accent-emerald)';
+                        status2 = `${diff} DN`; statusColor2 = '#ef4444';
+                    } else if (t2HolesWon > t1HolesWon) {
+                        const diff = t2HolesWon - t1HolesWon;
+                        status2 = `${diff} UP`; statusColor2 = 'var(--accent-emerald)';
+                        status1 = `${diff} DN`; statusColor1 = '#ef4444';
+                    }
                 }
 
-                const t1Name = isPaired ? `${t1p1.players.name.split(' ')[0]} & ${t1p2.players.name.split(' ')[0]}` : (t1p1 ? t1p1.players.name : 'T1 Player');
-                const t2Name = (t2p1 && t2p2) ? `${t2p1.players.name.split(' ')[0]} & ${t2p2.players.name.split(' ')[0]}` : (t2p1 ? t2p1.players.name : 'T2 Player');
+                const formatName = (p1, p2) => {
+                    if (p1 && p2) return `${p1.players.name.split(' ')[0]} & ${p2.players.name.split(' ')[0]}`;
+                    if (p1) return p1.players.name;
+                    return 'Player';
+                };
+
+                const t1Name = formatName(sT1P1, sT1P2);
+                const t2Name = formatName(sT2P1, sT2P2);
 
                 tableHTML += `
                     <tr style="border-top: 2px solid rgba(255,255,255,0.1);">
@@ -710,21 +787,15 @@ async function renderLeaderboardModal() {
                 `;
             });
         } else {
-            // STROKE PLAY VIEW (Default)
-            // Aggregate scores dynamically across anyone currently playing
+            // FALLBACK STROKE PLAY VIEW (If not R1, R2, R3)
             const playerScores = {};
-
-            data.forEach(score => {
+            scoresData.forEach(score => {
                 const playerName = score.players.name;
                 const teamId = score.players.team_id;
                 const toPar = parseInt(score.total_to_par || 0);
 
                 if (!playerScores[playerName]) {
-                    playerScores[playerName] = {
-                        name: playerName,
-                        team_id: teamId,
-                        total_to_par: 0
-                    };
+                    playerScores[playerName] = { name: playerName, team_id: teamId, total_to_par: 0 };
                 }
                 playerScores[playerName].total_to_par += toPar;
             });
