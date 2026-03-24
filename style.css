@@ -1171,3 +1171,7 @@ select option {
     }
 }
 
+/* Fix iOS Auto-Zoom on form fields */
+input, select, textarea {
+    font-size: 16px !important; /* Forces Safari to not auto-zoom on focus */
+}
