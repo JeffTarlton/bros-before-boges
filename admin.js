@@ -655,6 +655,7 @@ async function saveChanges() {
         if (upsertError) throw upsertError;
 
         // 4. Update Matchups
+        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name')).data;
         const matchupsToSave = matchups.map(m => {
             const t1p1 = refreshedPlayers.find(rp => rp.id === m.t1_player1_id || rp.name === m.t1_player1_id);
             const t1p2 = refreshedPlayers.find(rp => rp.id === m.t1_player2_id || rp.name === m.t1_player2_id);
