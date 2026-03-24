@@ -38,15 +38,15 @@
             Tap on any round below to view the format, scoring, and specific rules.
         </p>
         
-        <div class="timeline">
+        <div class="rules-accordion" style="display: flex; flex-direction: column; gap: 20px;">
             <!-- Round 1 -->
-            <div class="timeline-item">
-                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 1: The Grind</h3>
+            <div class="rules-accordion-item">
+                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 1: The Grind</h3>
                         <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
                     </div>
-                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
                         <p><strong>Format:</strong> Team Point Quota</p>
                         <p>Two-man teams, playing own ball. Both players’ scores on every hole contribute to the team total.</p>
                         <h4 style="margin-top: 25px; color: var(--accent-gold); margin-bottom: 10px;">Scoring (Per Player)</h4>
@@ -70,13 +70,13 @@
             </div>
 
             <!-- Round 2 -->
-            <div class="timeline-item">
-                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 2: The Split Decision</h3>
+            <div class="rules-accordion-item">
+                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 2: The Split Decision</h3>
                         <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
                     </div>
-                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
                         <p><strong>Format:</strong> 18-hole match split into two distinct 9-hole formats.</p>
                         <p><strong>Points:</strong> Each 9-hole "side" is worth 1 point. Total of 2 points available per match.</p>
 
@@ -104,13 +104,13 @@
             </div>
 
             <!-- Round 3 -->
-            <div class="timeline-item">
-                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 3: Championship Singles</h3>
+            <div class="rules-accordion-item">
+                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 3: Championship Singles</h3>
                         <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
                     </div>
-                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
                         <p><strong>Format:</strong> Individual Head-to-Head Match Play. 8 matches total (Team A vs. Team B).</p>
                         <p><strong>Scoring:</strong> Traditional Match Play. Holes are won, lost, or halved.</p>
                         
@@ -132,13 +132,13 @@
             </div>
 
             <!-- Tie Breaker -->
-            <div class="timeline-item" style="margin-top: 30px;">
-                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(251, 191, 36, 0.4);">
-                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(251, 191, 36, 0.1); border-bottom: 1px solid rgba(251, 191, 36, 0.2);">
-                        <h3 class="timeline-title" style="margin: 0; color: var(--accent-gold); font-family: var(--font-heading);">Tournament Tie-Breaker: "The Playoff"</h3>
+            <div class="rules-accordion-item">
+                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(251, 191, 36, 0.4);">
+                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(251, 191, 36, 0.1); border-bottom: 1px solid rgba(251, 191, 36, 0.2);">
+                        <h3 style="margin: 0; color: var(--accent-gold); font-family: var(--font-heading); font-size: 1.5rem;">Tournament Tie-Breaker: "The Playoff"</h3>
                         <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-gold);">▼</span>
                     </div>
-                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
                         <p style="font-size: 1.1rem; line-height: 1.6;">If the total team points are deadlocked after all three rounds, this format will be used to crown the champion.</p>
                         
                         <div style="margin-top: 25px; padding: 25px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
@@ -175,10 +175,10 @@
         }
 
         // Accordion Logic
-        const headers = document.querySelectorAll('.timeline-header');
+        const headers = document.querySelectorAll('.rules-accordion-header');
         headers.forEach((header, index) => {
-            const item = header.closest('.timeline-card');
-            const content = item.querySelector('.timeline-content-wrapper');
+            const item = header.closest('.rules-accordion-item');
+            const content = item.querySelector('.rules-accordion-content');
             const icon = item.querySelector('.accordion-icon');
             
             // Auto-open the very first item (Round 1)
