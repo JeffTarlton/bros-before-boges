@@ -79,7 +79,7 @@ async function verifyAdminAndShowDashboard(email) {
         const { data: player, error } = await supabaseInstance
             .from('players')
             .select('is_admin')
-            .eq('email', email)
+            .ilike('email', email)
             .single();
 
         if (error || !player || !player.is_admin) {
