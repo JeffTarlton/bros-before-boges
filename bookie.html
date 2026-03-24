@@ -3,7 +3,10 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>The Bookie - Bros before Boges</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -280,7 +283,7 @@
                 <input type="text" id="wager-desc" required placeholder="E.g., Lowest raw score on Friday">
 
                 <label>Wager Amount ($)</label>
-                <input type="number" id="wager-amt" required min="1" placeholder="20">
+                <input type="number" inputmode="numeric" pattern="[0-9]*" id="wager-amt" required min="1" placeholder="20">
 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Propose Wager</button>
             </form>

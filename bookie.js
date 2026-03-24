@@ -64,6 +64,7 @@ async function initBookie() {
     setupEventListeners();
     await checkUserSession();
     if (currentUser) {
+        wagersContainer.innerHTML = getSkeletonHtml();
         await fetchBaseData();
         renderDashboard();
     }
@@ -340,7 +341,7 @@ async function handleAuthSubmit(e) {
                 if (linkError) throw linkError;
             }
 
-            alert("Account created successfully! You are now logged in.");
+            showToast("Account created successfully! You are now logged in.", "success");
 
         } else {
             // Login flow
@@ -355,6 +356,7 @@ async function handleAuthSubmit(e) {
         closeModal();
         await checkUserSession(); // This will fetch current user and reload board
         if (currentUser) {
+            wagersContainer.innerHTML = getSkeletonHtml();
             await fetchBaseData();
             renderDashboard();
         }
@@ -529,21 +531,19 @@ function renderWagers(filter) {
 
 // Temporary action handlers for Phase 2
 window.joinWager = function(id) {
-    alert("Joining pools is coming in the next Phase update!");
+    showToast("Joining pools is coming in the next Phase update!", "success");
 };
 
 window.acceptWager = function(id) {
-    if(navigator.vibrate) navigator.vibrate([30, 50, 30]);
-    
     const card = document.getElementById(`wager-card-${id}`);
     if(card) {
         card.classList.add('success-pop');
         setTimeout(() => {
-            alert("Accepting challenges is coming in the next Phase update! (Animation triggered)");
+            showToast("Challenge Accepted! (UI mock for Phase 2)", "success");
             card.classList.remove('success-pop');
         }, 600);
     } else {
-        alert("Accepting challenges is coming in the next Phase update!");
+        showToast("Challenge Accepted! (UI mock for Phase 2)", "success");
     }
 };
 
@@ -560,8 +560,9 @@ window.deleteWager = async function(id) {
         
         await fetchBaseData();
         renderDashboard();
+        showToast("Wager deleted successfully.", "success");
     } catch (err) {
-        alert("Error deleting wager: " + err.message);
+        showToast("Error deleting wager: " + err.message, "error");
     }
 };
 
@@ -665,12 +666,62 @@ async function handleCreateWager(e) {
         if (error) throw error;
         
         closeModal();
+        wagersContainer.innerHTML = getSkeletonHtml();
         await fetchBaseData();
         renderDashboard();
+        showToast("Your wager has been proposed!", "success");
     } catch (err) {
-        alert("Error proposing bet: Make sure the 'wagers' table is created in Supabase first!\n\n" + err.message);
+        showToast("Error proposing bet: " + err.message, "error");
     }
 }
+
+// ==========================================
+// Native App Helpers (Skeletons & Toasts)
+// ==========================================
+function getSkeletonHtml() {
+    return Array(3).fill(`
+        <div class="glass-panel" style="margin-bottom: 20px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <div style="width: 70%;">
+                    <div class="skeleton-box skeleton-text" style="width: 40%;"></div>
+                    <div class="skeleton-box skeleton-title"></div>
+                </div>
+                <div class="skeleton-box" style="width: 60px; height: 24px; border-radius: 4px;"></div>
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+                <div class="skeleton-box" style="width: 30%; height: 30px; border-radius: 20px;"></div>
+                <div class="skeleton-box" style="width: 30%; height: 30px; border-radius: 20px;"></div>
+                <div class="skeleton-box" style="width: 20%; height: 30px; border-radius: 20px;"></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+window.showToast = function(message, type = 'success') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    const icon = type === 'success' ? '<i class="fas fa-check-circle" style="color: var(--accent-emerald);"></i>' : '<i class="fas fa-exclamation-circle" style="color: #ef4444;"></i>';
+    toast.innerHTML = `${icon} <span>${message}</span>`;
+    
+    container.appendChild(toast);
+    
+    if(navigator.vibrate) {
+        navigator.vibrate(type === 'success' ? 50 : [50, 100, 50]);
+    }
+    
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+};
 
 // Kickoff — handles both early and late script execution
 console.log('The Bookie JS loaded. readyState:', document.readyState);
