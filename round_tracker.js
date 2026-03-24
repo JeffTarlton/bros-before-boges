@@ -604,6 +604,12 @@ async function renderLeaderboardModal() {
 
         if (error) throw error;
 
+        // Fetch custom matchups
+        const { data: retrievedMatchups } = await supabaseInstance
+            .from('matchups')
+            .select('*')
+            .in('round_number', activeRounds.map(r => r.round_number));
+
         if (!data || data.length === 0) {
             container.innerHTML = '<p style="color: var(--text-muted);">No scores recorded yet.</p>';
             return;
@@ -621,51 +627,61 @@ async function renderLeaderboardModal() {
                 <tbody>
         `;
 
-        if (isMatchPlayRound && pairings.length > 0) {
+        if (isMatchPlayRound && retrievedMatchups && retrievedMatchups.length > 0) {
             // MATCH PLAY VIEW
             // Group players by matchup
-            pairings.forEach((pair, index) => {
-                const s1 = data.find(d => d.player_id === pair.player1_id);
-                const s2 = data.find(d => d.player_id === pair.player2_id);
+            retrievedMatchups.forEach((match, index) => {
+                // Team 1 players
+                const t1p1 = data.find(d => d.player_id === match.t1_player1_id);
+                const t1p2 = data.find(d => d.player_id === match.t1_player2_id);
+                // Team 2 players
+                const t2p1 = data.find(d => d.player_id === match.t2_player1_id);
+                const t2p2 = data.find(d => d.player_id === match.t2_player2_id);
+                
+                // For singles, p2 might be undefined. That's fine.
+                const t1Score = (t1p1 ? parseInt(t1p1.total_to_par || 0) : 0) + (t1p2 ? parseInt(t1p2.total_to_par || 0) : 0);
+                const t2Score = (t2p1 ? parseInt(t2p1.total_to_par || 0) : 0) + (t2p2 ? parseInt(t2p2.total_to_par || 0) : 0);
+                
+                // Note: For Scramble/Alt-Shot the players in the pair enter the *exact same score* in the UI, 
+                // so simply summing their to_par values doubles the actual score difference.
+                // We divide by 2 if it's a paired event to get the true team-to-par to compare.
+                const isPaired = t1p1 && t1p2;
+                const toPar1 = isPaired ? t1Score / 2 : t1Score;
+                const toPar2 = (t2p1 && t2p2) ? t2Score / 2 : t2Score;
 
-                if (s1 && s2) {
-                    const toPar1 = parseInt(s1.total_to_par || 0);
-                    const toPar2 = parseInt(s2.total_to_par || 0);
-                    
-                    let status1 = 'AS';
-                    let statusColor1 = 'var(--text-muted)';
-                    let status2 = 'AS';
-                    let statusColor2 = 'var(--text-muted)';
+                let status1 = 'AS';
+                let statusColor1 = 'var(--text-muted)';
+                let status2 = 'AS';
+                let statusColor2 = 'var(--text-muted)';
 
-                    if (toPar1 < toPar2) {
-                        const diff = toPar2 - toPar1;
-                        status1 = `${diff} UP`;
-                        statusColor1 = 'var(--accent-emerald)';
-                        status2 = `${diff} DN`;
-                        statusColor2 = '#ef4444';
-                    } else if (toPar2 < toPar1) {
-                        const diff = toPar1 - toPar2;
-                        status2 = `${diff} UP`;
-                        statusColor2 = 'var(--accent-emerald)';
-                        status1 = `${diff} DN`;
-                        statusColor1 = '#ef4444';
-                    }
-
-                    const t1Icon = s1.players.team_id === 1 ? '🔵' : '🔴';
-                    const t2Icon = s2.players.team_id === 1 ? '🔵' : '🔴';
-
-                    tableHTML += `
-                        <tr style="border-top: 2px solid rgba(255,255,255,0.1);">
-                            <td rowspan="2" style="padding: 12px; font-weight: bold; color: var(--text-muted);">Match ${index+1}</td>
-                            <td style="padding: 12px;">${t1Icon} ${s1.players.name}</td>
-                            <td style="padding: 12px; font-weight: 900; text-align: right; color: ${statusColor1};">${status1}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px; border-top: none;">${t2Icon} ${s2.players.name}</td>
-                            <td style="padding: 12px; border-top: none; font-weight: 900; text-align: right; color: ${statusColor2};">${status2}</td>
-                        </tr>
-                    `;
+                if (toPar1 < toPar2) {
+                    const diff = toPar2 - toPar1;
+                    status1 = `${diff} UP`;
+                    statusColor1 = 'var(--accent-emerald)';
+                    status2 = `${diff} DN`;
+                    statusColor2 = '#ef4444';
+                } else if (toPar2 < toPar1) {
+                    const diff = toPar1 - toPar2;
+                    status2 = `${diff} UP`;
+                    statusColor2 = 'var(--accent-emerald)';
+                    status1 = `${diff} DN`;
+                    statusColor1 = '#ef4444';
                 }
+
+                const t1Name = isPaired ? `${t1p1.players.name.split(' ')[0]} & ${t1p2.players.name.split(' ')[0]}` : (t1p1 ? t1p1.players.name : 'T1 Player');
+                const t2Name = (t2p1 && t2p2) ? `${t2p1.players.name.split(' ')[0]} & ${t2p2.players.name.split(' ')[0]}` : (t2p1 ? t2p1.players.name : 'T2 Player');
+
+                tableHTML += `
+                    <tr style="border-top: 2px solid rgba(255,255,255,0.1);">
+                        <td rowspan="2" style="padding: 12px; font-weight: bold; color: var(--text-muted);">Match ${index+1}</td>
+                        <td style="padding: 12px;">🔵 ${t1Name}</td>
+                        <td style="padding: 12px; font-weight: 900; text-align: right; color: ${statusColor1};">${status1}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-top: none;">🔴 ${t2Name}</td>
+                        <td style="padding: 12px; border-top: none; font-weight: 900; text-align: right; color: ${statusColor2};">${status2}</td>
+                    </tr>
+                `;
             });
         } else {
             // STROKE PLAY VIEW (Default)

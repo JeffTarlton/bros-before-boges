@@ -241,26 +241,133 @@ async function renderTeamScoreboardWidget() {
     }
 
     try {
-        // Fetch matches/scores from the database to aggregate Ryder Cup style points
-        // For now, we will aggregate based on total relative-to-par to simulate points
-        // If a Team 1 player beats a Team 2 player, 1 point. Tie is 0.5 points.
-        const { data: scores, error } = await supabaseInstance
-            .from('scores')
-            .select('*');
+        // Fetch required data
+        const { data: matchups, error: matchErr } = await supabaseInstance.from('matchups').select('*');
+        const { data: rounds } = await supabaseInstance.from('rounds').select('*');
+        const { data: scores } = await supabaseInstance.from('scores').select('*');
+        const { data: courses } = await supabaseInstance.from('courses').select('*');
 
-        if (error) throw error;
+        if (error || matchErr) throw new Error('Data fetch failed');
 
         let team1Points = 0;
         let team2Points = 0;
 
-        // Group scores by round and then by pairing (mocking match play results logic)
-        // Since we don't have a formal matches table yet, we sum raw scores or just show 0 if no data
-        if (scores && scores.length > 0) {
-            // Placeholder aggregation logic. In a full Match Play implementation, 
-            // this compares pair vs pair score per hole.
-            // For now, we initialize to 0 so the UI looks active.
-            team1Points = 0;
-            team2Points = 0;
+        if (matchups && matchups.length > 0 && scores && rounds) {
+            matchups.forEach(match => {
+                const targetRounds = rounds.filter(r => r.round_number === match.round_number);
+                if (targetRounds.length === 0) return;
+                
+                const roundIds = targetRounds.map(r => r.id);
+                const getScores = (playerId) => scores.find(s => s.player_id === playerId && roundIds.includes(s.round_id));
+                const sT1P1 = getScores(match.t1_player1_id);
+                const sT1P2 = getScores(match.t1_player2_id);
+                const sT2P1 = getScores(match.t2_player1_id);
+                const sT2P2 = getScores(match.t2_player2_id);
+
+                if (match.round_number === 1) {
+                    // Round 1: Quota Points
+                    const courseId = targetRounds[0].course_id;
+                    const course = courses.find(c => c.id === courseId);
+                    if (!course) return;
+
+                    let anyPlayed = false;
+                    const calcPoints = (scoreObj) => {
+                        if (!scoreObj) return 0;
+                        let pts = 0;
+                        for (let i = 1; i <= 18; i++) {
+                            const holeScore = scoreObj[`h${i}`];
+                            const par = course[`h${i}_par`] || 4;
+                            if (holeScore) {
+                                anyPlayed = true;
+                                const diff = holeScore - par;
+                                if (diff <= -2) pts += 5;
+                                else if (diff === -1) pts += 3;
+                                else if (diff === 0) pts += 2;
+                                else if (diff === 1) pts += 1;
+                            }
+                        }
+                        return pts;
+                    };
+                    const t1Total = calcPoints(sT1P1) + calcPoints(sT1P2);
+                    const t2Total = calcPoints(sT2P1) + calcPoints(sT2P2);
+                    
+                    if (anyPlayed) {
+                        if (t1Total > t2Total) team1Points += 1;
+                        else if (t2Total > t1Total) team2Points += 1;
+                        else { team1Points += 0.5; team2Points += 0.5; }
+                    }
+                } 
+                else if (match.round_number === 2) {
+                    // Round 2: Front 9 Scramble (1pt), Back 9 Alt Shot (1pt)
+                    const calcStrokesAndStatus = (scoreObj, start, end) => {
+                        if (!scoreObj) return { strokes: 0, played: false };
+                        let strokes = 0;
+                        let played = false;
+                        for (let i = start; i <= end; i++) {
+                            const val = scoreObj[`h${i}`];
+                            if (val) {
+                                strokes += val;
+                                played = true;
+                            }
+                        }
+                        return { strokes, played };
+                    };
+                    
+                    const t1obj = sT1P1 || sT1P2;
+                    const t2obj = sT2P1 || sT2P2;
+                    if (!t1obj && !t2obj) return;
+
+                    // Front 9 (holes 1-9)
+                    const t1Front = calcStrokesAndStatus(t1obj, 1, 9);
+                    const t2Front = calcStrokesAndStatus(t2obj, 1, 9);
+                    if (t1Front.played || t2Front.played) {
+                        if (t1Front.strokes < t2Front.strokes) team1Points += 1;
+                        else if (t2Front.strokes < t1Front.strokes) team2Points += 1;
+                        else { team1Points += 0.5; team2Points += 0.5; }
+                    }
+
+                    // Back 9 (holes 10-18)
+                    const t1Back = calcStrokesAndStatus(t1obj, 10, 18);
+                    const t2Back = calcStrokesAndStatus(t2obj, 10, 18);
+                    if (t1Back.played || t2Back.played) {
+                        if (t1Back.strokes < t2Back.strokes) team1Points += 1;
+                        else if (t2Back.strokes < t1Back.strokes) team2Points += 1;
+                        else { team1Points += 0.5; team2Points += 0.5; }
+                    }
+                }
+                else if (match.round_number === 3) {
+                    // Round 3: Singles match play
+                    const t1obj = sT1P1;
+                    const t2obj = sT2P1;
+                    if (!t1obj && !t2obj) return;
+
+                    let t1HolesWon = 0;
+                    let t2HolesWon = 0;
+                    let holesPlayed = 0;
+
+                    for (let i = 1; i <= 18; i++) {
+                        const h1 = t1obj ? t1obj[`h${i}`] : null;
+                        const h2 = t2obj ? t2obj[`h${i}`] : null;
+                        if (h1 && h2) {
+                            holesPlayed++;
+                            if (h1 < h2) t1HolesWon++;
+                            else if (h2 < h1) t2HolesWon++;
+                        } else if (h1) {
+                            holesPlayed++;
+                            t1HolesWon++; // T2 didn't play = T1 wins hole
+                        } else if (h2) {
+                            holesPlayed++;
+                            t2HolesWon++;
+                        }
+                    }
+
+                    if (holesPlayed > 0) {
+                        if (t1HolesWon > t2HolesWon) team1Points += 1;
+                        else if (t2HolesWon > t1HolesWon) team2Points += 1;
+                        else { team1Points += 0.5; team2Points += 0.5; }
+                    }
+                }
+            });
         }
 
         // Display results and unhide the widget

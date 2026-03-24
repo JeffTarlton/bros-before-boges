@@ -20,6 +20,9 @@ let players = [];
 let originalPlayers = []; // To track changes and allow discard
 let pairings = [];
 let originalPairings = [];
+let matchups = [];
+let originalMatchups = [];
+let currentMatchupRound = 1;
 let hasChanges = false;
 
 // Initial Load
@@ -44,6 +47,8 @@ function init() {
             team2List: document.getElementById('team2-list'),
             pairingsList: document.getElementById('pairings-list'),
             addPairingBtn: document.getElementById('add-pairing-btn'),
+            matchupsList: document.getElementById('matchups-list'),
+            addMatchupBtn: document.getElementById('add-matchup-btn'),
             potentialList: document.getElementById('potential-list'),
             newPotentialName: document.getElementById('new-potential-name'),
             addPotentialBtn: document.getElementById('add-potential-btn')
@@ -132,6 +137,7 @@ function setupEventListeners() {
 
             if (tab === 'drafting') renderDraftingUI();
             if (tab === 'pairings') renderPairingsUI();
+            if (tab === 'matchups') renderMatchupsUI();
             if (tab === 'potential') renderPotentialUI();
         });
     });
@@ -142,6 +148,10 @@ function setupEventListeners() {
 
     if (elements.addPairingBtn) {
         elements.addPairingBtn.addEventListener('click', addPairing);
+    }
+
+    if (elements.addMatchupBtn) {
+        elements.addMatchupBtn.addEventListener('click', addMatchup);
     }
 
     if (elements.addPotentialBtn) {
@@ -215,6 +225,7 @@ function showDashboard() {
     if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
     loadRoster();
     loadPairings();
+    loadMatchups();
 }
 
 async function loadRoster() {
@@ -245,7 +256,27 @@ async function loadRoster() {
     renderRosterTable();
     renderDraftingUI();
     renderPairingsUI();
+    renderMatchupsUI();
     renderPotentialUI();
+    checkChanges();
+}
+
+async function loadMatchups() {
+    if (supabaseInstance) {
+        try {
+            const { data, error } = await supabaseInstance
+                .from('matchups')
+                .select('*');
+
+            if (!error && data) {
+                matchups = JSON.parse(JSON.stringify(data));
+                originalMatchups = JSON.parse(JSON.stringify(data));
+            }
+        } catch (e) {
+            console.error('Matchups load failed:', e);
+        }
+    }
+    renderMatchupsUI();
     checkChanges();
 }
 
@@ -387,8 +418,8 @@ function removePlayer(index) {
 }
 
 function checkChanges() {
-    const current = JSON.stringify({ players, pairings });
-    const original = JSON.stringify({ players: originalPlayers, pairings: originalPairings });
+    const current = JSON.stringify({ players, pairings, matchups });
+    const original = JSON.stringify({ players: originalPlayers, pairings: originalPairings, matchups: originalMatchups });
 
     hasChanges = current !== original;
 
@@ -530,6 +561,95 @@ window.updatePairing = (index, field, value) => {
     checkChanges();
 };
 
+// Matchups Logic
+window.filterMatchupRound = (roundNum) => {
+    currentMatchupRound = roundNum;
+    document.querySelectorAll('#tab-matchups .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.textContent.replace('Round ','')) === roundNum);
+    });
+    renderMatchupsUI();
+};
+
+function renderMatchupsUI() {
+    if (!elements.matchupsList) return;
+    elements.matchupsList.innerHTML = '';
+
+    if (players.length === 0) {
+        elements.matchupsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Load players and assign teams first.</p>';
+        return;
+    }
+
+    const roundMatchups = matchups.filter(m => m.round_number === currentMatchupRound);
+
+    roundMatchups.forEach((match, index) => {
+        const globalIndex = matchups.indexOf(match);
+        const div = document.createElement('div');
+        div.className = 'glass-panel';
+        div.style = "padding: 20px; border-color: rgba(255,255,255,0.05);";
+
+        const isSingles = currentMatchupRound === 3;
+        
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                <h4 style="color: var(--admin-accent);">Match ${index + 1}</h4>
+                <button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="removeMatchup(${globalIndex})">Remove</button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 0.8rem; font-weight: bold; color: var(--accent-emerald); margin-bottom: 5px;">Team 1</div>
+                <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
+                    <option value="">Select T1 Player 1</option>
+                    ${players.filter(p => p.team_id === 1).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t1_player1_id || p.name === match.t1_player1_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                </select>
+                ${!isSingles ? `
+                <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
+                    <option value="">Select T1 Player 2</option>
+                    ${players.filter(p => p.team_id === 1).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t1_player2_id || p.name === match.t1_player2_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                </select>` : ''}
+            </div>
+
+            <div>
+                <div style="font-size: 0.8rem; font-weight: bold; color: #ef4444; margin-bottom: 5px;">Team 2</div>
+                <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
+                    <option value="">Select T2 Player 1</option>
+                    ${players.filter(p => p.team_id === 2).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t2_player1_id || p.name === match.t2_player1_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                </select>
+                ${!isSingles ? `
+                <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
+                    <option value="">Select T2 Player 2</option>
+                    ${players.filter(p => p.team_id === 2).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t2_player2_id || p.name === match.t2_player2_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                </select>` : ''}
+            </div>
+        `;
+        elements.matchupsList.appendChild(div);
+    });
+
+    if (roundMatchups.length === 0) {
+        elements.matchupsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No matchups defined for this round. Click "+ Create Matchup" to start.</p>';
+    }
+}
+
+function addMatchup() {
+    matchups.push({
+        round_number: currentMatchupRound,
+        t1_player1_id: null, t1_player2_id: null,
+        t2_player1_id: null, t2_player2_id: null
+    });
+    renderMatchupsUI();
+    checkChanges();
+}
+
+window.removeMatchup = (index) => {
+    matchups.splice(index, 1);
+    renderMatchupsUI();
+    checkChanges();
+};
+
+window.updateMatchupTeam = (index, field, value) => {
+    matchups[index][field] = value;
+    checkChanges();
+};
+
 // New Potential Players Logic
 function renderPotentialUI() {
     if (!elements.potentialList) return;
@@ -588,9 +708,11 @@ function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         players = JSON.parse(JSON.stringify(originalPlayers));
         pairings = JSON.parse(JSON.stringify(originalPairings));
+        matchups = JSON.parse(JSON.stringify(originalMatchups));
         renderRosterTable();
         renderDraftingUI();
         renderPairingsUI();
+        renderMatchupsUI();
         renderPotentialUI();
         checkChanges();
     }
@@ -646,6 +768,30 @@ async function saveChanges() {
                 .from('pairings')
                 .insert(pairingsToSave);
             if (pairError) throw pairError;
+        }
+
+        // 5. Update Matchups
+        const matchupsToSave = matchups.map(m => {
+            const t1p1 = refreshedPlayers.find(rp => rp.id === m.t1_player1_id || rp.name === m.t1_player1_id);
+            const t1p2 = refreshedPlayers.find(rp => rp.id === m.t1_player2_id || rp.name === m.t1_player2_id);
+            const t2p1 = refreshedPlayers.find(rp => rp.id === m.t2_player1_id || rp.name === m.t2_player1_id);
+            const t2p2 = refreshedPlayers.find(rp => rp.id === m.t2_player2_id || rp.name === m.t2_player2_id);
+            return {
+                round_number: m.round_number,
+                t1_player1_id: t1p1 ? t1p1.id : null,
+                t1_player2_id: t1p2 ? t1p2.id : null,
+                t2_player1_id: t2p1 ? t2p1.id : null,
+                t2_player2_id: t2p2 ? t2p2.id : null
+            };
+        }).filter(m => m.t1_player1_id && m.t2_player1_id);
+
+        await supabaseInstance.from('matchups').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (matchupsToSave.length > 0) {
+            const { error: matchError } = await supabaseInstance
+                .from('matchups')
+                .insert(matchupsToSave);
+            if (matchError) throw matchError;
         }
 
         alert('Changes saved successfully! 🎉');

@@ -412,6 +412,7 @@
                 <div class="sidebar-item active" data-tab="roster">Confirmed Roster</div>
                 <div class="sidebar-item" data-tab="drafting">Team Drafting</div>
                 <div class="sidebar-item" data-tab="pairings">Round 2 Pairings</div>
+                <div class="sidebar-item" data-tab="matchups">Ryder Cup Matchups</div>
                 <div class="sidebar-item" data-tab="potential">Potential Players</div>
             </aside>
 
@@ -497,6 +498,26 @@
                     <div id="pairings-list"
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                         <!-- Pairings rendered here -->
+                    </div>
+                </div>
+
+                <div id="tab-matchups" class="tab-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Ryder Cup Matchups</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="add-matchup-btn" class="admin-btn" style="width: auto; margin-top: 0; padding: 10px 20px;">+ Create Matchup</button>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">
+                        Assign opponents for each round (Team 1 vs Team 2) to correctly calculate Match Points.
+                    </p>
+                    <div class="wager-filters" style="margin-bottom: 20px; overflow-x: auto; white-space: nowrap; padding-bottom: 5px;">
+                        <button class="filter-btn active" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(1)">Round 1</button>
+                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(2)">Round 2</button>
+                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(3)">Round 3</button>
+                    </div>
+                    <div id="matchups-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+                        <!-- Matchups rendered here -->
                     </div>
                 </div>
 
