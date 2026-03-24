@@ -290,6 +290,16 @@
 
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Propose Wager</button>
             </form>
+            <form id="settle-wager-form" class="registration-form" style="display: none;">
+                <input type="hidden" id="settle-wager-id">
+                <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">Select the winner of this bet. Once settled, the Ledger is updated automatically and cannot be undone.</p>
+                <label>Who won?</label>
+                <select id="settle-wager-winner" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
+                    <!-- Populated by JS -->
+                </select>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none;">Confirm Winner & Settle</button>
+            </form>
         </div>
     </div>
 

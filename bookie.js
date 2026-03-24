@@ -17,6 +17,7 @@ const modal = document.getElementById('bookie-modal');
 const modalClose = document.getElementById('bookie-modal-close');
 const authForm = document.getElementById('auth-form');
 const createWagerForm = document.getElementById('create-wager-form');
+const settleWagerForm = document.getElementById('settle-wager-form');
 const modalTitle = document.getElementById('modal-title');
 
 // Auth Form Elements
@@ -101,6 +102,37 @@ function setupEventListeners() {
         if (e.target.value === 'h2h') wagerTargetSelect.required = true;
         else wagerTargetSelect.required = false;
     });
+
+    // Settle Wager
+    settleWagerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const wagerId = document.getElementById('settle-wager-id').value;
+        const winnerId = document.getElementById('settle-wager-winner').value;
+        
+        if (!winnerId) {
+            showToast("Please select a winner.", "error");
+            return;
+        }
+        
+        try {
+            const { error } = await supabaseClient
+                .from('wagers')
+                .update({ status: 'settled', winner_id: winnerId })
+                .eq('id', wagerId);
+                
+            if (error) throw error;
+            
+            closeModal();
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            showToast("Wager settled successfully! Ledger updated.", "success");
+        } catch (err) {
+            showToast("Error settling wager: " + err.message, "error");
+        }
+    });
+
+    // Create Wager Form
     createWagerForm.addEventListener('submit', handleCreateWager);
 
     // Filters
@@ -277,6 +309,7 @@ function openAuthModal(mode) {
     
     authForm.style.display = 'block';
     createWagerForm.style.display = 'none';
+    settleWagerForm.style.display = 'none'; // Ensure settle form is hidden
 
     if (mode === 'register') {
         modalTitle.textContent = 'Create Betting Account';
@@ -392,7 +425,9 @@ async function fetchBaseData() {
             .from('wagers')
             .select(`
                 *,
-                creator:creator_id(name)
+                creator:creator_id(name),
+                target:target_id(name),
+                winner:winner_id(name)
             `)
             .order('created_at', { ascending: false });
         
@@ -408,6 +443,26 @@ function renderDashboard() {
     renderRyderCupMainEvent();
     renderWagers('all');
     renderLedger();
+    updateNotificationBadges();
+}
+
+function updateNotificationBadges() {
+    if (!currentUser) return;
+    
+    const pendingChallenges = allWagers.filter(w => w.status === 'proposed' && w.target_id === currentUser.id);
+    const hasPending = pendingChallenges.length > 0;
+    
+    const h2hBtns = document.querySelectorAll('button[data-filter="h2h"]');
+    const meBtns = document.querySelectorAll('button[data-filter="me"]');
+    
+    [...h2hBtns, ...meBtns].forEach(btn => {
+        const hasDot = !!btn.querySelector('.notif-dot');
+        if (hasPending && !hasDot) {
+            btn.innerHTML += '<span class="notif-dot" style="display:inline-block; width:8px; height:8px; background:#ef4444; border-radius:50%; margin-left:6px; vertical-align:middle; box-shadow: 0 0 5px rgba(239, 68, 68, 0.8);"></span>';
+        } else if (!hasPending && hasDot) {
+            btn.querySelector('.notif-dot').remove();
+        }
+    });
 }
 
 function renderRyderCupMainEvent() {
@@ -472,6 +527,14 @@ function renderWagers(filter) {
             actionHtml = `<button class="btn join-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
         } else if (wager.status === 'proposed' && isTarget) {
             actionHtml = `<button class="btn accept-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
+        } else if (wager.status === 'active' && (isParticipant || isCreator)) {
+            actionHtml = `
+                <div style="margin-top: 15px;">
+                    <button class="btn" style="width: 100%; padding: 10px; background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border: 1px solid var(--accent-emerald);" onclick="window.openSettleModal('${wager.id}')">
+                        <i class="fas fa-handshake" style="margin-right: 8px;"></i> Settle Bet
+                    </button>
+                </div>
+            `;
         } else if (isParticipant || isCreator) {
             actionHtml = `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">You are in this bet</div>`;
         }
@@ -494,8 +557,14 @@ function renderWagers(filter) {
             `;
         }
 
+        let cardClass = 'glass-panel';
+        let cardStyle = `margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'}; position: relative;`;
+        if (wager.status === 'proposed' && isTarget) {
+            cardStyle = `margin-bottom: 20px; padding: 20px; border: 1px solid #ef4444; border-left: 4px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); position: relative;`;
+        }
+
         return `
-            <div class="glass-panel" id="wager-card-${wager.id}" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'}; position: relative;">
+            <div class="${cardClass}" id="wager-card-${wager.id}" style="${cardStyle}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                     <div>
                         <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? wager.creator.name : 'Unknown'} • ${typeLabel}</div>
@@ -529,22 +598,90 @@ function renderWagers(filter) {
     }).join('');
 }
 
-// Temporary action handlers for Phase 2
-window.joinWager = function(id) {
-    showToast("Joining pools is coming in the next Phase update!", "success");
+// Phase 2 Action Handlers
+window.joinWager = async function(id) {
+    if (!currentUser) return;
+    try {
+        const wager = allWagers.find(w => w.id === id);
+        if (!wager) return;
+        
+        const currentParticipants = wager.participants || [];
+        if (currentParticipants.includes(currentUser.id)) return;
+        
+        currentParticipants.push(currentUser.id);
+
+        const { error } = await supabaseClient
+            .from('wagers')
+            .update({ participants: currentParticipants })
+            .eq('id', id);
+
+        if (error) throw error;
+        
+        await fetchBaseData();
+        renderDashboard();
+        updateNotificationBadges();
+        showToast("You've joined the pool!", "success");
+    } catch (err) {
+        showToast("Error joining: " + err.message, "error");
+    }
 };
 
-window.acceptWager = function(id) {
-    const card = document.getElementById(`wager-card-${id}`);
-    if(card) {
-        card.classList.add('success-pop');
-        setTimeout(() => {
-            showToast("Challenge Accepted! (UI mock for Phase 2)", "success");
-            card.classList.remove('success-pop');
-        }, 600);
-    } else {
-        showToast("Challenge Accepted! (UI mock for Phase 2)", "success");
+window.acceptWager = async function(id) {
+    if (!currentUser) return;
+    try {
+        const wager = allWagers.find(w => w.id === id);
+        if (!wager) return;
+        
+        const currentParticipants = wager.participants || [];
+        if (!currentParticipants.includes(currentUser.id)) {
+            currentParticipants.push(currentUser.id);
+        }
+
+        const { error } = await supabaseClient
+            .from('wagers')
+            .update({ status: 'active', participants: currentParticipants })
+            .eq('id', id);
+
+        if (error) throw error;
+        
+        const card = document.getElementById(`wager-card-${id}`);
+        if(card) {
+            card.classList.add('success-pop');
+            setTimeout(async () => {
+                await fetchBaseData();
+                renderDashboard();
+                updateNotificationBadges();
+                showToast("Challenge Accepted! The bet is now active.", "success");
+            }, 500);
+        } else {
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            showToast("Challenge Accepted! The bet is now active.", "success");
+        }
+    } catch (err) {
+        showToast("Error accepting challenge: " + err.message, "error");
     }
+};
+window.openSettleModal = function(id) {
+    const wager = allWagers.find(w => w.id === id);
+    if (!wager) return;
+
+    authForm.style.display = 'none';
+    createWagerForm.style.display = 'none';
+    settleWagerForm.style.display = 'block';
+    
+    modalTitle.textContent = 'Settle Wager';
+    document.getElementById('settle-wager-id').value = id;
+    
+    const select = document.getElementById('settle-wager-winner');
+    select.innerHTML = '<option value="">Select the winner...</option>';
+    
+    wager.participants.forEach(pid => {
+        select.innerHTML += `<option value="${pid}">${getPlayerName(pid)}</option>`;
+    });
+
+    modal.classList.add('active');
 };
 
 window.deleteWager = async function(id) {
@@ -621,6 +758,7 @@ function openWagerModal() {
     
     authForm.style.display = 'none';
     createWagerForm.style.display = 'block';
+    settleWagerForm.style.display = 'none'; // Ensure settle form is hidden
     createWagerForm.reset();
     modalTitle.textContent = 'Propose a Wager';
 
