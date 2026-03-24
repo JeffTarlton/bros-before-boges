@@ -281,17 +281,21 @@ async function renderPlayerSelectionUI(roundNumStr) {
             const t1names = p2t1 ? `${p1t1.name.split(' ')[0]} & ${p2t1.name.split(' ')[0]}` : (p1t1 ? p1t1.name.split(' ')[0] : 'TBD');
             const t2names = p2t2 ? `${p1t2.name.split(' ')[0]} & ${p2t2.name.split(' ')[0]}` : (p1t2 ? p1t2.name.split(' ')[0] : 'TBD');
 
-            const isMyMatch = currentUserPlayer && (
-                match.t1_player1_id === currentUserPlayer.id || match.t1_player2_id === currentUserPlayer.id ||
-                match.t2_player1_id === currentUserPlayer.id || match.t2_player2_id === currentUserPlayer.id
-            );
+            let amIOnTeam1 = currentUserPlayer && (match.t1_player1_id === currentUserPlayer.id || match.t1_player2_id === currentUserPlayer.id);
+            let amIOnTeam2 = currentUserPlayer && (match.t2_player1_id === currentUserPlayer.id || match.t2_player2_id === currentUserPlayer.id);
+            let isMyMatch = amIOnTeam1 || amIOnTeam2;
 
             const card = document.createElement('div');
             card.className = `matchup-select-card ${isMyMatch ? 'selected' : ''}`;
 
-            // Function to generate the injected hidden checkbox markup safely mapping startRound dependencies
-            const createHiddenCb = (pNumObj) => {
+            // Generate checkboxes strictly for opponents (or everyone if the active user is not in this match)
+            const createHiddenCb = (pNumObj, isTeam1) => {
                 if (!pNumObj) return '';
+                // If I am playing and I am on Team 1, skip rendering Team 1 checkboxes
+                if (amIOnTeam1 && isTeam1) return '';
+                // If I am playing and I am on Team 2, skip rendering Team 2 checkboxes
+                if (amIOnTeam2 && !isTeam1) return '';
+                
                 return `<input type="checkbox" class="player-check" value="${pNumObj.id}" data-name="${pNumObj.name}" data-team="${pNumObj.team_id}" ${isMyMatch ? 'checked' : ''}>`;
             };
 
@@ -302,10 +306,10 @@ async function renderPlayerSelectionUI(roundNumStr) {
                 <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: ${t2names}</div>
                 
                 <div style="display: none;" class="hidden-player-checks">
-                    ${createHiddenCb(p1t1)}
-                    ${createHiddenCb(p2t1)}
-                    ${createHiddenCb(p1t2)}
-                    ${createHiddenCb(p2t2)}
+                    ${createHiddenCb(p1t1, true)}
+                    ${createHiddenCb(p2t1, true)}
+                    ${createHiddenCb(p1t2, false)}
+                    ${createHiddenCb(p2t2, false)}
                 </div>
             `;
 
