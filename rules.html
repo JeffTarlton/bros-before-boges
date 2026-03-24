@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Tournament Rules | Bros before Boges</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="site-header" style="background: rgba(15, 23, 42, 0.95);">
+        <div class="container header-container">
+            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
+                    <li><a href="bookie.html" class="nav-link" style="color: var(--accent-gold);">The Bookie</a></li>
+                    <li><a href="round_tracker.html" class="nav-link">Round Tracker</a></li>
+                </ul>
+            </nav>
+            <button class="menu-toggle" aria-label="Toggle menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top: 120px; padding-bottom: 50px;">
+        <h2 class="section-title">Tournament <span class="accent">Rules</span></h2>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto;">
+            Tap on any round below to view the format, scoring, and specific rules.
+        </p>
+        
+        <div class="timeline">
+            <!-- Round 1 -->
+            <div class="timeline-item">
+                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 1: The Grind</h3>
+                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
+                    </div>
+                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <p><strong>Format:</strong> Team Point Quota</p>
+                        <p>Two-man teams, playing own ball. Both players’ scores on every hole contribute to the team total.</p>
+                        <h4 style="margin-top: 25px; color: var(--accent-gold); margin-bottom: 10px;">Scoring (Per Player)</h4>
+                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-bottom: 25px;">
+                            <li><strong style="color: white;">Eagle or better:</strong> 5 pts</li>
+                            <li><strong style="color: white;">Birdie:</strong> 3 pts</li>
+                            <li><strong style="color: white;">Par:</strong> 2 pts</li>
+                            <li><strong style="color: white;">Bogey:</strong> 1 pts</li>
+                            <li><strong style="color: white;">Double or worse:</strong> 0 pts</li>
+                        </ul>
+                        <h4 style="margin-top: 20px; color: var(--accent-gold); margin-bottom: 10px;">Match Points</h4>
+                        <p style="color: var(--text-muted);">The team with the highest point total after 18 holes wins the match.</p>
+                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-top: 15px;">
+                            <strong>Win:</strong> 1 point | <strong>Tie:</strong> ½ point
+                        </div>
+                        <div style="margin-top: 25px; padding: 15px; border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.1); border-radius: 0 8px 8px 0;">
+                            <strong style="color: #ef4444;">Strict Rule:</strong> Pick up your ball if a bogey is not made. No mulligans.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Round 2 -->
+            <div class="timeline-item">
+                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 2: The Split Decision</h3>
+                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
+                    </div>
+                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <p><strong>Format:</strong> 18-hole match split into two distinct 9-hole formats.</p>
+                        <p><strong>Points:</strong> Each 9-hole "side" is worth 1 point. Total of 2 points available per match.</p>
+
+                        <h4 style="margin-top: 30px; color: var(--accent-gold); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">Front 9: Two-Man Scramble</h4>
+                        <p style="color: var(--text-muted); margin-top: 15px;"><strong>Captain’s Choice.</strong> Both players tee off, choose the best ball, and both play from that spot until holed.</p>
+                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-top: 15px;">
+                            <li><strong style="color: white;">Scoring:</strong> Stroke Play (total strokes for 9 holes).</li>
+                            <li><strong style="color: white;">Winner:</strong> The team with the lowest total strokes on the Front 9 wins 1 point.</li>
+                        </ul>
+                        <div style="margin-top: 20px; padding: 15px; border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.1); border-radius: 0 8px 8px 0;">
+                            <strong style="color: #60a5fa;">Safety Net:</strong> Triple Bogey Max. If you haven't holed out by triple bogey, pick up and move to the next tee.
+                        </div>
+
+                        <h4 style="margin-top: 40px; color: var(--accent-gold); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">Back 9: Modified Alternate Shot</h4>
+                        <p style="color: var(--text-muted); margin-top: 15px;"><strong>Greensomes.</strong> Both players tee off on every hole. The team chooses the best drive.</p>
+                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-top: 15px;">
+                            <li><strong style="color: white;">The Rotation:</strong> The player whose drive was NOT used hits the second shot. Players then alternate until the ball is holed.</li>
+                            <li><strong style="color: white;">Winner:</strong> The team with the lowest total strokes on the Back 9 wins 1 point.</li>
+                        </ul>
+                        <div style="margin-top: 20px; padding: 15px; border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.1); border-radius: 0 8px 8px 0;">
+                            <strong style="color: #fbbf24;">Tee Ball Requirement:</strong> Each player must have at least 4 of their tee shots used during the 9-hole stretch.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Round 3 -->
+            <div class="timeline-item">
+                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px;">
+                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <h3 class="timeline-title" style="margin: 0; font-family: var(--font-heading);">Round 3: Championship Singles</h3>
+                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
+                    </div>
+                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <p><strong>Format:</strong> Individual Head-to-Head Match Play. 8 matches total (Team A vs. Team B).</p>
+                        <p><strong>Scoring:</strong> Traditional Match Play. Holes are won, lost, or halved.</p>
+                        
+                        <h4 style="margin-top: 25px; color: var(--accent-gold); margin-bottom: 15px;">Points</h4>
+                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                            <div style="margin-bottom: 10px;"><strong>Match Win:</strong> 1 point</div>
+                            <div style="margin-bottom: 10px;"><strong>Match Halved (Tie):</strong> ½ point</div>
+                            <div><strong>Match Loss:</strong> 0 points</div>
+                        </div>
+
+                        <div style="margin-top: 30px; text-align: center; border: 1px dashed rgba(255,255,255,0.2); padding: 25px; border-radius: 12px; background: rgba(0,0,0,0.2);">
+                            <div style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Path to the Cup</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 8px;">Total points available (16 players):</div>
+                            <div style="font-size: 1.6rem; color: var(--accent-emerald); font-family: monospace; font-weight: 800; margin-top: 12px;">4 + 4 + 4 + 8 = 20</div>
+                            <div style="font-size: 1.4rem; color: var(--accent-gold); font-weight: 800; margin-top: 12px;">10.5 points wins the Cup!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tie Breaker -->
+            <div class="timeline-item" style="margin-top: 30px;">
+                <div class="timeline-card glass-panel" style="flex: 1; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(251, 191, 36, 0.4);">
+                    <div class="timeline-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(251, 191, 36, 0.1); border-bottom: 1px solid rgba(251, 191, 36, 0.2);">
+                        <h3 class="timeline-title" style="margin: 0; color: var(--accent-gold); font-family: var(--font-heading);">Tournament Tie-Breaker: "The Playoff"</h3>
+                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-gold);">▼</span>
+                    </div>
+                    <div class="timeline-content-wrapper" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <p style="font-size: 1.1rem; line-height: 1.6;">If the total team points are deadlocked after all three rounds, this format will be used to crown the champion.</p>
+                        
+                        <div style="margin-top: 25px; padding: 25px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                            <h4 style="color: white; margin-bottom: 12px; font-size: 1.2rem;">Team Putting Contest</h4>
+                            <p style="color: var(--text-muted); line-height: 1.5;">Each captain picks 3 players. Total made putts from 20 feet wins.</p>
+                            
+                            <hr style="border: none; border-top: 1px dashed rgba(255,255,255,0.1); margin: 20px 0;">
+                            
+                            <h4 style="color: white; margin-bottom: 12px; font-size: 1.2rem;">Sudden Death</h4>
+                            <p style="color: var(--text-muted); line-height: 1.5; margin: 0;">If no putts are holed after 6 putts, a tee is flipped to determine who starts sudden death. Then, players alternate putts and the first holed ball wins the tournament.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Bros before Boges. All rights reserved.</p>
+            <p class="footer-motto">Swing hard in case you hit it.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Nav Menu Toggle
+        const menuToggle = document.querySelector('.menu-toggle');
+        const mainNav = document.querySelector('.main-nav');
+        if (menuToggle && mainNav) {
+            menuToggle.addEventListener('click', () => {
+                mainNav.classList.toggle('active');
+                menuToggle.classList.toggle('is-open');
+            });
+        }
+
+        // Accordion Logic
+        const headers = document.querySelectorAll('.timeline-header');
+        headers.forEach((header, index) => {
+            const item = header.closest('.timeline-card');
+            const content = item.querySelector('.timeline-content-wrapper');
+            const icon = item.querySelector('.accordion-icon');
+            
+            // Auto-open the very first item (Round 1)
+            if (index === 0) {
+                content.style.display = 'block';
+                icon.style.transform = 'rotate(180deg)';
+            }
+            
+            header.addEventListener('click', function() {
+                const isOpen = content.style.display === 'block';
+                if (isOpen) {
+                    content.style.display = 'none';
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    content.style.display = 'block';
+                    icon.style.transform = 'rotate(180deg)';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
