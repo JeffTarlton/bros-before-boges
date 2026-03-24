@@ -28,7 +28,7 @@ async function init() {
             const { data: userData } = await supabaseInstance
                 .from('players')
                 .select('*')
-                .eq('email', session.user.email)
+                .ilike('email', session.user.email)
                 .single();
 
             if (userData) {
