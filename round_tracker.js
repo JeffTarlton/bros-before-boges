@@ -750,8 +750,8 @@ async function renderLeaderboardModal() {
             return;
         }
 
-        let isMatchPlayDisplay = isMatchPlayRound && retrievedMatchups && retrievedMatchups.length > 0;
-        let rightColumnHeader = isMatchPlayDisplay ? 'Match Status' : (roundNumber === 1 ? 'Points' : 'To Par');
+        let isMatchPlayDisplay = (roundNumber === 2 || roundNumber === 3) && retrievedMatchups && retrievedMatchups.length > 0;
+        let rightColumnHeader = roundNumber === 1 ? 'Total Points' : (isMatchPlayDisplay ? 'Match Status' : 'To Par');
 
         let tableHTML = `
             <table class="tracker-table" style="width: 100%; margin: 0 auto; text-align: left;">
@@ -765,8 +765,69 @@ async function renderLeaderboardModal() {
                 <tbody>
         `;
 
-        if (isMatchPlayRound && retrievedMatchups && retrievedMatchups.length > 0) {
-            // MATCH PLAY VIEW FOR ALL 3 ROUNDS
+        if (roundNumber === 1 && retrievedMatchups && retrievedMatchups.length > 0) {
+            // ROUND 1: MODIFIED STABLEFORD QUOTA (Global Pair Rankings)
+            const calcPoints = (scoreObj) => {
+                if (!scoreObj) return 0;
+                let pts = 0;
+                for (let i = 1; i <= 18; i++) {
+                    const holeScore = scoreObj[`h${i}`];
+                    const par = currentCourseData[`h${i}_par`] || 4;
+                    if (holeScore) {
+                        const diff = holeScore - par;
+                        if (diff <= -2) pts += 5;       // Eagle
+                        else if (diff === -1) pts += 3; // Birdie
+                        else if (diff === 0) pts += 2;  // Par
+                        else if (diff === 1) pts += 1;  // Bogey
+                    }
+                }
+                return pts;
+            };
+
+            const formatName = (p1, p2) => {
+                if (p1 && p2) return `${p1.players.name.split(' ')[0]} & ${p2.players.name.split(' ')[0]}`;
+                if (p1) return p1.players.name;
+                if (p2) return p2.players.name;
+                return 'TBD';
+            };
+
+            let pairs = [];
+            retrievedMatchups.forEach(match => {
+                const sT1P1 = scoresData.find(d => d.player_id === match.t1_player1_id);
+                const sT1P2 = scoresData.find(d => d.player_id === match.t1_player2_id);
+                const sT2P1 = scoresData.find(d => d.player_id === match.t2_player1_id);
+                const sT2P2 = scoresData.find(d => d.player_id === match.t2_player2_id);
+
+                if (sT1P1 || sT1P2) {
+                    pairs.push({
+                        name: formatName(sT1P1, sT1P2),
+                        teamIcon: '🔵',
+                        score: calcPoints(sT1P1) + calcPoints(sT1P2)
+                    });
+                }
+                if (sT2P1 || sT2P2) {
+                    pairs.push({
+                        name: formatName(sT2P1, sT2P2),
+                        teamIcon: '🔴',
+                        score: calcPoints(sT2P1) + calcPoints(sT2P2)
+                    });
+                }
+            });
+
+            pairs.sort((a, b) => b.score - a.score);
+
+            pairs.forEach((pair, index) => {
+                tableHTML += `
+                    <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                        <td style="padding: 12px; font-weight: bold; color: var(--text-muted);">${index + 1}</td>
+                        <td style="padding: 12px; font-weight: bold;">${pair.teamIcon} ${pair.name}</td>
+                        <td style="padding: 12px; font-weight: 900; text-align: right; color: var(--text-bright);">${pair.score}</td>
+                    </tr>
+                `;
+            });
+        }
+        else if (isMatchPlayDisplay) {
+            // MATCH PLAY VIEW FOR ROUNDS 2 AND 3
             retrievedMatchups.forEach((match, index) => {
                 const sT1P1 = scoresData.find(d => d.player_id === match.t1_player1_id);
                 const sT1P2 = scoresData.find(d => d.player_id === match.t1_player2_id);
@@ -779,39 +840,7 @@ async function renderLeaderboardModal() {
                 let statusColor2 = 'var(--text-muted)';
                 let isPaired = sT1P1 && sT1P2;
 
-                if (roundNumber === 1) {
-                    // Round 1: Modified Stableford Quota
-                    // Compare total points
-                    const calcPoints = (scoreObj) => {
-                        if (!scoreObj) return 0;
-                        let pts = 0;
-                        for (let i = 1; i <= 18; i++) {
-                            const holeScore = scoreObj[`h${i}`];
-                            const par = currentCourseData[`h${i}_par`] || 4;
-                            if (holeScore) {
-                                const diff = holeScore - par;
-                                if (diff <= -2) pts += 5;       // Eagle
-                                else if (diff === -1) pts += 3; // Birdie
-                                else if (diff === 0) pts += 2;  // Par
-                                else if (diff === 1) pts += 1;  // Bogey
-                            }
-                        }
-                        return pts;
-                    };
-                    const t1Total = calcPoints(sT1P1) + calcPoints(sT1P2);
-                    const t2Total = calcPoints(sT2P1) + calcPoints(sT2P2);
-
-                    if (t1Total > t2Total) {
-                        const diff = t1Total - t2Total;
-                        status1 = `${diff} UP`; statusColor1 = 'var(--accent-emerald)';
-                        status2 = `${diff} DN`; statusColor2 = '#ef4444';
-                    } else if (t2Total > t1Total) {
-                        const diff = t2Total - t1Total;
-                        status2 = `${diff} UP`; statusColor2 = 'var(--accent-emerald)';
-                        status1 = `${diff} DN`; statusColor1 = '#ef4444';
-                    }
-                } 
-                else if (roundNumber === 2) {
+                if (roundNumber === 2) {
                     // Round 2: Split Decision (Front 9 Scramble, Back 9 Alt Shot)
                     const t1obj = sT1P1 || sT1P2;
                     const t2obj = sT2P1 || sT2P2;
