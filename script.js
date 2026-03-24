@@ -158,11 +158,11 @@ async function init() {
 
         // Start loading roster data (async)
         loadRosterData().then(() => {
-            renderDynamicScoreboard();
+            fetchRyderCupScores();
             renderTeamSelection();
         }).catch(err => {
             console.error('Data flow failed:', err);
-            renderDynamicScoreboard(); // Attempt anyway
+            fetchRyderCupScores(); // Attempt anyway
             renderTeamSelection();
         });
 
@@ -213,7 +213,7 @@ async function loadRosterData() {
             renderRoster();
             
             // Render the Live Team Scoreboard Widget once players are loaded
-            renderTeamScoreboardWidget();
+            fetchRyderCupScores();
 
         } else {
             renderRoster();
@@ -224,159 +224,48 @@ async function loadRosterData() {
     }
 }
 
-async function renderTeamScoreboardWidget() {
-    const scoreboardWidget = document.getElementById('team-scoreboard-widget');
-    const scoreTeam1El = document.getElementById('score-team-1');
-    const scoreTeam2El = document.getElementById('score-team-2');
-
-    if (!scoreboardWidget || !scoreTeam1El || !scoreTeam2El || !supabaseInstance) return;
-
-    // Check if draft is done before showing the scoreboard
-    const allDrafted = tripData.roster.confirmed.length > 0 &&
-        tripData.roster.confirmed.every(p => p.team_id === 1 || p.team_id === 2);
-
-    if (!allDrafted) {
-        scoreboardWidget.classList.add('team-scoreboard-hidden');
-        return;
-    }
+async function fetchRyderCupScores() {
+    if (!supabaseInstance) return;
 
     try {
-        // Fetch required data
-        const { data: matchups, error: matchErr } = await supabaseInstance.from('matchups').select('*');
-        const { data: rounds } = await supabaseInstance.from('rounds').select('*');
-        const { data: scores } = await supabaseInstance.from('scores').select('*');
-        const { data: courses } = await supabaseInstance.from('courses').select('*');
+        const { data, error } = await supabaseInstance
+            .from('ryder_cup_scores')
+            .select('*')
+            .eq('id', 1)
+            .single();
 
-        if (error || matchErr) throw new Error('Data fetch failed');
+        if (error && error.code !== 'PGRST116') throw error;
 
-        let team1Points = 0;
-        let team2Points = 0;
+        let bluePoints = 0;
+        let redPoints = 0;
 
-        if (matchups && matchups.length > 0 && scores && rounds) {
-            matchups.forEach(match => {
-                const targetRounds = rounds.filter(r => r.round_number === match.round_number);
-                if (targetRounds.length === 0) return;
-                
-                const roundIds = targetRounds.map(r => r.id);
-                const getScores = (playerId) => scores.find(s => s.player_id === playerId && roundIds.includes(s.round_id));
-                const sT1P1 = getScores(match.t1_player1_id);
-                const sT1P2 = getScores(match.t1_player2_id);
-                const sT2P1 = getScores(match.t2_player1_id);
-                const sT2P2 = getScores(match.t2_player2_id);
-
-                if (match.round_number === 1) {
-                    // Round 1: Quota Points
-                    const courseId = targetRounds[0].course_id;
-                    const course = courses.find(c => c.id === courseId);
-                    if (!course) return;
-
-                    let anyPlayed = false;
-                    const calcPoints = (scoreObj) => {
-                        if (!scoreObj) return 0;
-                        let pts = 0;
-                        for (let i = 1; i <= 18; i++) {
-                            const holeScore = scoreObj[`h${i}`];
-                            const par = course[`h${i}_par`] || 4;
-                            if (holeScore) {
-                                anyPlayed = true;
-                                const diff = holeScore - par;
-                                if (diff <= -2) pts += 5;
-                                else if (diff === -1) pts += 3;
-                                else if (diff === 0) pts += 2;
-                                else if (diff === 1) pts += 1;
-                            }
-                        }
-                        return pts;
-                    };
-                    const t1Total = calcPoints(sT1P1) + calcPoints(sT1P2);
-                    const t2Total = calcPoints(sT2P1) + calcPoints(sT2P2);
-                    
-                    if (anyPlayed) {
-                        if (t1Total > t2Total) team1Points += 1;
-                        else if (t2Total > t1Total) team2Points += 1;
-                        else { team1Points += 0.5; team2Points += 0.5; }
-                    }
-                } 
-                else if (match.round_number === 2) {
-                    // Round 2: Front 9 Scramble (1pt), Back 9 Alt Shot (1pt)
-                    const calcStrokesAndStatus = (scoreObj, start, end) => {
-                        if (!scoreObj) return { strokes: 0, played: false };
-                        let strokes = 0;
-                        let played = false;
-                        for (let i = start; i <= end; i++) {
-                            const val = scoreObj[`h${i}`];
-                            if (val) {
-                                strokes += val;
-                                played = true;
-                            }
-                        }
-                        return { strokes, played };
-                    };
-                    
-                    const t1obj = sT1P1 || sT1P2;
-                    const t2obj = sT2P1 || sT2P2;
-                    if (!t1obj && !t2obj) return;
-
-                    // Front 9 (holes 1-9)
-                    const t1Front = calcStrokesAndStatus(t1obj, 1, 9);
-                    const t2Front = calcStrokesAndStatus(t2obj, 1, 9);
-                    if (t1Front.played || t2Front.played) {
-                        if (t1Front.strokes < t2Front.strokes) team1Points += 1;
-                        else if (t2Front.strokes < t1Front.strokes) team2Points += 1;
-                        else { team1Points += 0.5; team2Points += 0.5; }
-                    }
-
-                    // Back 9 (holes 10-18)
-                    const t1Back = calcStrokesAndStatus(t1obj, 10, 18);
-                    const t2Back = calcStrokesAndStatus(t2obj, 10, 18);
-                    if (t1Back.played || t2Back.played) {
-                        if (t1Back.strokes < t2Back.strokes) team1Points += 1;
-                        else if (t2Back.strokes < t1Back.strokes) team2Points += 1;
-                        else { team1Points += 0.5; team2Points += 0.5; }
-                    }
-                }
-                else if (match.round_number === 3) {
-                    // Round 3: Singles match play
-                    const t1obj = sT1P1;
-                    const t2obj = sT2P1;
-                    if (!t1obj && !t2obj) return;
-
-                    let t1HolesWon = 0;
-                    let t2HolesWon = 0;
-                    let holesPlayed = 0;
-
-                    for (let i = 1; i <= 18; i++) {
-                        const h1 = t1obj ? t1obj[`h${i}`] : null;
-                        const h2 = t2obj ? t2obj[`h${i}`] : null;
-                        if (h1 && h2) {
-                            holesPlayed++;
-                            if (h1 < h2) t1HolesWon++;
-                            else if (h2 < h1) t2HolesWon++;
-                        } else if (h1) {
-                            holesPlayed++;
-                            t1HolesWon++; // T2 didn't play = T1 wins hole
-                        } else if (h2) {
-                            holesPlayed++;
-                            t2HolesWon++;
-                        }
-                    }
-
-                    if (holesPlayed > 0) {
-                        if (t1HolesWon > t2HolesWon) team1Points += 1;
-                        else if (t2HolesWon > t1HolesWon) team2Points += 1;
-                        else { team1Points += 0.5; team2Points += 0.5; }
-                    }
-                }
-            });
+        if (data) {
+            bluePoints = data.blue_score;
+            redPoints = data.red_score;
         }
 
-        // Display results and unhide the widget
-        scoreTeam1El.textContent = team1Points;
-        scoreTeam2El.textContent = team2Points;
-        scoreboardWidget.classList.remove('team-scoreboard-hidden');
+        // --- 1. Update the Legacy Top Nav Widget (If present) ---
+        const scoreboardWidget = document.getElementById('team-scoreboard-widget');
+        const scoreTeam1El = document.getElementById('score-team-1');
+        const scoreTeam2El = document.getElementById('score-team-2');
 
-    } catch (err) {
-        console.error("Failed to load team scores:", err);
+        if (scoreboardWidget && scoreTeam1El && scoreTeam2El) {
+            scoreboardWidget.classList.remove('team-scoreboard-hidden');
+            scoreTeam1El.textContent = bluePoints;
+            scoreTeam2El.textContent = redPoints;
+        }
+
+        // --- 2. Update the New Main Event Core Scoreboard ---
+        const homeBluePts = document.getElementById('home-ryder-blue-pts');
+        const homeRedPts = document.getElementById('home-ryder-red-pts');
+
+        if (homeBluePts && homeRedPts) {
+            homeBluePts.textContent = bluePoints;
+            homeRedPts.textContent = redPoints;
+        }
+
+    } catch (e) {
+        console.error('Error fetching global Ryder Cup scores:', e);
     }
 }
 

@@ -465,11 +465,30 @@ function updateNotificationBadges() {
     });
 }
 
-function renderRyderCupMainEvent() {
-    // This replicates the Ryder Cup score fetch from script.js
-    // For now we will mock it or leave it as 0
-    ryderBluePts.textContent = '0';
-    ryderRedPts.textContent = '0';
+async function renderRyderCupMainEvent() {
+    if (!supabaseInstance) return;
+    try {
+        const { data, error } = await supabaseInstance
+            .from('ryder_cup_scores')
+            .select('*')
+            .eq('id', 1)
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        let bluePoints = 0;
+        let redPoints = 0;
+
+        if (data) {
+            bluePoints = data.blue_score;
+            redPoints = data.red_score;
+        }
+
+        if (ryderBluePts) ryderBluePts.textContent = bluePoints;
+        if (ryderRedPts) ryderRedPts.textContent = redPoints;
+    } catch (err) {
+        console.error('Error fetching global Ryder Cup scores for Bookie:', err);
+    }
 }
 
 function renderWagers(filter) {

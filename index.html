@@ -149,6 +149,30 @@
                         style="text-align: center; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto;">
                         Captains Jeff Tarlton and David Owens will be selecting the teams, draft style.
                     </p>
+
+                    <!-- Homepage Ryder Cup Scoreboard Injection -->
+                    <div style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); position: relative; overflow: hidden; margin-bottom: 40px; max-width: 800px; margin-left: auto; margin-right: auto; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                        <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">🏆</div>
+                        <h3 style="font-size: 1.8rem; margin-bottom: 15px; text-align: center;">The 2026 Ryder Cup <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal;">(Overview)</span></h3>
+                        <p style="text-align: center; color: var(--text-muted); line-height: 1.6; margin-bottom: 30px; font-size: 0.95rem;">
+                            The winning team takes all. 8 players per squad. Winners receive <strong style="color: white;">$200/man</strong> alongside eternal supremacy.
+                        </p>
+                        
+                        <div style="background: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 16px; padding: 25px;">
+                            <div style="display: flex; justify-content: space-around; align-items: center;">
+                                <div style="text-align: center; width: 33%;">
+                                    <div style="font-size: 2.2rem; font-weight: 900; color: #60a5fa; text-shadow: 0 0 20px rgba(96, 165, 250, 0.3); font-family: var(--font-heading);">BLUE</div>
+                                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Current Pts: <span id="home-ryder-blue-pts" style="color: white; font-weight: bold; font-size: 1.2rem; display: inline-block; margin-left: 5px;">0</span></div>
+                                </div>
+                                <div style="font-size: 1.2rem; color: var(--text-muted); font-weight: 900; width: 33%; text-align: center; font-family: var(--font-heading);">VS</div>
+                                <div style="text-align: center; width: 33%;">
+                                    <div style="font-size: 2.2rem; font-weight: 900; color: #fca5a5; text-shadow: 0 0 20px rgba(252, 165, 165, 0.3); font-family: var(--font-heading);">RED</div>
+                                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Current Pts: <span id="home-ryder-red-pts" style="color: white; font-weight: bold; font-size: 1.2rem; display: inline-block; margin-left: 5px;">0</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="trip-cards" id="team-selection-display">
                         <!-- Dynamic Team Selection rendered here -->
                         <div class="glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted);">
@@ -240,7 +264,7 @@
 
     <!-- Leaderboard Modal -->
     <div id="leaderboard-modal" class="modal">
-        <div class="modal-content leaderboard-modal-content glass-panel" style="padding: 0; overflow: hidden; max-width: 800px; border-radius: 24px;">
+        <div class="modal-content leaderboard-modal-content glass-panel" style="padding: 0; overflow-y: auto; overflow-x: hidden; max-width: 800px; border-radius: 24px;">
             <div class="scoreboard-hero" style="background-image: url('assets/slick_rock.png'); background-size: cover; background-position: center; height: 260px; position: relative;">
                 <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(15, 23, 42, 0) 20%, var(--primary-bg-alt) 100%);"></div>
                 <button class="modal-close" id="leaderboard-close"

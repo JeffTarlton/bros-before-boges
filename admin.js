@@ -157,6 +157,7 @@ function setupEventListeners() {
 
             if (tab === 'drafting') renderDraftingUI();
             if (tab === 'matchups') renderMatchupsUI();
+            if (tab === 'scores') renderScoresUI();
             if (tab === 'potential') renderPotentialUI();
         });
     });
@@ -719,3 +720,66 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+// ==========================================
+// Ryder Cup Official Scoring (Admin View)
+// ==========================================
+async function renderScoresUI() {
+    if (!supabaseInstance) return;
+    try {
+        const { data, error } = await supabaseInstance
+            .from('ryder_cup_scores')
+            .select('*')
+            .eq('id', 1)
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error; // PGRST116 is row not found
+
+        if (data) {
+            document.getElementById('admin-blue-score').value = data.blue_score;
+            document.getElementById('admin-red-score').value = data.red_score;
+        }
+    } catch (e) {
+        console.error('Error fetching ryder cup scores:', e);
+    }
+}
+
+// Bind the save button securely inside setupEventListeners or directly here via explicit DOM lookup:
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait slightly for DOM or hook dynamically
+    setTimeout(() => {
+        const saveScoresBtn = document.getElementById('save-scores-btn');
+        if (saveScoresBtn) {
+            saveScoresBtn.addEventListener('click', async () => {
+                if (!supabaseInstance) return;
+                try {
+                    const bluePoints = parseFloat(document.getElementById('admin-blue-score').value) || 0;
+                    const redPoints = parseFloat(document.getElementById('admin-red-score').value) || 0;
+                    
+                    saveScoresBtn.textContent = 'Saving...';
+                    saveScoresBtn.style.opacity = '0.5';
+
+                    const { error } = await supabaseInstance
+                        .from('ryder_cup_scores')
+                        .upsert({ id: 1, blue_score: bluePoints, red_score: redPoints });
+
+                    if (error) throw error;
+
+                    saveScoresBtn.textContent = 'Saved!';
+                    saveScoresBtn.style.background = '#10b981';
+                    
+                    setTimeout(() => {
+                        saveScoresBtn.textContent = 'Save Scores';
+                        saveScoresBtn.style.opacity = '1';
+                        saveScoresBtn.style.background = '';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Error updating Ryder Cup scores:', err);
+                    alert('Error saving scores: ' + err.message);
+                    saveScoresBtn.textContent = 'Save Scores';
+                    saveScoresBtn.style.opacity = '1';
+                }
+            });
+        }
+    }, 500);
+});
