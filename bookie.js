@@ -107,11 +107,120 @@ function setupEventListeners() {
     filterBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             filterBtns.forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            renderWagers(e.target.dataset.filter);
+            const targetBtn = e.target.closest('button');
+            targetBtn.classList.add('active');
+            
+            // Sync with bottom nav
+            const filter = targetBtn.dataset.filter;
+            document.querySelectorAll('.bottom-nav-btn').forEach(b => b.classList.remove('active'));
+            const botBtn = document.querySelector(`.bottom-nav-btn[data-filter="${filter}"]`);
+            if(botBtn) botBtn.classList.add('active');
+            
+            renderWagers(filter);
         });
     });
 
+    // Mobile Bottom Nav Filters
+    const botBtns = document.querySelectorAll('.bottom-nav-btn[data-filter]');
+    botBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            botBtns.forEach(b => b.classList.remove('active'));
+            const targetBtn = e.target.closest('button');
+            targetBtn.classList.add('active');
+            
+            // Sync with top nav
+            const filter = targetBtn.dataset.filter;
+            filterBtns.forEach(b => b.classList.remove('active'));
+            const topBtn = document.querySelector(`.bookie-nav button[data-filter="${filter}"]`);
+            if(topBtn) topBtn.classList.add('active');
+            
+            renderWagers(filter);
+        });
+    });
+
+    // Mobile FAB
+    const fabBtn = document.getElementById('fab-create-wager-btn');
+    if(fabBtn) fabBtn.addEventListener('click', openWagerModal);
+
+    setupMobileGestures();
+}
+
+function setupMobileGestures() {
+    let startY = 0;
+    let currentY = 0;
+    let isRefreshing = false;
+    
+    // Add PTR indicator to DOM
+    let ptrIndicator = document.createElement('div');
+    ptrIndicator.className = 'ptr-indicator';
+    // Requires FontAwesome spin animation which is native fa-spin usually, but we'll use standard inline rotating
+    ptrIndicator.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Fetching latest...';
+    
+    // Insert before wagers container
+    const dashboardGrid = document.querySelector('.bookie-grid > div:first-child');
+    if(dashboardGrid) dashboardGrid.insertBefore(ptrIndicator, wagersContainer);
+
+    dashboard.addEventListener('touchstart', (e) => {
+        if(window.scrollY === 0) startY = e.touches[0].clientY;
+    }, {passive: true});
+
+    dashboard.addEventListener('touchmove', (e) => {
+        if(window.scrollY === 0 && startY > 0 && !isRefreshing) {
+            currentY = e.touches[0].clientY;
+            if(currentY - startY > 80) {
+                ptrIndicator.classList.add('active');
+            }
+        }
+    }, {passive: true});
+
+    dashboard.addEventListener('touchend', async (e) => {
+        if(ptrIndicator.classList.contains('active') && !isRefreshing) {
+            isRefreshing = true;
+            if(navigator.vibrate) navigator.vibrate(50);
+            await fetchBaseData();
+            renderDashboard();
+            setTimeout(() => {
+                ptrIndicator.classList.remove('active');
+                isRefreshing = false;
+                startY = 0;
+            }, 800);
+        } else {
+            ptrIndicator.classList.remove('active');
+            startY = 0;
+        }
+    });
+
+    // Delegate swipe actions on wager cards
+    let touchStartX = 0;
+    let touchEndX = 0;
+    let activeCard = null;
+
+    wagersContainer.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+        activeCard = e.target.closest('.glass-panel[id^="wager-card-"]');
+    }, {passive: true});
+
+    wagersContainer.addEventListener('touchend', (e) => {
+        if(!activeCard) return;
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe(activeCard);
+    }, {passive: true});
+
+    function handleSwipe(cardElement) {
+        const threshold = 100; // minimum distance for a swipe in px
+        
+        if (touchEndX < touchStartX - threshold) {
+            // Swipe Left -> Accept / Join
+            const acceptBtn = cardElement.querySelector('.accept-btn, .join-btn');
+            if(acceptBtn) acceptBtn.click();
+        }
+        
+        if (touchEndX > touchStartX + threshold) {
+            // Swipe Right -> Delete
+            const deleteBtn = cardElement.querySelector('.delete-btn');
+            if(deleteBtn) deleteBtn.click();
+        }
+    }
 }
 
 // ==========================================
@@ -353,14 +462,14 @@ function renderWagers(filter) {
         
         let deleteBtnHtml = '';
         if (canDelete) {
-            deleteBtnHtml = `<div style="margin-top: 8px;"><button style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;" onclick="window.deleteWager('${wager.id}')"><i class="fas fa-trash" style="margin-right: 4px;"></i>Delete</button></div>`;
+            deleteBtnHtml = `<div style="margin-top: 8px;"><button class="delete-btn" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;" onclick="window.deleteWager('${wager.id}')"><i class="fas fa-trash" style="margin-right: 4px;"></i>Delete</button></div>`;
         }
 
         let actionHtml = '';
         if (wager.status === 'open' && !isParticipant) {
-            actionHtml = `<button class="btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
+            actionHtml = `<button class="btn join-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
         } else if (wager.status === 'proposed' && isTarget) {
-            actionHtml = `<button class="btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
+            actionHtml = `<button class="btn accept-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
         } else if (isParticipant || isCreator) {
             actionHtml = `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">You are in this bet</div>`;
         }
@@ -384,7 +493,7 @@ function renderWagers(filter) {
         }
 
         return `
-            <div class="glass-panel" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'};">
+            <div class="glass-panel" id="wager-card-${wager.id}" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'}; position: relative;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                     <div>
                         <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? wager.creator.name : 'Unknown'} • ${typeLabel}</div>
@@ -397,18 +506,18 @@ function renderWagers(filter) {
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">Buy-In</div>
-                        <div style="font-weight: 700;">$${wager.amount}</div>
+                <div class="wager-quick-stats">
+                    <div class="stat-pill">
+                        <span style="color:var(--text-muted)">Buy-In:</span> 
+                        <span style="font-weight:700">$${wager.amount}</span>
                     </div>
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">Pot</div>
-                        <div style="font-weight: 700; color: var(--accent-emerald);">$${potSize}</div>
+                    <div class="stat-pill" style="color: var(--accent-emerald)">
+                        <span style="color:var(--text-muted)">Pot:</span> 
+                        <span style="font-weight:700">$${potSize}</span>
                     </div>
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">In</div>
-                        <div style="font-weight: 700;">${participantsCount} <i class="fas fa-users" style="font-size: 0.8rem;"></i></div>
+                    <div class="stat-pill">
+                        <span style="font-weight:700">${participantsCount}</span> 
+                        <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)"></i>
                     </div>
                 </div>
                 ${actionHtml}
@@ -424,7 +533,18 @@ window.joinWager = function(id) {
 };
 
 window.acceptWager = function(id) {
-    alert("Accepting challenges is coming in the next Phase update!");
+    if(navigator.vibrate) navigator.vibrate([30, 50, 30]);
+    
+    const card = document.getElementById(`wager-card-${id}`);
+    if(card) {
+        card.classList.add('success-pop');
+        setTimeout(() => {
+            alert("Accepting challenges is coming in the next Phase update! (Animation triggered)");
+            card.classList.remove('success-pop');
+        }, 600);
+    } else {
+        alert("Accepting challenges is coming in the next Phase update!");
+    }
 };
 
 window.deleteWager = async function(id) {

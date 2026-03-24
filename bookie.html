@@ -11,6 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .bet-card {
             background: rgba(30, 41, 59, 0.7);
@@ -206,6 +207,31 @@
             </div>
         </div>
     </main>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav" id="mobile-bottom-nav" style="display: none;">
+        <button class="bottom-nav-btn active" data-filter="all">
+            <i class="fas fa-list"></i>
+            <span>Action</span>
+        </button>
+        <button class="bottom-nav-btn" data-filter="ryder">
+            <i class="fas fa-trophy"></i>
+            <span>Ryder</span>
+        </button>
+        <button class="bottom-nav-btn" data-filter="me">
+            <i class="fas fa-user"></i>
+            <span>My Bets</span>
+        </button>
+        <button class="bottom-nav-btn" onclick="document.getElementById('ledger-container').scrollIntoView({behavior: 'smooth'})">
+            <i class="fas fa-book"></i>
+            <span>Ledger</span>
+        </button>
+    </nav>
+
+    <!-- FAB for mobile -->
+    <button class="fab-create-bet" id="fab-create-wager-btn" style="display: none;">
+        <i class="fas fa-plus"></i>
+    </button>
 
     <!-- Generic Modal for Login/Register/Create Wager -->
     <div id="bookie-modal" class="modal">

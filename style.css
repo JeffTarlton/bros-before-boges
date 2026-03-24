@@ -1026,3 +1026,159 @@ select option {
     color: var(--text-main);
 }
 
+/* --- BOOKIE MOBILE UI IMPROVEMENTS --- */
+
+/* App-Like Navigation (Bottom) */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    z-index: 1000;
+}
+
+.bottom-nav-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 5px 10px;
+}
+
+.bottom-nav-btn i {
+    font-size: 1.3rem;
+    margin-bottom: 2px;
+}
+
+.bottom-nav-btn.active {
+    color: var(--accent-gold);
+}
+
+.bottom-nav-btn.active i {
+    transform: translateY(-2px);
+}
+
+/* Floating Action Button */
+.fab-create-bet {
+    position: fixed;
+    bottom: calc(85px + env(safe-area-inset-bottom));
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-emerald), #059669);
+    color: white;
+    border: none;
+    font-size: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+    z-index: 999;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.fab-create-bet:active {
+    transform: scale(0.95);
+}
+
+/* Success Animation */
+@keyframes wager-success-pop {
+    0% { transform: scale(1); box-shadow: 0 0 0 rgba(16, 185, 129, 0); }
+    50% { transform: scale(1.02); box-shadow: 0 0 40px rgba(16, 185, 129, 0.4); border-color: var(--accent-emerald); }
+    100% { transform: scale(1); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
+}
+
+.success-pop {
+    animation: wager-success-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Wager Quick Stats Row */
+.wager-quick-stats {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Mobile Overrides for Bookie UI */
+@media (max-width: 768px) {
+    .bookie-nav {
+        display: none !important;
+    }
+    
+    #mobile-bottom-nav, #fab-create-wager-btn {
+        display: flex !important;
+    }
+    
+    #create-wager-btn {
+        display: none !important;
+    }
+
+    /* Convert Bookie Modal to Bottom Sheet */
+    #bookie-modal {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+
+    #bookie-modal .modal-content {
+        max-width: 100% !important;
+        border-radius: 30px 30px 0 0 !important;
+        padding: 30px 20px calc(30px + env(safe-area-inset-bottom)) !important;
+        margin: 0 !important;
+        border-bottom: none !important;
+        border-right: none !important;
+        border-left: none !important;
+        animation: slideUp 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
+    
+    /* Sticky Headers */
+    .bookie-grid > div:first-child {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .bookie-grid > div:first-child > .bet-card:first-child {
+        position: sticky;
+        top: 75px; 
+        z-index: 10;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+    
+    #wagers-container {
+        padding-bottom: 90px;
+    }
+}
+
