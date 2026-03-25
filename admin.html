@@ -532,24 +532,24 @@
 
                 <!-- Ryder Cup Score Tab -->
                 <div id="tab-scores" class="tab-content" style="display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                        <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+                        <div style="flex: 1; min-width: 250px;">
                             <h2>Ryder Cup Official Score</h2>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Configure the live points here. Both the Home page and the Bookie page actively listen to this value.</p>
                         </div>
                         <button id="save-scores-btn" class="admin-btn" style="width: auto; padding: 10px 20px; margin-top: 0; background: linear-gradient(135deg, var(--accent-emerald), #059669);">Save Scores</button>
                     </div>
 
-                    <div style="background: rgba(255,255,255,0.02); padding: 40px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); margin-top: 20px;">
-                        <div style="display: flex; gap: 40px; justify-content: center; align-items: center;">
+                    <div style="background: rgba(255,255,255,0.02); padding: 25px 15px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); margin-top: 20px;">
+                        <div style="display: flex; gap: 15px; justify-content: center; align-items: center; flex-wrap: wrap;">
                             <div style="text-align: center;">
-                                <h3 style="color: #60a5fa; font-size: 1.5rem; margin-bottom: 15px; text-transform: uppercase;">Team Blue</h3>
-                                <input type="number" id="admin-blue-score" step="0.5" class="admin-input" style="font-size: 3rem; text-align: center; width: 140px; height: 100px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
+                                <h3 style="color: #60a5fa; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase;">Team Blue</h3>
+                                <input type="number" id="admin-blue-score" step="0.5" class="admin-input" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
                             </div>
-                            <div style="font-size: 2rem; color: var(--text-muted); font-weight: 900; opacity: 0.5;">VS</div>
+                            <div style="font-size: 1.5rem; color: var(--text-muted); font-weight: 900; opacity: 0.5; padding: 0 10px;">VS</div>
                             <div style="text-align: center;">
-                                <h3 style="color: #fca5a5; font-size: 1.5rem; margin-bottom: 15px; text-transform: uppercase;">Team Red</h3>
-                                <input type="number" id="admin-red-score" step="0.5" class="admin-input" style="font-size: 3rem; text-align: center; width: 140px; height: 100px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
+                                <h3 style="color: #fca5a5; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase;">Team Red</h3>
+                                <input type="number" id="admin-red-score" step="0.5" class="admin-input" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
                             </div>
                         </div>
                     </div>
