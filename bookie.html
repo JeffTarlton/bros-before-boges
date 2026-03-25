@@ -205,6 +205,9 @@
                                 <span style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 99px; font-weight: normal;">Net Balance</span>
                             </h3>
 
+                            <div id="big-winner-board" style="display: none; margin-bottom: 20px; padding: 15px; border-radius: 12px; background: linear-gradient(135deg, rgba(251,191,36,0.1), rgba(16,185,129,0.1)); border: 1px solid rgba(255,255,255,0.1);">
+                            </div>
+
                             <div id="ledger-container" style="display: flex; flex-direction: column; gap: 15px;">
                                 <!-- Ledger items injected here -->
                                 <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem;">Crunching numbers...</div>
@@ -272,8 +275,9 @@
             <form id="create-wager-form" class="registration-form" style="display: none;">
                 <label>Wager Type</label>
                 <select id="wager-type" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
-                    <option value="pool">Prop Bet / Pool (Anyone can join)</option>
+                    <option value="pool">Pool (Anyone can join)</option>
                     <option value="h2h">Head-to-Head (Challenge a specific player)</option>
+                    <option value="prop">Prop Bet (Custom Scenario, anyone can take action)</option>
                 </select>
 
                 <div id="h2h-target-container" style="display: none;">
@@ -285,7 +289,8 @@
 
                     <label>Moneyline Odds for Opponent</label>
                     <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: -5px; margin-bottom: 8px;">Positive (+) means they are the underdog. Negative (-) means they are favored. 100 is even.</p>
-                    <input type="number" id="wager-odds" placeholder="+150, -120, or 100" value="100" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
+                    <input type="number" id="wager-odds" placeholder="+150, -120, or 100" value="100" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 15px;">
+                    <div id="odds-preview-text" style="font-size: 0.85rem; color: var(--accent-gold); display: none; margin-bottom: 20px; line-height: 1.4; padding: 10px; background: rgba(251,191,36,0.05); border-radius: 8px; border: 1px solid rgba(251,191,36,0.2);"></div>
                 </div>
 
                 <label>Terms of the Bet</label>

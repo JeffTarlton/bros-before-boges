@@ -103,7 +103,44 @@ function setupEventListeners() {
         h2hTargetContainer.style.display = e.target.value === 'h2h' ? 'block' : 'none';
         if (e.target.value === 'h2h') wagerTargetSelect.required = true;
         else wagerTargetSelect.required = false;
+        if(window.updateOddsPreview) window.updateOddsPreview();
     });
+
+    window.updateOddsPreview = function() {
+        const previewEl = document.getElementById('odds-preview-text');
+        if(!previewEl) return;
+        
+        const amountVal = parseFloat(wagerAmtInput.value);
+        const oddsVal = parseInt(wagerOddsInput.value);
+        
+        if (isNaN(amountVal) || amountVal <= 0 || isNaN(oddsVal) || wagerTypeSelect.value !== 'h2h') {
+            previewEl.style.display = 'none';
+            return;
+        }
+        
+        let toWin = 0;
+        let targetRisks = 0;
+        
+        if (oddsVal > 0) {
+            toWin = (amountVal * oddsVal) / 100;
+            targetRisks = toWin;
+        } else if (oddsVal < 0) {
+            toWin = (amountVal * 100) / Math.abs(oddsVal);
+            targetRisks = toWin;
+        } else {
+            toWin = amountVal;
+            targetRisks = amountVal;
+        }
+        
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = `
+            <strong>You risk $${amountVal.toFixed(2)}</strong> to win $${toWin.toFixed(2)}.<br>
+            <strong>Opponent risks $${targetRisks.toFixed(2)}</strong> to win your $${amountVal.toFixed(2)}.
+        `;
+    };
+
+    wagerAmtInput.addEventListener('input', window.updateOddsPreview);
+    wagerOddsInput.addEventListener('input', window.updateOddsPreview);
 
     // Settle Wager
     settleWagerForm.addEventListener('submit', async (e) => {
@@ -117,12 +154,24 @@ function setupEventListeners() {
         }
         
         const winnerIds = Array.from(selectedInputs).map(input => input.value);
-        const primaryWinnerId = winnerIds[0]; // Fallback for backward compatibility
+        
+        const wager = allWagers.find(w => w.id === wagerId);
+        let finalWinnerIds = winnerIds;
+        let primaryWinnerId = winnerIds[0];
+        
+        if (winnerIds.includes('takers')) {
+            finalWinnerIds = wager.participants.filter(pid => pid !== wager.creator_id);
+            primaryWinnerId = finalWinnerIds[0] || wager.creator_id; 
+            if(finalWinnerIds.length === 0) {
+                finalWinnerIds = [wager.creator_id]; 
+                primaryWinnerId = wager.creator_id;
+            }
+        }
         
         try {
             const { error } = await supabaseClient
                 .from('wagers')
-                .update({ status: 'settled', winner_id: primaryWinnerId, winner_ids: winnerIds })
+                .update({ status: 'settled', winner_id: primaryWinnerId, winner_ids: finalWinnerIds })
                 .eq('id', wagerId);
                 
             if (error) throw error;
@@ -668,7 +717,8 @@ function renderWagers(filter) {
 
         let actionHtml = '';
         if (wager.status === 'open' && !isParticipant) {
-            actionHtml = `<button class="btn join-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">Join Bet ($${wager.amount})</button>`;
+            const btnText = wager.type === 'prop' ? 'Take this Action' : 'Join Bet';
+            actionHtml = `<button class="btn join-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">${btnText} ($${wager.amount})</button>`;
         } else if (wager.status === 'proposed' && isTarget) {
             actionHtml = `<button class="btn accept-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
         } else if (wager.status === 'active' && (isParticipant || isCreator)) {
@@ -683,23 +733,34 @@ function renderWagers(filter) {
             actionHtml = `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">You are in this bet</div>`;
         }
         
-        const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : 'Pool';
+        const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop Bet' : 'Pool');
         const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${wager.target.name}</div>` : '';
         const potSize = participantsCount * wager.amount;
 
         let resultsHtml = '';
         if (wager.status === 'settled' && wager.winner_id) {
-            const winnerIds = wager.winner_ids && wager.winner_ids.length > 0 ? wager.winner_ids : [wager.winner_id];
-            const losers = wager.participants.filter(id => !winnerIds.includes(id));
-            const loserNames = losers.map(id => getPlayerName(id)).join(', ');
-            const winnerNames = winnerIds.map(id => getPlayerName(id)).join(' & ');
-            
-            resultsHtml = `
-                <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> Won by ${winnerNames}</div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">${loserNames || 'Nobody'} ${wager.type === 'h2h' ? 'owes the winner.' : 'paid into the pot.'}</div>
-                </div>
-            `;
+            if (wager.type === 'prop') {
+                 const isCreatorWinner = wager.winner_ids && wager.winner_ids.includes(wager.creator_id);
+                 const text = isCreatorWinner ? `${wager.creator.name} won` : `The Takers won`;
+                 resultsHtml = `
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                        <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> ${text}</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">Payouts distributed natively.</div>
+                    </div>
+                `;
+            } else {
+                const winnerIds = wager.winner_ids && wager.winner_ids.length > 0 ? wager.winner_ids : [wager.winner_id];
+                const losers = wager.participants.filter(id => !winnerIds.includes(id));
+                const loserNames = losers.map(id => getPlayerName(id)).join(', ');
+                const winnerNames = winnerIds.map(id => getPlayerName(id)).join(' & ');
+                
+                resultsHtml = `
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                        <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> Won by ${winnerNames}</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">${loserNames || 'Nobody'} ${wager.type === 'h2h' ? 'owes the winner.' : 'paid into the pot.'}</div>
+                    </div>
+                `;
+            }
         } else if (wager.status === 'push') {
             resultsHtml = `
                 <div style="margin-top: 15px; padding: 15px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.2);">
@@ -879,17 +940,37 @@ window.openSettleModal = function(id) {
     
     if (wager.type === 'pool') {
         container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 10px;">Select all winners (Pot splits evenly):</p>`;
-    }
-    
-    wager.participants.forEach(pid => {
-        const inputType = wager.type === 'pool' ? 'checkbox' : 'radio';
+        wager.participants.forEach(pid => {
+            container.innerHTML += `
+                <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
+                    <input type="checkbox" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
+                    ${getPlayerName(pid)}
+                </label>
+            `;
+        });
+    } else if (wager.type === 'prop') {
+        container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 10px;">Who won the prop bet?</p>`;
+        const creatorId = wager.creator_id;
         container.innerHTML += `
             <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
-                <input type="${inputType}" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
-                ${getPlayerName(pid)}
+                <input type="radio" name="settle-winner" value="${creatorId}" style="width: 18px; height: 18px;">
+                The Creator (${getPlayerName(creatorId)})
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
+                <input type="radio" name="settle-winner" value="takers" style="width: 18px; height: 18px;">
+                The Takers (Condition Failed)
             </label>
         `;
-    });
+    } else {
+        wager.participants.forEach(pid => {
+            container.innerHTML += `
+                <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
+                    <input type="radio" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
+                    ${getPlayerName(pid)}
+                </label>
+            `;
+        });
+    }
 
     modal.classList.add('active');
 };
@@ -972,6 +1053,21 @@ function renderLedger() {
                     balances[wager.creator_id] = (balances[wager.creator_id] || 0) + c_win;
                     balances[wager.target_id] = (balances[wager.target_id] || 0) - c_win;
                 }
+            } else if (wager.type === 'prop') {
+                const isCreatorWinner = winnerIds.includes(wager.creator_id);
+                const takers = wager.participants.filter(pid => pid !== wager.creator_id);
+                
+                if (isCreatorWinner) {
+                    balances[wager.creator_id] = (balances[wager.creator_id] || 0) + (wAmount * takers.length);
+                    takers.forEach(tid => {
+                        balances[tid] = (balances[tid] || 0) - wAmount;
+                    });
+                } else {
+                    balances[wager.creator_id] = (balances[wager.creator_id] || 0) - (wAmount * takers.length);
+                    takers.forEach(tid => {
+                        balances[tid] = (balances[tid] || 0) + wAmount;
+                    });
+                }
             } else {
                 // Return pool logic handling split pots
                 const totalPot = wAmount * wager.participants.length;
@@ -1007,6 +1103,41 @@ function renderLedger() {
             `;
         }
     });
+
+    let maxBal = 0;
+    let minBal = 0;
+    let maxPlayers = [];
+    let minPlayers = [];
+    
+    sortedBalances.forEach(b => {
+        if (b.balance > maxBal) { maxBal = b.balance; maxPlayers = [b.name]; }
+        else if (b.balance === maxBal && maxBal > 0) { maxPlayers.push(b.name); }
+        
+        if (b.balance < minBal) { minBal = b.balance; minPlayers = [b.name]; }
+        else if (b.balance === minBal && minBal < 0) { minPlayers.push(b.name); }
+    });
+
+    const scoreboardEl = document.getElementById('big-winner-board');
+    if (scoreboardEl) {
+        if (maxBal > 0 || minBal < 0) {
+            scoreboardEl.style.display = 'flex';
+            scoreboardEl.style.justifyContent = 'space-between';
+            scoreboardEl.innerHTML = `
+                <div style="text-align: center; flex: 1; border-right: 1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">🏆 Big Winner</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: var(--accent-emerald); margin-top: 5px;">+$${maxBal}</div>
+                    <div style="font-size: 0.9rem; margin-top: 2px;">${maxPlayers.length ? maxPlayers.join(', ') : '-'}</div>
+                </div>
+                <div style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">💀 Big Loser</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #ef4444; margin-top: 5px;">-$${Math.abs(minBal)}</div>
+                    <div style="font-size: 0.9rem; margin-top: 2px;">${minPlayers.length ? minPlayers.join(', ') : '-'}</div>
+                </div>
+            `;
+        } else {
+            scoreboardEl.style.display = 'none';
+        }
+    }
 
     if (!ledgerHtml) {
          ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">No settled bets yet</div>`;
