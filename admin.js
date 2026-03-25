@@ -12,6 +12,26 @@ try {
     console.error('Supabase initialization failed:', e);
 }
 
+// Toast Notification System
+window.showToast = function(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div style="font-size: 1.2rem;">${type === 'success' ? '✅' : '⚠️'}</div>
+        <div>${message}</div>
+    `;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+};
+
 // DOM Elements Registry
 let elements = {};
 
@@ -492,7 +512,7 @@ function autoDraft() {
 
     renderDraftingUI();
     checkChanges();
-    alert('Auto-draft complete! Inspect the teams and click "Save Changes" to commit.');
+    window.showToast('Auto-draft complete! Inspect the teams and click "Save Changes" to commit.', 'success');
 }
 
 // Matchups Logic
@@ -515,6 +535,26 @@ function renderMatchupsUI() {
 
     const roundMatchups = matchups.filter(m => m.round_number === currentMatchupRound);
 
+    const assignedInRound = new Set();
+    roundMatchups.forEach(m => {
+        if (m.t1_player1_id) assignedInRound.add(m.t1_player1_id);
+        if (m.t1_player2_id) assignedInRound.add(m.t1_player2_id);
+        if (m.t2_player1_id) assignedInRound.add(m.t2_player1_id);
+        if (m.t2_player2_id) assignedInRound.add(m.t2_player2_id);
+    });
+
+    const getOptions = (teamId, currentVal) => {
+        return players.filter(p => p.team_id === teamId).map(p => {
+            const pId = p.id || p.name;
+            const isAssigned = assignedInRound.has(pId);
+            const isCurrent = (pId === currentVal);
+            if (!isAssigned || isCurrent) {
+                return `<option value="${pId}" ${isCurrent ? 'selected' : ''}>${p.name}</option>`;
+            }
+            return '';
+        }).join('');
+    };
+
     roundMatchups.forEach((match, index) => {
         const globalIndex = matchups.indexOf(match);
         const div = document.createElement('div');
@@ -533,12 +573,12 @@ function renderMatchupsUI() {
                 <div style="font-size: 0.8rem; font-weight: bold; color: var(--accent-emerald); margin-bottom: 5px;">Team 1</div>
                 <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
                     <option value="">Select T1 Player 1</option>
-                    ${players.filter(p => p.team_id === 1).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t1_player1_id || p.name === match.t1_player1_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    ${getOptions(1, match.t1_player1_id)}
                 </select>
                 ${!isSingles ? `
                 <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
                     <option value="">Select T1 Player 2</option>
-                    ${players.filter(p => p.team_id === 1).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t1_player2_id || p.name === match.t1_player2_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    ${getOptions(1, match.t1_player2_id)}
                 </select>` : ''}
             </div>
 
@@ -546,12 +586,12 @@ function renderMatchupsUI() {
                 <div style="font-size: 0.8rem; font-weight: bold; color: #ef4444; margin-bottom: 5px;">Team 2</div>
                 <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
                     <option value="">Select T2 Player 1</option>
-                    ${players.filter(p => p.team_id === 2).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t2_player1_id || p.name === match.t2_player1_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    ${getOptions(2, match.t2_player1_id)}
                 </select>
                 ${!isSingles ? `
                 <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
                     <option value="">Select T2 Player 2</option>
-                    ${players.filter(p => p.team_id === 2).map(p => `<option value="${p.id || p.name}" ${(p.id === match.t2_player2_id || p.name === match.t2_player2_id) ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    ${getOptions(2, match.t2_player2_id)}
                 </select>` : ''}
             </div>
         `;
@@ -706,11 +746,11 @@ async function saveChanges() {
             if (matchError) throw matchError;
         }
 
-        alert('Changes saved successfully! 🎉');
+        window.showToast('Changes saved successfully! 🎉', 'success');
         loadRoster();
     } catch (err) {
         console.error('Save failed:', err);
-        alert('Error saving changes: ' + err.message);
+        window.showToast('Error saving changes: ' + err.message, 'error');
     }
 }
 
@@ -767,6 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     saveScoresBtn.textContent = 'Saved!';
                     saveScoresBtn.style.background = '#10b981';
+                    window.showToast('Ryder Cup scores saved!', 'success');
                     
                     setTimeout(() => {
                         saveScoresBtn.textContent = 'Save Scores';
@@ -775,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 2000);
                 } catch (err) {
                     console.error('Error updating Ryder Cup scores:', err);
-                    alert('Error saving scores: ' + err.message);
+                    window.showToast('Error saving scores: ' + err.message, 'error');
                     saveScoresBtn.textContent = 'Save Scores';
                     saveScoresBtn.style.opacity = '1';
                 }

@@ -294,7 +294,7 @@
             flex: 1;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .dashboard.active {
                 grid-template-columns: 1fr;
             }
@@ -429,27 +429,29 @@
                             style="width: auto; margin-top: 0; padding: 10px 20px;">+ Add
                             Player</button>
                     </div>
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>GHIN</th>
-                                <th>Handicap</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="roster-tbody">
-                            <!-- Populated by JS -->
-                            <tr>
-                                <td colspan="5"
-                                    style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
-                                    Loading roster data...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>GHIN</th>
+                                    <th>Handicap</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="roster-tbody">
+                                <!-- Populated by JS -->
+                                <tr>
+                                    <td colspan="5"
+                                        style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
+                                        Loading roster data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div id="tab-drafting" class="tab-content" style="display: none;">
@@ -598,6 +600,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container" style="top: 20px; bottom: auto; align-items: flex-end;"></div>
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
