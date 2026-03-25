@@ -282,6 +282,10 @@
                         <option value="">Select an opponent...</option>
                         <!-- Populated by JS -->
                     </select>
+
+                    <label>Moneyline Odds for Opponent</label>
+                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: -5px; margin-bottom: 8px;">Positive (+) means they are the underdog. Negative (-) means they are favored. 100 is even.</p>
+                    <input type="number" id="wager-odds" placeholder="+150, -120, or 100" value="100" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
                 </div>
 
                 <label>Terms of the Bet</label>
@@ -296,11 +300,18 @@
                 <input type="hidden" id="settle-wager-id">
                 <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">Select the winner of this bet. Once settled, the Ledger is updated automatically and cannot be undone.</p>
                 <label>Who won?</label>
-                <select id="settle-wager-winner" style="width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: white; margin-bottom: 20px;">
+                <div id="settle-wager-winners-container" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 15px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
                     <!-- Populated by JS -->
-                </select>
+                </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none;">Confirm Winner & Settle</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px;">Confirm Winner & Settle</button>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button type="button" id="settle-push-btn" class="btn" style="flex: 1; background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.3);">Declare Tie (Push)</button>
+                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Cancel Bet</button>
+                </div>
+                <button type="button" id="settle-auto-btn" class="btn" style="width: 100%; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px dashed #60a5fa; display: none;">
+                    <i class="fas fa-bolt" style="margin-right: 5px;"></i> Auto-Settle via Live Scores
+                </button>
             </form>
         </div>
     </div>

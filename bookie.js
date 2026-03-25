@@ -7,6 +7,7 @@ let supabaseClient = null; // Initialized inside initBookie after CDN loads
 let currentUser = null;
 let dbPlayers = [];
 let allWagers = [];
+let allComments = [];
 let authMode = 'login'; // 'login' or 'register'
 
 // DOM Elements
@@ -37,6 +38,7 @@ const openWagerBtn = document.getElementById('create-wager-btn');
 const wagerTypeSelect = document.getElementById('wager-type');
 const h2hTargetContainer = document.getElementById('h2h-target-container');
 const wagerTargetSelect = document.getElementById('wager-target');
+const wagerOddsInput = document.getElementById('wager-odds');
 const wagerDescInput = document.getElementById('wager-desc');
 const wagerAmtInput = document.getElementById('wager-amt');
 
@@ -107,17 +109,20 @@ function setupEventListeners() {
     settleWagerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const wagerId = document.getElementById('settle-wager-id').value;
-        const winnerId = document.getElementById('settle-wager-winner').value;
+        const selectedInputs = document.querySelectorAll('input[name="settle-winner"]:checked');
         
-        if (!winnerId) {
-            showToast("Please select a winner.", "error");
+        if (selectedInputs.length === 0) {
+            showToast("Please select at least one winner.", "error");
             return;
         }
+        
+        const winnerIds = Array.from(selectedInputs).map(input => input.value);
+        const primaryWinnerId = winnerIds[0]; // Fallback for backward compatibility
         
         try {
             const { error } = await supabaseClient
                 .from('wagers')
-                .update({ status: 'settled', winner_id: winnerId })
+                .update({ status: 'settled', winner_id: primaryWinnerId, winner_ids: winnerIds })
                 .eq('id', wagerId);
                 
             if (error) throw error;
@@ -131,6 +136,109 @@ function setupEventListeners() {
             showToast("Error settling wager: " + err.message, "error");
         }
     });
+
+    // Alternative Settle Actions
+    const settlePushBtn = document.getElementById('settle-push-btn');
+    const settleCancelBtn = document.getElementById('settle-cancel-btn');
+
+    if (settlePushBtn) settlePushBtn.addEventListener('click', () => handleAlternativeSettle('push'));
+    if (settleCancelBtn) settleCancelBtn.addEventListener('click', () => handleAlternativeSettle('canceled'));
+
+    async function handleAlternativeSettle(statusType) {
+        const wagerId = document.getElementById('settle-wager-id').value;
+        if (!confirm(`Are you sure you want to ${statusType === 'push' ? 'declare a Push (Tie)' : 'Cancel'} this bet? No money will exchange hands.`)) return;
+        
+        try {
+            const { error } = await supabaseClient
+                .from('wagers')
+                .update({ status: statusType })
+                .eq('id', wagerId);
+                
+            if (error) throw error;
+            
+            closeModal();
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            showToast(`Wager ${statusType === 'push' ? 'pushed' : 'canceled'} successfully.`, "success");
+        } catch (err) {
+            showToast(`Error updating wager: ` + err.message, "error");
+        }
+    }
+
+    // Auto-Settle
+    window.handleAutoSettle = async function(wager) {
+        if (!confirm("This will fetch the latest scores from the active round and automatically pick a winner based on To-Par Net Score. Are you sure?")) return;
+        
+        try {
+            // 1. Get the active round
+            const { data: activeRounds, error: rErr } = await supabaseClient
+                .from('rounds')
+                .select('id')
+                .eq('status', 'active')
+                .limit(1);
+                
+            if (rErr || !activeRounds || activeRounds.length === 0) {
+                showToast("No active round found on the tracker.", "error");
+                return;
+            }
+            
+            const roundId = activeRounds[0].id;
+            
+            // 2. Get scores for the creator and target
+            const { data: scores, error: sErr } = await supabaseClient
+                .from('scores')
+                .select('player_id, total_to_par')
+                .eq('round_id', roundId)
+                .in('player_id', [wager.creator_id, wager.target_id]);
+                
+            if (sErr) throw sErr;
+            
+            if (!scores || scores.length < 2) {
+                showToast("Both players must have started scoring in the active round.", "error");
+                return;
+            }
+            
+            const cScore = scores.find(s => s.player_id === wager.creator_id).total_to_par;
+            const tScore = scores.find(s => s.player_id === wager.target_id).total_to_par;
+            
+            let winnerId = null;
+            let isPush = false;
+            
+            if (cScore < tScore) {
+                winnerId = wager.creator_id;
+            } else if (tScore < cScore) {
+                winnerId = wager.target_id;
+            } else {
+                isPush = true;
+            }
+            
+            // 3. Update wager
+            const updateData = isPush ? { status: 'push' } : { status: 'settled', winner_id: winnerId, winner_ids: [winnerId] };
+            
+            const { error: wErr } = await supabaseClient
+                .from('wagers')
+                .update(updateData)
+                .eq('id', wager.id);
+                
+            if (wErr) throw wErr;
+            
+            closeModal();
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            
+            if (isPush) {
+                showToast("It's a tie! Wager pushed.", "success");
+            } else {
+                const winnerName = getPlayerName(winnerId);
+                showToast(`Settled! ${winnerName} won with a better to-par score.`, "success");
+            }
+            
+        } catch(e) {
+            showToast("Error auto-settling: " + e.message, "error");
+        }
+    };
 
     // Create Wager Form
     createWagerForm.addEventListener('submit', handleCreateWager);
@@ -437,6 +545,21 @@ async function fetchBaseData() {
     } catch (e) {
         console.warn("Wagers table likely not created yet.", e);
     }
+
+    // Fetch comments
+    try {
+        const { data: comments, error } = await supabaseClient
+            .from('wager_comments')
+            .select(`
+                *,
+                player:player_id (name)
+            `);
+        if (!error && comments) {
+            allComments = comments;
+        }
+    } catch (e) {
+        console.warn("wager_comments table likely not created yet.", e);
+    }
 }
 
 function renderDashboard() {
@@ -535,6 +658,8 @@ function renderWagers(filter) {
         if (wager.status === 'proposed') statusBadge = `<span style="background: rgba(251, 191, 36, 0.2); color: var(--accent-gold); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Proposed</span>`;
         if (wager.status === 'active') statusBadge = `<span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Active</span>`;
         if (wager.status === 'settled') statusBadge = `<span style="background: rgba(255, 255, 255, 0.1); color: var(--text-muted); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Settled</span>`;
+        if (wager.status === 'push') statusBadge = `<span style="background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Pushed (Tie)</span>`;
+        if (wager.status === 'canceled') statusBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Canceled</span>`;
         
         let deleteBtnHtml = '';
         if (canDelete) {
@@ -564,14 +689,29 @@ function renderWagers(filter) {
 
         let resultsHtml = '';
         if (wager.status === 'settled' && wager.winner_id) {
-            const losers = wager.participants.filter(id => id !== wager.winner_id);
+            const winnerIds = wager.winner_ids && wager.winner_ids.length > 0 ? wager.winner_ids : [wager.winner_id];
+            const losers = wager.participants.filter(id => !winnerIds.includes(id));
             const loserNames = losers.map(id => getPlayerName(id)).join(', ');
-            const totalWon = losers.length * wager.amount;
+            const winnerNames = winnerIds.map(id => getPlayerName(id)).join(' & ');
             
             resultsHtml = `
                 <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> Won by ${wager.winner.name}</div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">${loserNames || 'Nobody'} each owe $${wager.amount} to ${wager.winner.name}</div>
+                    <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> Won by ${winnerNames}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">${loserNames || 'Nobody'} ${wager.type === 'h2h' ? 'owes the winner.' : 'paid into the pot.'}</div>
+                </div>
+            `;
+        } else if (wager.status === 'push') {
+            resultsHtml = `
+                <div style="margin-top: 15px; padding: 15px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.2);">
+                    <div style="color: var(--accent-gold); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-handshake"></i> Push (Tie)</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">All bets refunded. No blood drawn.</div>
+                </div>
+            `;
+        } else if (wager.status === 'canceled') {
+            resultsHtml = `
+                <div style="margin-top: 15px; padding: 15px; background: rgba(239, 68, 68, 0.05); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.1);">
+                    <div style="color: #ef4444; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-ban"></i> Bet Canceled</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">This wager was called off.</div>
                 </div>
             `;
         }
@@ -582,6 +722,32 @@ function renderWagers(filter) {
             cardStyle = `margin-bottom: 20px; padding: 20px; border: 1px solid #ef4444; border-left: 4px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); position: relative;`;
         }
 
+        const comments = allComments.filter(c => c.wager_id === wager.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+        const commentsHtml = comments.length > 0 ? comments.map(c => `
+            <div style="margin-bottom: 8px; font-size: 0.85rem; line-height: 1.3;">
+                <strong style="color: var(--accent-gold);">${c.player ? c.player.name : 'Unknown'}:</strong> 
+                <span style="color: var(--text-muted);">${c.message}</span>
+            </div>
+        `).join('') : '<div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; font-style: italic;">It\'s quiet... too quiet.</div>';
+
+        const trashTalkHtml = `
+            <div class="trash-talk-section" style="margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 15px;">
+                <button class="btn" style="width: 100%; padding: 8px; background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.85rem; border: 1px dashed rgba(255,255,255,0.1);" onclick="const el = document.getElementById('comments-${wager.id}'); el.style.display = el.style.display === 'none' ? 'block' : 'none'">
+                   💬 Trash Talk (${comments.length})
+                </button>
+                <div id="comments-${wager.id}" style="display: none; margin-top: 15px;">
+                    <div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding-right: 5px;">
+                        ${commentsHtml}
+                    </div>
+                    ${currentUser ? `
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="comment-input-${wager.id}" placeholder="Talk smack..." style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; font-size: 0.85rem;">
+                        <button class="btn" style="padding: 8px 15px; background: var(--accent-gold); color: #000; font-weight: bold; border: none; border-radius: 8px;" onclick="window.postComment('${wager.id}')">Post</button>
+                    </div>` : ''}
+                </div>
+            </div>
+        `;
+
         return `
             <div class="${cardClass}" id="wager-card-${wager.id}" style="${cardStyle}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
@@ -591,7 +757,10 @@ function renderWagers(filter) {
                         ${targetLabel}
                     </div>
                     <div style="text-align: right;">
-                        <div>${statusBadge}</div>
+                        <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                            ${(wager.type === 'h2h' && wager.odds && wager.odds !== 100) ? `<span style="background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; border: 1px solid rgba(251, 191, 36, 0.3);"><i class="fas fa-chart-line"></i> ${wager.odds > 0 ? '+'+wager.odds : wager.odds}</span>` : ''}
+                            ${statusBadge}
+                        </div>
                         ${deleteBtnHtml}
                     </div>
                 </div>
@@ -612,6 +781,7 @@ function renderWagers(filter) {
                 </div>
                 ${actionHtml}
                 ${resultsHtml}
+                ${trashTalkHtml}
             </div>
         `;
     }).join('');
@@ -693,11 +863,32 @@ window.openSettleModal = function(id) {
     modalTitle.textContent = 'Settle Wager';
     document.getElementById('settle-wager-id').value = id;
     
-    const select = document.getElementById('settle-wager-winner');
-    select.innerHTML = '<option value="">Select the winner...</option>';
+    // Auto-Settle toggle
+    const autoBtn = document.getElementById('settle-auto-btn');
+    if (autoBtn) {
+        if (wager.type === 'h2h') {
+            autoBtn.style.display = 'block';
+            autoBtn.onclick = () => window.handleAutoSettle(wager);
+        } else {
+            autoBtn.style.display = 'none';
+        }
+    }
+    
+    const container = document.getElementById('settle-wager-winners-container');
+    container.innerHTML = '';
+    
+    if (wager.type === 'pool') {
+        container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 10px;">Select all winners (Pot splits evenly):</p>`;
+    }
     
     wager.participants.forEach(pid => {
-        select.innerHTML += `<option value="${pid}">${getPlayerName(pid)}</option>`;
+        const inputType = wager.type === 'pool' ? 'checkbox' : 'radio';
+        container.innerHTML += `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
+                <input type="${inputType}" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
+                ${getPlayerName(pid)}
+            </label>
+        `;
     });
 
     modal.classList.add('active');
@@ -722,6 +913,37 @@ window.deleteWager = async function(id) {
     }
 };
 
+window.postComment = async function(wagerId) {
+    if (!currentUser) return;
+    const inputField = document.getElementById(`comment-input-${wagerId}`);
+    const message = inputField.value.trim();
+    if (!message) return;
+    
+    inputField.disabled = true;
+    try {
+        const { error } = await supabaseClient
+            .from('wager_comments')
+            .insert({
+                wager_id: wagerId,
+                player_id: currentUser.id,
+                message: message
+            });
+            
+        if (error) throw error;
+        
+        await fetchBaseData();
+        renderDashboard();
+        
+        // Ensure comments section stays open after reload
+        const el = document.getElementById(`comments-${wagerId}`);
+        if(el) el.style.display = 'block';
+        
+    } catch (err) {
+        showToast("Error posting comment: " + err.message, "error");
+        inputField.disabled = false;
+    }
+};
+
 function renderLedger() {
     const balances = {}; 
     
@@ -729,13 +951,42 @@ function renderLedger() {
 
     allWagers.forEach(wager => {
         if (wager.status === 'settled' && wager.winner_id && wager.participants) {
-            const losers = wager.participants.filter(id => id !== wager.winner_id);
+            const winnerIds = wager.winner_ids && wager.winner_ids.length > 0 ? wager.winner_ids : [wager.winner_id];
+            const losers = wager.participants.filter(id => !winnerIds.includes(id));
+            const winners = wager.participants.filter(id => winnerIds.includes(id));
             const wAmount = wager.amount;
             
-            losers.forEach(loserId => {
-                balances[loserId] = (balances[loserId] || 0) - wAmount;
-                balances[wager.winner_id] = (balances[wager.winner_id] || 0) + wAmount;
-            });
+            if (wager.type === 'h2h' && wager.target_id) {
+                // H2H Odds Math
+                const odds = wager.odds || 100;
+                const isPositive = odds > 0;
+                const multiplier = Math.abs(odds) / 100;
+                
+                const t_win = isPositive ? Math.round(wAmount * multiplier) : wAmount;
+                const c_win = isPositive ? wAmount : Math.round(wAmount * multiplier);
+                
+                if (wager.winner_id === wager.target_id) {
+                    balances[wager.target_id] = (balances[wager.target_id] || 0) + t_win;
+                    balances[wager.creator_id] = (balances[wager.creator_id] || 0) - t_win;
+                } else if (wager.winner_id === wager.creator_id) {
+                    balances[wager.creator_id] = (balances[wager.creator_id] || 0) + c_win;
+                    balances[wager.target_id] = (balances[wager.target_id] || 0) - c_win;
+                }
+            } else {
+                // Return pool logic handling split pots
+                const totalPot = wAmount * wager.participants.length;
+                const potPerWinner = winners.length > 0 ? (totalPot / winners.length) : 0;
+                
+                // Debit everyone their buy-in
+                wager.participants.forEach(pid => {
+                    balances[pid] = (balances[pid] || 0) - wAmount;
+                });
+                
+                // Credit winners their share of the pot
+                winners.forEach(winnerId => {
+                    balances[winnerId] = (balances[winnerId] || 0) + potPerWinner;
+                });
+            }
         }
     });
 
@@ -779,6 +1030,7 @@ function openWagerModal() {
     createWagerForm.style.display = 'block';
     settleWagerForm.style.display = 'none'; // Ensure settle form is hidden
     createWagerForm.reset();
+    if (wagerOddsInput) wagerOddsInput.value = '100'; // Default even odds
     modalTitle.textContent = 'Propose a Wager';
 
     wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>';
@@ -803,20 +1055,22 @@ async function handleCreateWager(e) {
     const type = wagerTypeSelect.value;
     const amount = wagerAmtInput.value;
     const desc = wagerDescInput.value;
-    const targetId = wagerTargetSelect.value; // May be empty if pool
+    const targetId = type === 'h2h' ? wagerTargetSelect.value : null;
+    
+    const oddsStr = wagerOddsInput ? wagerOddsInput.value : '100';
+    const parsedOdds = parseInt(oddsStr, 10);
+    const odds = (type === 'h2h' && !isNaN(parsedOdds)) ? parsedOdds : 100;
 
     const newWager = {
         creator_id: currentUser.id,
+        target_id: targetId,
         type: type,
         amount: parseInt(amount),
         description: desc,
         status: type === 'h2h' ? 'proposed' : 'open',
-        participants: [currentUser.id]
+        participants: [currentUser.id],
+        odds: odds
     };
-
-    if (type === 'h2h') {
-        newWager.target_id = targetId; // Requires DB update later to support this explicitly
-    }
 
     try {
         const { error } = await supabaseClient.from('wagers').insert([newWager]);
