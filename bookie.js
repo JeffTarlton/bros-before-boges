@@ -466,9 +466,9 @@ function updateNotificationBadges() {
 }
 
 async function renderRyderCupMainEvent() {
-    if (!supabaseInstance) return;
+    if (!supabaseClient) return;
     try {
-        const { data, error } = await supabaseInstance
+        const { data, error } = await supabaseClient
             .from('ryder_cup_scores')
             .select('*')
             .eq('id', 1)
