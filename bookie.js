@@ -720,7 +720,27 @@ function renderWagers(filter) {
             const btnText = wager.type === 'prop' ? 'Take this Action' : 'Join Bet';
             actionHtml = `<button class="btn join-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.joinWager('${wager.id}')">${btnText} ($${wager.amount})</button>`;
         } else if (wager.status === 'proposed' && isTarget) {
-            actionHtml = `<button class="btn accept-btn" style="width: 100%; margin-top: 15px; padding: 10px;" onclick="window.acceptWager('${wager.id}')">Accept Challenge</button>`;
+            actionHtml = `
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn accept-btn" style="flex: 1; padding: 10px;" onclick="window.acceptWager('${wager.id}')">
+                        <i class="fas fa-check" style="margin-right: 6px;"></i>Accept
+                    </button>
+                    <button class="btn decline-btn" style="flex: 1; padding: 10px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4);" onclick="window.declineWager('${wager.id}')">
+                        <i class="fas fa-times" style="margin-right: 6px;"></i>Decline
+                    </button>
+                </div>
+            `;
+        } else if (wager.status === 'proposed' && isCreator) {
+            actionHtml = `
+                <div style="margin-top: 15px;">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">
+                        <i class="fas fa-clock" style="margin-right: 5px;"></i>Waiting for ${wager.target ? wager.target.name : 'opponent'} to accept...
+                    </div>
+                    <button class="btn cancel-btn" style="width: 100%; padding: 10px; background: rgba(239, 68, 68, 0.08); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.9rem;" onclick="window.cancelProposedWager('${wager.id}')">
+                        <i class="fas fa-ban" style="margin-right: 6px;"></i>Cancel Bet
+                    </button>
+                </div>
+            `;
         } else if (wager.status === 'active' && (isParticipant || isCreator)) {
             actionHtml = `
                 <div style="margin-top: 15px;">
@@ -914,6 +934,69 @@ window.acceptWager = async function(id) {
         showToast("Error accepting challenge: " + err.message, "error");
     }
 };
+
+window.cancelProposedWager = async function(id) {
+    if (!currentUser) return;
+    if (!confirm("Are you sure you want to cancel this bet? It will be removed before the other player can accept.")) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('wagers')
+            .update({ status: 'canceled' })
+            .eq('id', id)
+            .eq('creator_id', currentUser.id);
+            
+        if (error) throw error;
+        
+        const card = document.getElementById(`wager-card-${id}`);
+        if (card) {
+            card.style.transition = 'opacity 0.4s, transform 0.4s';
+            card.style.opacity = '0.3';
+            card.style.transform = 'scale(0.95)';
+        }
+        
+        setTimeout(async () => {
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            showToast("Bet canceled successfully.", "success");
+        }, 400);
+    } catch (err) {
+        showToast("Error canceling bet: " + err.message, "error");
+    }
+};
+
+window.declineWager = async function(id) {
+    if (!currentUser) return;
+    if (!confirm("Decline this challenge? The bet will be canceled.")) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('wagers')
+            .update({ status: 'canceled' })
+            .eq('id', id)
+            .eq('target_id', currentUser.id);
+            
+        if (error) throw error;
+        
+        const card = document.getElementById(`wager-card-${id}`);
+        if (card) {
+            card.style.transition = 'opacity 0.4s, transform 0.4s';
+            card.style.opacity = '0.3';
+            card.style.transform = 'scale(0.95)';
+        }
+        
+        setTimeout(async () => {
+            await fetchBaseData();
+            renderDashboard();
+            updateNotificationBadges();
+            showToast("Challenge declined.", "success");
+        }, 400);
+    } catch (err) {
+        showToast("Error declining challenge: " + err.message, "error");
+    }
+};
+
 window.openSettleModal = function(id) {
     const wager = allWagers.find(w => w.id === id);
     if (!wager) return;
