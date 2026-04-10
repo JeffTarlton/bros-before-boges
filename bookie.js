@@ -840,6 +840,7 @@ function renderWagers(filter) {
                         <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)"></i>
                     </div>
                 </div>
+                ${participantsCount > 0 ? `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"><strong>Participants:</strong> ${(wager.participants || []).map(id => getPlayerName(id)).join(', ')}</div>` : ''}
                 ${actionHtml}
                 ${resultsHtml}
                 ${trashTalkHtml}
