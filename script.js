@@ -496,7 +496,11 @@ async function renderDynamicScoreboard() {
             roundMap[s.round_number].push(s);
         });
 
-        // Calculate per-player overall totals
+        // Course Pars Configuration
+        const RamRockPars = [4,5,4,3,4,3,4,5,4, 4,4,3,5,4,5,3,4,4]; // Par 71
+        const AppleRockPars = [4,4,5,4,3,4,4,5,3, 4,4,3,4,5,4,4,5,3]; // Par 72
+
+        // Calculate per-player overall totals (True Strokes & True To-Par)
         const playerTotals = {};
         roundScores.forEach(s => {
             const pid = s.player_id;
@@ -509,12 +513,30 @@ async function renderDynamicScoreboard() {
                     rounds_played: 0
                 };
             }
-            if (s.total_score !== null) {
-                playerTotals[pid].total_score += s.total_score;
-                playerTotals[pid].rounds_played++;
+            
+            let hasPlayed = false;
+            let roundStrokes = 0;
+            let roundToPar = 0;
+
+            for (let i = 1; i <= 18; i++) {
+                const val = s[`h${i}`];
+                if (val !== null && val !== undefined) {
+                    hasPlayed = true;
+                    roundStrokes += val;
+                    if (s.round_number === 1) {
+                        roundToPar += (val - RamRockPars[i-1]);
+                    } else if (s.round_number === 2) {
+                        roundToPar += (val - AppleRockPars[i-1]);
+                    } else {
+                        roundToPar += (val - 4); // Default estimation
+                    }
+                }
             }
-            if (s.to_par !== null) {
-                playerTotals[pid].total_to_par += s.to_par;
+
+            if (hasPlayed) {
+                playerTotals[pid].total_score += roundStrokes;
+                playerTotals[pid].total_to_par += roundToPar;
+                playerTotals[pid].rounds_played++;
             }
         });
 
