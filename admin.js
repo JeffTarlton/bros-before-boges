@@ -861,23 +861,57 @@ function renderScoreEntryTable() {
         `;
     }).join('');
 
+    // Course Pars Configuration
+    const RamRockPars = [4,5,4,3,4,3,4,5,4, 4,4,3,5,4,5,3,4,4]; // Par 71
+    // Apple Rock standard Par 72 estimation
+    const AppleRockPars = [4,4,5,4,3,4,4,5,3, 4,4,3,4,5,4,4,5,3]; // Par 72
+
     // Attach auto-sum listeners
     const holeInputs = document.querySelectorAll('.score-hole-input');
     holeInputs.forEach(input => {
         input.addEventListener('input', (e) => {
             const pid = e.target.dataset.player;
-            let sum = 0;
+            let totalVal = 0;
+            let toParVal = 0;
             let hasAny = false;
+            
             document.querySelectorAll(`.score-hole-input[data-player="${pid}"]`).forEach(inp => {
                 const val = parseInt(inp.value);
+                const holeIdx = parseInt(inp.dataset.hole) - 1;
+                
                 if (!isNaN(val)) {
-                    sum += val;
                     hasAny = true;
+                    if (scoreEntryRound === 1) {
+                        // Round 1: Ram Rock (Stableford Scoring)
+                        const par = RamRockPars[holeIdx];
+                        const diff = val - par;
+                        // Stableford: Net Par = 2 pts. Birdie = 3 pts. Bogey = 1 pt. Double+ = 0 pts.
+                        let points = 2 - diff; 
+                        if (points < 0) points = 0; 
+                        totalVal += points;
+                    } else if (scoreEntryRound === 2) {
+                        // Round 2: Apple Rock (Stroke Play / To Par)
+                        const par = AppleRockPars[holeIdx];
+                        totalVal += val;
+                        toParVal += (val - par);
+                    } else {
+                        // Default Stroke Play
+                        totalVal += val;
+                    }
                 }
             });
+            
             const totInput = document.querySelector(`.score-total-input[data-player="${pid}"]`);
             if (totInput) {
-                totInput.value = hasAny ? sum : '';
+                totInput.value = hasAny ? totalVal : '';
+            }
+
+            // Auto Fill To Par for Round 2
+            if (scoreEntryRound === 2) {
+                const toParInput = document.querySelector(`.score-topar-input[data-player="${pid}"]`);
+                if (toParInput) {
+                    toParInput.value = hasAny ? toParVal : '';
+                }
             }
         });
     });

@@ -591,10 +591,15 @@ async function renderDynamicScoreboard() {
 
         roundNumbers.forEach(rn => {
             const roundPlayers = roundMap[rn].sort((a, b) => {
-                // Sort by to_par if available, else by total_score
-                if (a.to_par !== null && b.to_par !== null) return a.to_par - b.to_par;
-                if (a.total_score !== null && b.total_score !== null) return a.total_score - b.total_score;
-                return 0;
+                if (rn === 1) {
+                    // Round 1 is Stableford - Highest Points Wins
+                    return (b.total_score || 0) - (a.total_score || 0);
+                } else {
+                    // Round 2/3 is Stroke Play - Lowest To Par Wins
+                    if (a.to_par !== null && b.to_par !== null) return a.to_par - b.to_par;
+                    if (a.total_score !== null && b.total_score !== null) return a.total_score - b.total_score;
+                    return 0;
+                }
             });
 
             html += `
@@ -639,20 +644,20 @@ async function renderDynamicScoreboard() {
                                     let tdsHoles = '';
                                     for (let i = 1; i <= 18; i++) {
                                         const score = s[`h${i}`];
-                                        tdsHoles += \`<td style="padding: 10px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace;">\${score !== null && score !== undefined ? score : '-'}</td>\`;
+                                        tdsHoles += `<td style="padding: 10px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace;">${score !== null && score !== undefined ? score : '-'}</td>`;
                                     }
 
-                                    return \`
-                                    <tr style="background: \${trBg};">
+                                    return `
+                                    <tr style="background: ${trBg};">
                                         <td style="padding: 12px 15px; position: sticky; left: 0; background: rgba(25, 33, 48, 0.98); z-index: 1; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 600; white-space: nowrap;">
-                                            <span style="display: inline-block; width: 18px; text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-right: 8px;">\${idx + 1}</span>
-                                            \${s.players.name}
+                                            <span style="display: inline-block; width: 18px; text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-right: 8px;">${idx + 1}</span>
+                                            ${s.players.name}
                                         </td>
-                                        \${tdsHoles}
-                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); border-left: 2px solid rgba(255,255,255,0.1); font-weight: 800; font-family: monospace;">\${s.total_score !== null ? s.total_score : '-'}</td>
-                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 900; font-family: monospace; color: \${s.to_par !== null ? (s.to_par <= 0 ? 'var(--accent-emerald)' : '#ef4444') : 'inherit'};">\${fmtPar(s.to_par)}</td>
+                                        ${tdsHoles}
+                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); border-left: 2px solid rgba(255,255,255,0.1); font-weight: 800; font-family: monospace;">${s.total_score !== null ? s.total_score : '-'}</td>
+                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 900; font-family: monospace; color: ${s.to_par !== null ? (s.to_par <= 0 ? 'var(--accent-emerald)' : '#ef4444') : 'inherit'};">${fmtPar(s.to_par)}</td>
                                     </tr>
-                                    \`;
+                                    `;
                                 }).join('')}
                             </tbody>
                         </table>
