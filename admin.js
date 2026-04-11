@@ -178,6 +178,7 @@ function setupEventListeners() {
             if (tab === 'drafting') renderDraftingUI();
             if (tab === 'matchups') renderMatchupsUI();
             if (tab === 'scores') renderScoresUI();
+            if (tab === 'score-entry') renderScoreEntryUI();
             if (tab === 'potential') renderPotentialUI();
         });
     });
@@ -759,6 +760,229 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
+}
+
+// ==========================================
+// Score Entry (Manual Per-Round Scoring)
+// ==========================================
+let scoreEntryRound = 1;
+let scoreEntryData = {}; // { round_number: [ {player_id, name, team_id, total_score, to_par} ] }
+
+async function renderScoreEntryUI() {
+    if (!supabaseInstance) return;
+    const tbody = document.getElementById('score-entry-tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: rgba(255,255,255,0.3); padding: 30px;">Loading...</td></tr>';
+
+    try {
+        // Fetch confirmed players
+        const { data: allPlayers, error: pErr } = await supabaseInstance
+            .from('players')
+            .select('id, name, team_id, handicap')
+            .eq('status', 'confirmed')
+            .order('team_id', { ascending: true })
+            .order('name');
+
+        if (pErr) throw pErr;
+
+        // Fetch existing scores for all rounds
+        const { data: existingScores, error: sErr } = await supabaseInstance
+            .from('player_round_scores')
+            .select('*');
+
+        if (sErr) throw sErr;
+
+        // Build lookup: { `${player_id}_${round_number}`: s }
+        const scoreLookup = {};
+        (existingScores || []).forEach(s => {
+            scoreLookup[`${s.player_id}_${s.round_number}`] = s;
+        });
+
+        // Store for rendering
+        scoreEntryData.players = allPlayers;
+        scoreEntryData.scoreLookup = scoreLookup;
+
+        renderScoreEntryTable();
+    } catch (e) {
+        console.error('Error loading score entry data:', e);
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 30px;">Error loading data.</td></tr>';
+    }
+}
+
+function renderScoreEntryTable() {
+    const tbody = document.getElementById('score-entry-tbody');
+    if (!tbody || !scoreEntryData.players) return;
+
+    const playersList = scoreEntryData.players;
+    const lookup = scoreEntryData.scoreLookup || {};
+
+    if (playersList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = playersList.map(p => {
+        const key = `${p.id}_${scoreEntryRound}`;
+        const existing = lookup[key] || {};
+        const teamLabel = p.team_id === 1 ? '<span style="color: #60a5fa; font-weight: 700;">Blue</span>'
+                        : p.team_id === 2 ? '<span style="color: #fca5a5; font-weight: 700;">Red</span>'
+                        : '<span style="color: var(--text-muted);">—</span>';
+
+        let holesHtml = '';
+        for (let i = 1; i <= 18; i++) {
+            const hVal = existing[`h${i}`] !== null && existing[`h${i}`] !== undefined ? existing[`h${i}`] : '';
+            holesHtml += `
+                <td data-label="H${i}" style="padding: 6px;">
+                    <input type="number" class="edit-input score-hole-input" 
+                           data-player="${p.id}" data-hole="${i}" 
+                           value="${hVal}" 
+                           style="width: 50px; text-align: center; padding: 8px 4px;">
+                </td>
+            `;
+        }
+
+        return `
+        <tr data-player-id="${p.id}">
+            <td data-label="Player" style="font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: rgba(30, 41, 59, 0.95); z-index: 1;">${p.name}</td>
+            <td data-label="Team">${teamLabel}</td>
+            ${holesHtml}
+            <td data-label="Total Score">
+                <input type="number" class="edit-input score-total-input" data-player="${p.id}" 
+                       value="${existing.total_score !== null && existing.total_score !== undefined ? existing.total_score : ''}" 
+                       placeholder="TOT" style="width: 80px; text-align: center; font-weight: 800; background: rgba(0,0,0,0.3);">
+            </td>
+            <td data-label="To Par">
+                <input type="number" class="edit-input score-topar-input" data-player="${p.id}" 
+                       value="${existing.to_par !== null && existing.to_par !== undefined ? existing.to_par : ''}" 
+                       placeholder="+/-" style="width: 80px; text-align: center;">
+            </td>
+        </tr>
+        `;
+    }).join('');
+
+    // Attach auto-sum listeners
+    const holeInputs = document.querySelectorAll('.score-hole-input');
+    holeInputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+            const pid = e.target.dataset.player;
+            let sum = 0;
+            let hasAny = false;
+            document.querySelectorAll(`.score-hole-input[data-player="${pid}"]`).forEach(inp => {
+                const val = parseInt(inp.value);
+                if (!isNaN(val)) {
+                    sum += val;
+                    hasAny = true;
+                }
+            });
+            const totInput = document.querySelector(`.score-total-input[data-player="${pid}"]`);
+            if (totInput) {
+                totInput.value = hasAny ? sum : '';
+            }
+        });
+    });
+}
+
+// Round tab switching
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const roundTabs = document.querySelectorAll('.score-round-tab');
+        roundTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                roundTabs.forEach(t => {
+                    t.classList.remove('active');
+                    t.classList.add('secondary');
+                });
+                tab.classList.add('active');
+                tab.classList.remove('secondary');
+                scoreEntryRound = parseInt(tab.dataset.round);
+                renderScoreEntryTable();
+            });
+        });
+
+        // Save scores button
+        const saveBtn = document.getElementById('save-score-entry-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', saveScoreEntries);
+        }
+    }, 500);
+});
+
+async function saveScoreEntries() {
+    if (!supabaseInstance) return;
+    const saveBtn = document.getElementById('save-score-entry-btn');
+    const totalInputs = document.querySelectorAll('.score-total-input');
+    const toParInputs = document.querySelectorAll('.score-topar-input');
+
+    saveBtn.textContent = 'Saving...';
+    saveBtn.style.opacity = '0.5';
+    saveBtn.disabled = true;
+
+    try {
+        const upsertData = [];
+
+        totalInputs.forEach(input => {
+            const playerId = input.dataset.player;
+            const totalScore = input.value.trim() === '' ? null : parseInt(input.value);
+            const toParInput = document.querySelector(`.score-topar-input[data-player="${playerId}"]`);
+            const toPar = toParInput && toParInput.value.trim() !== '' ? parseInt(toParInput.value) : null;
+
+            let rowHasData = totalScore !== null || toPar !== null;
+            const holeData = {};
+            for (let i = 1; i <= 18; i++) {
+                const hiInput = document.querySelector(`.score-hole-input[data-player="${playerId}"][data-hole="${i}"]`);
+                if (hiInput && hiInput.value.trim() !== '') {
+                    holeData[`h${i}`] = parseInt(hiInput.value);
+                    rowHasData = true;
+                } else {
+                    holeData[`h${i}`] = null;
+                }
+            }
+
+            // Only include if at least one field has data
+            if (rowHasData) {
+                upsertData.push({
+                    player_id: playerId,
+                    round_number: scoreEntryRound,
+                    total_score: totalScore,
+                    to_par: toPar,
+                    ...holeData
+                });
+            }
+        });
+
+        if (upsertData.length === 0) {
+            window.showToast('No scores to save. Enter at least one score.', 'error');
+            return;
+        }
+
+        const { error } = await supabaseInstance
+            .from('player_round_scores')
+            .upsert(upsertData, { onConflict: 'player_id,round_number' });
+
+        if (error) throw error;
+
+        // Update the local lookup cache
+        upsertData.forEach(d => {
+            scoreEntryData.scoreLookup[`${d.player_id}_${d.round_number}`] = { ...d };
+        });
+
+        window.showToast(`Round ${scoreEntryRound} scores saved! \u26f3`, 'success');
+        saveBtn.textContent = '\u2705 Saved!';
+        saveBtn.style.background = '#10b981';
+
+        setTimeout(() => {
+            saveBtn.textContent = '\ud83d\udcbe Save Round Scores';
+            saveBtn.style.background = '';
+        }, 2000);
+    } catch (err) {
+        console.error('Error saving round scores:', err);
+        window.showToast('Error saving scores: ' + err.message, 'error');
+        saveBtn.textContent = '\ud83d\udcbe Save Round Scores';
+    } finally {
+        saveBtn.style.opacity = '1';
+        saveBtn.disabled = false;
+    }
 }
 
 // ==========================================

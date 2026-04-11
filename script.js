@@ -465,107 +465,203 @@ async function renderDynamicScoreboard() {
     }
 
     try {
-        // Fetch players and their scores for the most recent active round
-        const { data: activeRounds, error: roundError } = await supabaseInstance
-            .from('rounds')
-            .select('*')
-            .eq('status', 'active')
-            .order('date', { ascending: false })
-            .limit(1);
+        // 1. Fetch player_round_scores (admin-entered data)
+        const { data: roundScores, error: rsErr } = await supabaseInstance
+            .from('player_round_scores')
+            .select('*, players(id, name, team_id, handicap)')
+            .order('round_number');
 
-        if (roundError || !activeRounds || activeRounds.length === 0) {
+        // 2. Fetch the Ryder Cup match score
+        const { data: ryderData, error: ryderErr } = await supabaseInstance
+            .from('ryder_cup_scores')
+            .select('*')
+            .eq('id', 1)
+            .single();
+
+        if (rsErr) throw rsErr;
+
+        // If no manual scores at all yet, fall back to roster-based leaderboard
+        if (!roundScores || roundScores.length === 0) {
             renderFallbackLeaderboard();
             return;
         }
 
-        const roundData = activeRounds[0];
-        const roundId = roundData.id;
-        const roundNumber = roundData.round_number || 1;
+        const blueScore = ryderData ? ryderData.blue_score : 0;
+        const redScore = ryderData ? ryderData.red_score : 0;
 
-        const { data: scores, error: scoreError } = await supabaseInstance
-            .from('scores')
-            .select('*, players(*)')
-            .eq('round_id', roundId);
+        // Group scores by round
+        const roundMap = {};
+        roundScores.forEach(s => {
+            if (!roundMap[s.round_number]) roundMap[s.round_number] = [];
+            roundMap[s.round_number].push(s);
+        });
 
-        if (scoreError || !scores) {
-            renderFallbackLeaderboard();
-            return;
-        }
-
-        // Fetch course data for this round to get pars
-        const { data: courses, error: courseError } = await supabaseInstance
-            .from('courses')
-            .select('*')
-            .eq('id', roundData.course_id);
-
-        const course = courses && courses[0] ? courses[0] : null;
-
-        // Calculate Points/Ranking based on round format
-        const leaderboardData = scores.map(s => {
-            let points = 0;
-            if (roundNumber === 1 && course) {
-                // Round 1: Stableford Points logic
-                for (let i = 1; i <= 18; i++) {
-                    const holeScore = s[`h${i}`];
-                    const par = course[`h${i}_par`] || 4; // Fallback to 4
-                    if (holeScore !== null) {
-                        const diff = holeScore - par;
-                        if (diff <= -2) points += 5; // Eagle or better
-                        else if (diff === -1) points += 3; // Birdie
-                        else if (diff === 0) points += 2; // Par
-                        else if (diff === 1) points += 1; // Bogey
-                    }
-                }
-            } else {
-                points = s.total_to_par || 0;
+        // Calculate per-player overall totals
+        const playerTotals = {};
+        roundScores.forEach(s => {
+            const pid = s.player_id;
+            if (!playerTotals[pid]) {
+                playerTotals[pid] = {
+                    name: s.players.name,
+                    team_id: s.players.team_id,
+                    total_score: 0,
+                    total_to_par: 0,
+                    rounds_played: 0
+                };
             }
-            return { ...s, calculationPoints: points };
+            if (s.total_score !== null) {
+                playerTotals[pid].total_score += s.total_score;
+                playerTotals[pid].rounds_played++;
+            }
+            if (s.to_par !== null) {
+                playerTotals[pid].total_to_par += s.to_par;
+            }
         });
 
-        // Sort: R1 by high points, others by low to par
-        const sortedScores = leaderboardData.sort((a, b) => {
-            if (roundNumber === 1) return b.calculationPoints - a.calculationPoints;
-            return (a.total_to_par || 0) - (b.total_to_par || 0);
-        });
+        // Split into teams
+        const bluePlayers = Object.values(playerTotals).filter(p => p.team_id === 1).sort((a, b) => a.total_to_par - b.total_to_par);
+        const redPlayers = Object.values(playerTotals).filter(p => p.team_id === 2).sort((a, b) => a.total_to_par - b.total_to_par);
 
-        // Team Standings
-        const team1Score = leaderboardData.filter(s => s.players.team_id === 1).reduce((acc, s) => acc + s.calculationPoints, 0);
-        const team2Score = leaderboardData.filter(s => s.players.team_id === 2).reduce((acc, s) => acc + s.calculationPoints, 0);
+        // Helper to format to-par
+        const fmtPar = (v) => {
+            if (v === null || v === undefined) return '-';
+            if (v === 0) return 'E';
+            if (v > 0) return '+' + v;
+            return '' + v;
+        };
 
-        elements.dynamicLeaderboard.innerHTML = `
-            <div class="m-board-header" style="border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
-                <div>
-                    <div class="m-board-title" style="color: white; font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;">Round ${roundNumber}</div>
-                    <div style="color: var(--accent-emerald); font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 5px;">${getRoundFormat(roundNumber)}</div>
-                </div>
-                <div class="team-summary" style="display: flex; gap: 15px; font-weight: 800; font-size: 1.05rem;">
-                    <span style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); padding: 6px 14px; border-radius: 99px;">T1: ${roundNumber === 1 ? team1Score : formatToPar(team1Score)}</span>
-                    <span style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 6px 14px; border-radius: 99px;">T2: ${roundNumber === 1 ? team2Score : formatToPar(team2Score)}</span>
-                </div>
-            </div>
-            <div class="leaderboard-list">
-                <div class="leaderboard-row header-row">
-                    <div class="col-rank">Pos</div>
-                    <div class="col-player">Player</div>
-                    <div class="col-team">Team</div>
-                    <div class="col-thru">Thru</div>
-                    <div class="col-score">${roundNumber === 1 ? 'Points' : 'To Par'}</div>
-                    <div class="col-total">Total</div>
-                </div>
-                ${sortedScores.map((s, index) => `
-                    <div class="leaderboard-row">
-                        <div class="col-rank">${index + 1}</div>
-                        <div class="col-player" style="color: white; font-weight: 700;">${s.players.name}</div>
-                        <div class="col-team">${s.players.team_id || '-'}</div>
-                        <div class="col-thru" style="color: var(--text-muted);">${getThruHoles(s)}</div>
-                        <div class="col-score ${roundNumber === 1 ? 'score-neutral' : getCssScoreClass(s.total_to_par)}" style="font-weight: 800; font-family: monospace; font-size: 1.1rem;">
-                            ${roundNumber === 1 ? s.calculationPoints : formatToPar(s.total_to_par)}
-                        </div>
-                        <div class="col-total" style="font-family: monospace; color: var(--text-muted);">${s.total_score || '-'}</div>
+        // ────────────────────────────────────────────────────
+        // RENDER: Blue vs Red Top Banner with Player Totals
+        // ────────────────────────────────────────────────────
+        let html = `
+            <!-- Blue vs Red Scoreboard -->
+            <div style="border: 2px solid var(--accent-gold, #fbbf24); background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95)); border-radius: 20px; padding: 25px; margin-bottom: 30px; position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -15px; right: -15px; font-size: 6rem; opacity: 0.04; transform: rotate(15deg);">🏆</div>
+                <h3 style="text-align: center; font-size: 1.4rem; margin-bottom: 20px; font-family: var(--font-heading);">The 2026 Ryder Cup</h3>
+                
+                <!-- Team Score Banner -->
+                <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 25px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 900; color: #60a5fa; font-family: var(--font-heading); text-shadow: 0 0 20px rgba(96, 165, 250, 0.3);">BLUE</div>
+                        <div style="font-size: 2.8rem; font-weight: 900; color: white; font-family: var(--font-heading); margin-top: 5px;">${blueScore}</div>
                     </div>
-                `).join('')}
+                    <div style="font-size: 1.3rem; color: var(--text-muted); font-weight: 900; font-family: var(--font-heading);">VS</div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 900; color: #fca5a5; font-family: var(--font-heading); text-shadow: 0 0 20px rgba(252, 165, 165, 0.3);">RED</div>
+                        <div style="font-size: 2.8rem; font-weight: 900; color: white; font-family: var(--font-heading); margin-top: 5px;">${redScore}</div>
+                    </div>
+                </div>
+
+                <!-- Blue Team Players -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 15px;">
+                        <div style="font-weight: 800; color: #60a5fa; margin-bottom: 12px; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.08em;">Blue Team</div>
+                        ${bluePlayers.map(p => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <span style="font-size: 0.9rem; font-weight: 600;">${p.name}</span>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <span style="font-family: monospace; font-weight: 800; color: ${p.total_to_par <= 0 ? 'var(--accent-emerald)' : '#ef4444'}; font-size: 0.95rem;">${fmtPar(p.total_to_par)}</span>
+                                    <span style="font-family: monospace; color: var(--text-muted); font-size: 0.85rem;">${p.total_score || '-'}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Red Team Players -->
+                    <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 15px;">
+                        <div style="font-weight: 800; color: #fca5a5; margin-bottom: 12px; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.08em;">Red Team</div>
+                        ${redPlayers.map(p => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                <span style="font-size: 0.9rem; font-weight: 600;">${p.name}</span>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <span style="font-family: monospace; font-weight: 800; color: ${p.total_to_par <= 0 ? 'var(--accent-emerald)' : '#ef4444'}; font-size: 0.95rem;">${fmtPar(p.total_to_par)}</span>
+                                    <span style="font-family: monospace; color: var(--text-muted); font-size: 0.85rem;">${p.total_score || '-'}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
             </div>
         `;
+
+        // ────────────────────────────────────────────────────
+        // RENDER: Individual Round Cards (Round 1 on top, Round 2 below, etc.)
+        // ────────────────────────────────────────────────────
+        const roundNumbers = Object.keys(roundMap).map(Number).sort((a, b) => a - b);
+
+        roundNumbers.forEach(rn => {
+            const roundPlayers = roundMap[rn].sort((a, b) => {
+                // Sort by to_par if available, else by total_score
+                if (a.to_par !== null && b.to_par !== null) return a.to_par - b.to_par;
+                if (a.total_score !== null && b.total_score !== null) return a.total_score - b.total_score;
+                return 0;
+            });
+
+            html += `
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 15px;">
+                        <div>
+                            <div style="color: white; font-family: var(--font-heading); font-size: 1.4rem; font-weight: 800;">Round ${rn}</div>
+                            <div style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">${getRoundFormat(rn)}</div>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; width: 100%; border-radius: 8px;">
+                        <table style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; font-size: 0.95rem;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.03);">
+                                    <th style="padding: 12px 15px; position: sticky; left: 0; background: rgba(25, 33, 48, 0.98); z-index: 2; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.1);">Player</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">1</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">2</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">3</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">4</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">5</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">6</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">7</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">8</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">9</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">10</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">11</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">12</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">13</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">14</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">15</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">16</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">17</th>
+                                    <th style="padding: 10px 5px; color: var(--text-muted); font-size: 0.8rem; border-bottom: 2px solid rgba(255,255,255,0.1);">18</th>
+                                    <th style="padding: 10px; border-bottom: 2px solid rgba(255,255,255,0.1); font-weight: 900;">TOT</th>
+                                    <th style="padding: 10px; border-bottom: 2px solid rgba(255,255,255,0.1); font-weight: 900;">+/-</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${roundPlayers.map((s, idx) => {
+                                    const trBg = idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent';
+                                    
+                                    let tdsHoles = '';
+                                    for (let i = 1; i <= 18; i++) {
+                                        const score = s[`h${i}`];
+                                        tdsHoles += \`<td style="padding: 10px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace;">\${score !== null && score !== undefined ? score : '-'}</td>\`;
+                                    }
+
+                                    return \`
+                                    <tr style="background: \${trBg};">
+                                        <td style="padding: 12px 15px; position: sticky; left: 0; background: rgba(25, 33, 48, 0.98); z-index: 1; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 600; white-space: nowrap;">
+                                            <span style="display: inline-block; width: 18px; text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-right: 8px;">\${idx + 1}</span>
+                                            \${s.players.name}
+                                        </td>
+                                        \${tdsHoles}
+                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); border-left: 2px solid rgba(255,255,255,0.1); font-weight: 800; font-family: monospace;">\${s.total_score !== null ? s.total_score : '-'}</td>
+                                        <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 900; font-family: monospace; color: \${s.to_par !== null ? (s.to_par <= 0 ? 'var(--accent-emerald)' : '#ef4444') : 'inherit'};">\${fmtPar(s.to_par)}</td>
+                                    </tr>
+                                    \`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        });
+
+        elements.dynamicLeaderboard.innerHTML = html;
     } catch (err) {
         console.error('Leaderboard render failed:', err);
         renderFallbackLeaderboard();
