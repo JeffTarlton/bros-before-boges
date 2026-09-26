@@ -376,16 +376,39 @@ window.BBB = {
     ],
     hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Final round TBA',
 
-    gallery: [
-        { src: 'assets/past_years/web/thumb/img_0708.jpg', full: 'assets/past_years/web/img_0708.jpg', alt: 'The Bros before Boges trophy', w: 632, h: 1100 },
-        { src: 'assets/past_years/web/thumb/img_0574.jpg', full: 'assets/past_years/web/img_0574.jpg', alt: 'A swing from the fairway on a tree-lined hole', w: 760, h: 1013 },
-        { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on a links course with the ocean behind them', w: 760, h: 570 },
-        { src: 'assets/past_years/web/thumb/img_6933.jpg', full: 'assets/past_years/web/img_6933.jpg', alt: 'Two of the crew in matching navy polos on the tee', w: 760, h: 1013 },
-        { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept links hole', w: 760, h: 1013 },
-        { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew posing on a coastal course', w: 760, h: 570 },
-        { src: 'assets/past_years/web/thumb/img_6936.jpg', full: 'assets/past_years/web/img_6936.jpg', alt: 'The crew warming up on a hillside range', w: 760, h: 1013 },
-        { src: 'assets/past_years/web/thumb/img_6937.jpg', full: 'assets/past_years/web/img_6937.jpg', alt: 'Hitting balls on a hillside range', w: 760, h: 1013 },
-        { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes', w: 760, h: 570 }
+    // Hall of Fame photo wall: one album per trip, newest first. The first photo is the
+    // big featured tile; `pos` nudges the crop (CSS object-position) for tall photos.
+    // Albums whose `year` matches a history entry get a "View photos" link on that row.
+    photoAlbums: [
+        {
+            id: '2026',
+            year: 2026,
+            label: '2026 · Horseshoe Bay',
+            photos: [
+                { src: 'assets/past_years/2026/thumb/team-photo.jpg', full: 'assets/past_years/2026/team-photo.jpg', alt: 'The whole crew in matching blue polos under a big oak on the course', pos: '50% 58%' },
+                { src: 'assets/past_years/2026/thumb/waterfall-foursome.jpg', full: 'assets/past_years/2026/waterfall-foursome.jpg', alt: 'A foursome selfie in front of the waterfall on the course' },
+                { src: 'assets/past_years/2026/thumb/lakeside-green.jpg', full: 'assets/past_years/2026/lakeside-green.jpg', alt: 'Two of the crew walking off a lakeside green lined with lake houses' },
+                { src: 'assets/past_years/2026/thumb/reading-the-green.jpg', full: 'assets/past_years/2026/reading-the-green.jpg', alt: 'Reading a putt on a green beside a bunker and live oaks', pos: '50% 40%' },
+                { src: 'assets/past_years/2026/thumb/evening-putting-course.jpg', full: 'assets/past_years/2026/evening-putting-course.jpg', alt: 'The crew with putters and drinks on the resort putting course at dusk', pos: '50% 35%' },
+                { src: 'assets/past_years/2026/thumb/putting-course-palms.jpg', full: 'assets/past_years/2026/putting-course-palms.jpg', alt: 'Putting-course showdown among the palm trees at dusk' },
+                { src: 'assets/past_years/2026/thumb/lakeside-pair.jpg', full: 'assets/past_years/2026/lakeside-pair.jpg', alt: 'Two of the crew with their putters beside a pond and fountain', pos: '50% 40%' },
+                { src: 'assets/past_years/2026/thumb/hill-country-putt.jpg', full: 'assets/past_years/2026/hill-country-putt.jpg', alt: 'Lining up a putt with Hill Country views behind the green', pos: '50% 45%' }
+            ]
+        },
+        {
+            id: 'earlier',
+            label: 'Earlier trips',
+            photos: [
+                { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on a links course with the ocean behind them' },
+                { src: 'assets/past_years/web/thumb/img_0574.jpg', full: 'assets/past_years/web/img_0574.jpg', alt: 'A swing from the fairway on a tree-lined hole', pos: '50% 60%' },
+                { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew posing on a coastal course' },
+                { src: 'assets/past_years/web/thumb/img_6933.jpg', full: 'assets/past_years/web/img_6933.jpg', alt: 'Two of the crew in matching navy polos on the tee', pos: '50% 40%' },
+                { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes' },
+                { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept links hole', pos: '50% 45%' },
+                { src: 'assets/past_years/web/thumb/img_6936.jpg', full: 'assets/past_years/web/img_6936.jpg', alt: 'The crew warming up on a hillside range' },
+                { src: 'assets/past_years/web/thumb/img_6937.jpg', full: 'assets/past_years/web/img_6937.jpg', alt: 'Hitting balls on a hillside range' }
+            ]
+        }
     ],
 
     // Player photos in assets/PlayerCards/<FirstLast>.jpg

@@ -66,7 +66,8 @@ const ICON_PATHS = {
     mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
-    x: '<path d="M18 6 6 18M6 6l12 12"/>'
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'
 };
 
 function icon(name) {
@@ -777,23 +778,93 @@ function renderHallOfFame() {
         const past = (CFG.history || []).map(e => {
             const w = e.champion;
             const result = e.score && w ? `<b>${fmtPoints(e.score[w])}–${fmtPoints(e.score[w === 'blue' ? 'red' : 'blue'])}</b><span style="color: var(--${w}-team);">Team ${w === 'blue' ? 'Blue' : 'Red'} wins</span>` : `<b>${esc(e.resultText || '')}</b>`;
+            const album = (CFG.photoAlbums || []).find(a => String(a.year) === String(e.year) && (a.photos || []).length);
             return `
             <div class="edition reveal">
                 <h3 class="edition-year">${esc(e.year)}</h3>
-                <div><div class="edition-where">${esc(e.location)}</div><div class="edition-note">${esc((e.courses || []).join(' · '))}</div></div>
+                <div>
+                    <div class="edition-where">${esc(e.location)}</div>
+                    <div class="edition-note">${esc((e.courses || []).join(' · '))}</div>
+                    ${album ? `<button type="button" class="edition-photos" data-album-open="${esc(album.id)}">${icon('camera')}View ${album.photos.length} photos</button>` : ''}
+                </div>
                 <div class="edition-result">${result}</div>
             </div>`;
         }).join('');
         list.innerHTML = next + past;
     }
 
-    const gallery = document.getElementById('gallery');
-    if (gallery) {
-        gallery.innerHTML = (CFG.gallery || []).map((g, i) => `
-            <button type="button" class="gallery-item reveal" data-gallery-index="${i}" aria-label="View photo: ${esc(g.alt)}">
-                <img src="${esc(g.src)}" alt="${esc(g.alt)}" loading="lazy" decoding="async" width="${g.w || ''}" height="${g.h || ''}">
-            </button>`).join('');
-    }
+    renderPhotoWall();
+}
+
+// ---------------------------------------------------------------------------
+// Photo wall: albums per trip, shown as a five-tile mosaic
+// ---------------------------------------------------------------------------
+const MOSAIC_TILES = 5;
+let activeAlbumId = null;
+
+function photoAlbums() {
+    return (CFG.photoAlbums || []).filter(a => a && (a.photos || []).length);
+}
+
+function mosaicHTML(album) {
+    const photos = album.photos;
+    const shown = photos.slice(0, MOSAIC_TILES);
+    const extra = photos.length - shown.length;
+    return shown.map((p, i) => {
+        const isLast = i === shown.length - 1 && extra > 0;
+        const label = isLast
+            ? `Open photo ${i + 1} of ${photos.length} (${extra} more in this album)`
+            : `Open photo ${i + 1} of ${photos.length}: ${p.alt}`;
+        return `
+        <button type="button" class="mosaic-tile" data-album="${esc(album.id)}" data-index="${i}" aria-label="${esc(label)}">
+            <img src="${esc(p.src)}" alt="${esc(p.alt)}" loading="lazy" decoding="async"${p.pos ? ` style="object-position: ${esc(p.pos)};"` : ''}>
+            ${i === 0 ? `<span class="mosaic-caption" aria-hidden="true">${esc(album.label)}</span>` : ''}
+            ${isLast ? `<span class="mosaic-more" aria-hidden="true">+${extra}<small>more</small></span>` : ''}
+        </button>`;
+    }).join('');
+}
+
+function renderPhotoWall(albumId) {
+    const wall = document.getElementById('gallery');
+    const albums = photoAlbums();
+    if (!wall) return;
+    if (!albums.length) { wall.innerHTML = ''; return; }
+    const album = albums.find(a => a.id === albumId) || albums.find(a => a.id === activeAlbumId) || albums[0];
+    activeAlbumId = album.id;
+
+    wall.innerHTML = `
+        <div class="photo-wall-head">
+            <h3 class="photo-wall-title">The photo wall</h3>
+            ${albums.length > 1 ? `
+            <div class="album-picker" role="group" aria-label="Photo albums">
+                ${albums.map(a => `<button type="button" class="album-chip" data-album-pick="${esc(a.id)}" aria-pressed="${a.id === album.id}">${esc(a.label)}<span>${a.photos.length}</span></button>`).join('')}
+            </div>` : ''}
+        </div>
+        <div class="mosaic count-${Math.min(album.photos.length, MOSAIC_TILES)}" id="mosaic">${mosaicHTML(album)}</div>
+        <div class="photo-wall-foot">
+            <button type="button" class="btn btn-line btn-sm" data-album-open="${esc(album.id)}">${icon('camera')}View all ${album.photos.length} photos</button>
+        </div>`;
+}
+
+function switchAlbum(albumId) {
+    const mosaic = document.getElementById('mosaic');
+    if (!mosaic || REDUCED_MOTION) { renderPhotoWall(albumId); focusAlbumChip(albumId); return; }
+    mosaic.classList.add('is-swapping');
+    setTimeout(() => {
+        renderPhotoWall(albumId);
+        focusAlbumChip(albumId);
+    }, 180);
+}
+
+function focusAlbumChip(albumId) {
+    const chip = document.querySelector(`.album-chip[data-album-pick="${albumId}"]`);
+    if (chip) chip.focus();
+}
+
+function openAlbum(albumId, index) {
+    const album = photoAlbums().find(a => a.id === albumId);
+    if (!album) return;
+    openLightbox(album.photos.map(p => ({ src: p.full || p.src, alt: p.alt, caption: album.label })), index || 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1734,9 +1805,15 @@ function setupEventListeners() {
             return;
         }
 
-        const gItem = e.target.closest('.gallery-item');
-        if (gItem) {
-            openLightbox((CFG.gallery || []).map(g => ({ src: g.full || g.src, alt: g.alt, caption: g.caption || '' })), Number(gItem.dataset.galleryIndex) || 0);
+        const tile = e.target.closest('.mosaic-tile');
+        if (tile) { openAlbum(tile.dataset.album, Number(tile.dataset.index) || 0); return; }
+
+        const albumOpen = e.target.closest('[data-album-open]');
+        if (albumOpen) { openAlbum(albumOpen.dataset.albumOpen, 0); return; }
+
+        const albumPick = e.target.closest('[data-album-pick]');
+        if (albumPick) {
+            if (albumPick.getAttribute('aria-pressed') !== 'true') switchAlbum(albumPick.dataset.albumPick);
             return;
         }
 

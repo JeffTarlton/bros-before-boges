@@ -1371,26 +1371,6 @@ body.drawer-open { overflow: hidden; }
 .edition.next { border-style: dashed; border-color: rgba(226, 125, 79, 0.45); background: linear-gradient(90deg, rgba(226, 125, 79, 0.1), transparent 60%), var(--surface); }
 .edition.next .edition-year { color: var(--copper); }
 
-.gallery {
-    columns: 3 260px;
-    column-gap: 14px;
-}
-.gallery-item {
-    display: block;
-    width: 100%;
-    margin: 0 0 14px;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius);
-    overflow: hidden;
-    break-inside: avoid;
-    cursor: zoom-in;
-    background: var(--surface);
-    position: relative;
-}
-.gallery-item img { width: 100%; height: auto; transition: transform 0.8s var(--ease-out), filter 0.4s; filter: saturate(0.92) brightness(0.92); }
-.gallery-item:hover img { transform: scale(1.03); filter: none; }
-
 /* --------------------------------------------------------------------------
    Footer
    -------------------------------------------------------------------------- */
@@ -2396,4 +2376,169 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
     .crew-grid { grid-auto-rows: auto; }
     .countdown-cell span { font-size: 0.66rem; }
     .reel-stamp { font-size: 0.7rem; }
+}
+
+/* --------------------------------------------------------------------------
+   Hall of Fame photo wall (albums + mosaic)
+   -------------------------------------------------------------------------- */
+.edition-photos {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(232, 184, 107, 0.45);
+    background: rgba(232, 184, 107, 0.08);
+    color: var(--gold);
+    font: 700 0.82rem var(--sans);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.edition-photos:hover { background: var(--gold); border-color: var(--gold); color: var(--bg); }
+.edition-photos svg { width: 16px; height: 16px; }
+
+.photo-wall { margin-top: 8px; }
+.photo-wall-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+.photo-wall-title {
+    font: 700 0.78rem var(--sans);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+.album-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.album-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 8px 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: rgba(244, 235, 223, 0.04);
+    color: var(--ink-muted);
+    font: 700 0.88rem var(--sans);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.album-chip span {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(244, 235, 223, 0.08);
+    font-size: 0.78rem;
+    color: var(--ink);
+}
+.album-chip:hover { color: var(--ink); border-color: var(--gold); }
+.album-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.album-chip[aria-pressed="true"] span { background: rgba(14, 11, 9, 0.12); color: var(--bg); }
+
+.mosaic {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: clamp(150px, 15vw, 220px);
+    gap: 10px;
+    transition: opacity 0.18s ease;
+}
+.mosaic.is-swapping { opacity: 0; }
+.mosaic-tile {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+    cursor: zoom-in;
+    animation: tile-in 0.5s var(--ease-out) both;
+}
+.mosaic-tile:nth-child(2) { animation-delay: 40ms; }
+.mosaic-tile:nth-child(3) { animation-delay: 80ms; }
+.mosaic-tile:nth-child(4) { animation-delay: 120ms; }
+.mosaic-tile:nth-child(5) { animation-delay: 160ms; }
+@keyframes tile-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+.mosaic-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.8s var(--ease-out), filter 0.4s;
+    filter: saturate(0.95);
+}
+.mosaic-tile:hover img { transform: scale(1.04); filter: none; }
+.mosaic-tile:focus-visible { outline-offset: -3px; }
+
+/* First photo is the feature: 2 columns x 2 rows */
+.mosaic-tile:first-child { grid-column: span 2; grid-row: span 2; }
+.mosaic.count-1 .mosaic-tile:first-child { grid-column: 1 / -1; }
+.mosaic.count-2 .mosaic-tile:nth-child(2) { grid-column: span 2; grid-row: span 2; }
+.mosaic.count-3 .mosaic-tile:nth-child(n+2) { grid-column: span 2; }
+.mosaic.count-4 .mosaic-tile:nth-child(4) { grid-column: span 2; }
+
+.mosaic-caption {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(14, 11, 9, 0.66);
+    border: 1px solid var(--line-strong);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--ink);
+    font: 700 0.78rem var(--sans);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.mosaic-more {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    background: rgba(14, 11, 9, 0.62);
+    color: var(--ink);
+    font: 500 2.4rem/1 var(--serif);
+    transition: background-color 0.3s;
+}
+.mosaic-more small {
+    display: block;
+    margin-top: 6px;
+    font: 800 0.7rem var(--sans);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+.mosaic-tile:hover .mosaic-more { background: rgba(14, 11, 9, 0.45); }
+
+.photo-wall-foot { margin-top: 16px; display: flex; justify-content: center; }
+.photo-wall-foot .btn svg { width: 16px; height: 16px; }
+
+@media (max-width: 640px) {
+    .mosaic {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: 132px;
+        gap: 8px;
+    }
+    .mosaic-tile:first-child { grid-row: span 2; }
+    .album-chip { font-size: 0.82rem; }
+    .photo-wall-head { gap: 10px; }
+    .photo-wall-foot .btn { width: 100%; }
+    .mosaic-caption { left: 10px; bottom: 10px; font-size: 0.7rem; padding: 6px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mosaic-tile { animation: none; }
 }
