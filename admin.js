@@ -335,11 +335,11 @@ function renderRosterTable() {
         const realIndex = players.indexOf(player);
         return `
         <tr data-index="${realIndex}">
-            <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${player.name || ''}" placeholder="Name"></td>
-            <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${player.email || ''}" placeholder="Email"></td>
-            <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${player.ghin || ''}" placeholder="GHIN"></td>
-            <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${player.handicap !== null ? player.handicap : 0}" placeholder="HCP"></td>
-            <td data-label="Status"><span class="status-badge status-confirmed">${player.status || 'confirmed'}</span></td>
+            <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${escHtml(player.name || '')}" placeholder="Name"></td>
+            <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${escHtml(player.email || '')}" placeholder="Email"></td>
+            <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${escHtml(player.ghin || '')}" placeholder="GHIN"></td>
+            <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${escHtml(player.handicap !== null ? player.handicap : 0)}" placeholder="HCP"></td>
+            <td data-label="Status"><span class="status-badge status-confirmed">${escHtml(player.status || 'confirmed')}</span></td>
             <td data-label="Actions">
                 <button class="remove-player-btn admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
             </td>
@@ -462,13 +462,13 @@ function renderDraftingUI() {
         div.style = "display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);";
         div.innerHTML = `
             <div>
-                <div style="font-weight: 600; font-size: 0.9rem;">${p.name || 'Unnamed'}</div>
+                <div style="font-weight: 600; font-size: 0.9rem;">${escHtml(p.name || 'Unnamed')}</div>
                 <div style="font-size: 0.75rem; color: var(--admin-accent);">HCP: ${p.handicap !== null ? p.handicap : 'N/A'}</div>
             </div>
             <div style="display: flex; gap: 5px;">
-                ${currentTeam !== 1 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="moveToTeam('${p.name}', 1)">To T1</button>` : ''}
-                ${currentTeam !== 2 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0; background: #ef4444;" onclick="moveToTeam('${p.name}', 2)">To T2</button>` : ''}
-                ${currentTeam !== null ? `<button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="moveToTeam('${p.name}', null)">Clear</button>` : ''}
+                ${currentTeam !== 1 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 1)">To T1</button>` : ''}
+                ${currentTeam !== 2 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0; background: #ef4444;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 2)">To T2</button>` : ''}
+                ${currentTeam !== null ? `<button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, null)">Clear</button>` : ''}
             </div>
         `;
         return div;
@@ -550,7 +550,7 @@ function renderMatchupsUI() {
             const isAssigned = assignedInRound.has(pId);
             const isCurrent = (pId === currentVal);
             if (!isAssigned || isCurrent) {
-                return `<option value="${pId}" ${isCurrent ? 'selected' : ''}>${p.name}</option>`;
+                return `<option value="${pId}" ${isCurrent ? 'selected' : ''}>${escHtml(p.name)}</option>`;
             }
             return '';
         }).join('');
@@ -643,7 +643,7 @@ function renderPotentialUI() {
         div.className = 'glass-panel';
         div.style = "padding: 15px; display: flex; justify-content: space-between; align-items: center;";
         div.innerHTML = `
-            <span style="font-weight: 600;">${p.name}</span>
+            <span style="font-weight: 600;">${escHtml(p.name)}</span>
                 <div style="display: flex; gap: 10px;">
                     <button class="admin-btn" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Promote</button>
                     <button class="admin-btn secondary" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Remove</button>
@@ -810,6 +810,36 @@ async function renderScoreEntryUI() {
     }
 }
 
+// Course pars per round come from trip-config.js (window.BBB). If the config
+// isn't loaded, fall back to the original hardcoded 2026 pars.
+const LEGACY_ROUND_PARS = {
+    1: [4,5,4,3,4,3,4,5,4, 4,4,3,5,4,5,3,4,4],
+    2: [4,4,5,4,3,4,4,5,3, 4,4,3,4,5,4,4,5,3]
+};
+
+// Escape text from the database before it goes into innerHTML.
+function escHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function adminParsForRound(roundNumber) {
+    const cfg = window.BBB;
+    if (!cfg || !cfg.roundCourses || !cfg.courses) return LEGACY_ROUND_PARS[roundNumber] || null;
+    const id = cfg.roundCourses[roundNumber];
+    const all = [];
+    cfg.courses.forEach(c => (c.options || [c]).forEach(o => all.push(o)));
+    const course = all.find(c => c.id === id);
+    return course && Array.isArray(course.holePars) && course.holePars.length === 18 ? course.holePars : null;
+}
+
+function adminScoringForRound(roundNumber) {
+    const cfg = window.BBB;
+    if (!cfg || !cfg.roundScoring) return roundNumber === 1 ? 'stableford' : 'stroke';
+    return cfg.roundScoring[roundNumber] || 'stroke';
+}
+
 function renderScoreEntryTable() {
     const tbody = document.getElementById('score-entry-tbody');
     if (!tbody || !scoreEntryData.players) return;
@@ -844,7 +874,7 @@ function renderScoreEntryTable() {
 
         return `
         <tr data-player-id="${p.id}">
-            <td data-label="Player" style="font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: rgba(30, 41, 59, 0.95); z-index: 1;">${p.name}</td>
+            <td data-label="Player" style="font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: rgba(28, 22, 18, 0.95); z-index: 1;">${escHtml(p.name)}</td>
             <td data-label="Team">${teamLabel}</td>
             ${holesHtml}
             <td data-label="Total Score">
@@ -861,10 +891,9 @@ function renderScoreEntryTable() {
         `;
     }).join('');
 
-    // Course Pars Configuration
-    const RamRockPars = [4,5,4,3,4,3,4,5,4, 4,4,3,5,4,5,3,4,4]; // Par 71
-    // Apple Rock standard Par 72 estimation
-    const AppleRockPars = [4,4,5,4,3,4,4,5,3, 4,4,3,4,5,4,4,5,3]; // Par 72
+    // Course pars + scoring for this round come from trip-config.js
+    const roundPars = adminParsForRound(scoreEntryRound);
+    const isStableford = adminScoringForRound(scoreEntryRound) === 'stableford' && !!roundPars;
 
     // Attach auto-sum listeners
     const holeInputs = document.querySelectorAll('.score-hole-input');
@@ -881,22 +910,15 @@ function renderScoreEntryTable() {
                 
                 if (!isNaN(val)) {
                     hasAny = true;
-                    if (scoreEntryRound === 1) {
-                        // Round 1: Ram Rock (Stableford Scoring)
-                        const par = RamRockPars[holeIdx];
+                    const par = roundPars ? roundPars[holeIdx] : null;
+                    if (isStableford) {
+                        // Stableford (rules page): eagle or better 5, birdie 3, par 2, bogey 1, double+ 0
                         const diff = val - par;
-                        // Stableford: Net Par = 2 pts. Birdie = 3 pts. Bogey = 1 pt. Double+ = 0 pts.
-                        let points = 2 - diff; 
-                        if (points < 0) points = 0; 
-                        totalVal += points;
-                    } else if (scoreEntryRound === 2) {
-                        // Round 2: Apple Rock (Stroke Play / To Par)
-                        const par = AppleRockPars[holeIdx];
-                        totalVal += val;
-                        toParVal += (val - par);
+                        totalVal += diff <= -2 ? 5 : diff === -1 ? 3 : diff === 0 ? 2 : diff === 1 ? 1 : 0;
                     } else {
-                        // Default Stroke Play
+                        // Stroke play (tracks to-par when the course pars are known)
                         totalVal += val;
+                        if (par) toParVal += (val - par);
                     }
                 }
             });
@@ -906,8 +928,8 @@ function renderScoreEntryTable() {
                 totInput.value = hasAny ? totalVal : '';
             }
 
-            // Auto Fill To Par for Round 2
-            if (scoreEntryRound === 2) {
+            // Auto fill To Par for stroke-play rounds on a known course
+            if (!isStableford && roundPars) {
                 const toParInput = document.querySelector(`.score-topar-input[data-player="${pid}"]`);
                 if (toParInput) {
                     toParInput.value = hasAny ? toParVal : '';

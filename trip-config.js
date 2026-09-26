@@ -1,0 +1,393 @@
+/* ==========================================================================
+   Bros before Boges — trip configuration
+   --------------------------------------------------------------------------
+   Everything the public homepage shows about the trip lives here. Update this
+   file each year; script.js (homepage) and admin.js (score entry) read it.
+   ========================================================================== */
+window.BBB = {
+    trip: {
+        name: 'Bros before Boges',
+        year: 2027,
+        location: 'Scottsdale, Arizona',
+        locationShort: 'Scottsdale, AZ',
+        region: 'Phoenix & Scottsdale',
+        regionNote: 'Talking Stick is ~15 min from Old Town Scottsdale; We-Ko-Pa is ~30.',
+        dates: {
+            start: '2027-04-08',
+            end: '2027-04-11',
+            label: 'April 8–11, 2027',
+            short: 'Apr 8–11',
+            days: 'Thu–Sun',
+            note: 'Thursday through Sunday — the same week as the Masters.'
+        },
+        // Arizona stays on MST (UTC-7) all year — no daylight saving.
+        countdownTarget: '2027-04-08T07:00:00-07:00',
+        countdownLabel: 'Countdown to Scottsdale',
+        hq: {
+            name: 'TBA',
+            note: 'Lodging is still being locked in. Scottsdale area.',
+            link: null
+        },
+        airport: {
+            code: 'PHX',
+            name: 'Sky Harbor',
+            note: 'About 20 min to Talking Stick and 30 to We-Ko-Pa (without traffic).'
+        },
+        weather: {
+            value: 'Mid-80s & sunny',
+            note: 'April averages ~85°F highs and ~60°F lows. Rain is rare. Sunset around 6:55 PM.'
+        },
+        cost: {
+            perPerson: 1600,
+            approx: true,
+            excludes: 'airfare',
+            note: 'Estimated per person, plus your flight. Full breakdown once the final round and HQ are booked.',
+            // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
+            breakdown: []
+        },
+        intro: [
+            'The Sonoran Desert in April: 80-degree days, cool nights, and some of the best public golf in the country. This year we trade the Texas Hill Country for saguaros, Four Peaks, and firm, fast desert fairways.',
+            'Two tribal-owned clubs anchor the trip. Talking Stick sits on Salt River Pima-Maricopa land minutes from Old Town Scottsdale, and We-Ko-Pa sits out on the Fort McDowell Yavapai Nation with no homes or roads along its fairways.'
+        ],
+        announcement: {
+            title: 'Save the date',
+            body: 'April 8–11, 2027 in Scottsdale. Talking Stick and a 36‑hole day at We-Ko-Pa are on the schedule. The final-round course and HQ are coming soon.'
+        }
+    },
+
+    // RSVP / head count. Needs the `rsvps` table — run rsvp_schema.sql in Supabase once.
+    // Until that table exists, RSVPs are emailed to the commissioner instead of lost.
+    rsvp: {
+        year: 2027,
+        // Set a number (e.g. 16) to show an "X of 16 spots" progress bar.
+        target: null,
+        // Email each RSVP to the commissioner (same inbox as roster sign-ups).
+        emailNotify: true,
+        sundayQuestion: 'I’m up for the optional Sunday morning round (Apr 11)'
+    },
+
+    // Flip to true once teams are drafted and last year's scores are cleared in Admin.
+    // While false, the homepage shows last year's champions instead of live teams/scores,
+    // and the Scoreboard shows pre-tournament rankings.
+    season: { live: false },
+
+    hero: {
+        subtitle: 'Four days in the Sonoran Desert: Coore & Crenshaw fairways, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line. Higher stakes, faster greens, same idiots.',
+        roundsLabel: '4 rounds · 72 holes',
+        roundsNote: '+ optional Sunday',
+        images: [
+            'assets/courses/wekopa-saguaro/desert-mountain-vista.jpg',
+            'assets/courses/wekopa-cholla/aerial-green-bunkers-dusk.jpg',
+            'assets/courses/wekopa-saguaro/hole-4-fairway.jpg'
+        ]
+    },
+
+    scoreboardImage: 'assets/courses/wekopa-saguaro/hole-14-panorama.jpg',
+
+    itineraryLede: 'Tee times get posted here as they’re booked. Plan to land in Phoenix early enough on Thursday to make the first round.',
+    itinerary: [
+        {
+            date: '2027-04-08',
+            title: 'Wheels down, tees up',
+            text: 'Land at PHX and head straight to Talking Stick, about 20 minutes from the airport.',
+            tag: 'Round 1',
+            media: { type: 'image', src: 'assets/courses/talking-stick-oodham/card/oodham-sunset-over-fairways.jpg', alt: 'Sun setting over the O’odham Course at Talking Stick' },
+            slots: [
+                { when: 'R1', what: 'Talking Stick · O’odham', meta: 'Tee time TBA', courseId: 'talking-stick-oodham' }
+            ]
+        },
+        {
+            date: '2027-04-09',
+            title: '36-hole Friday',
+            text: 'Both courses are at We-Ko-Pa, so there’s no drive in between. Cholla in the morning, lunch, then Saguaro.',
+            tag: '36 holes',
+            media: { type: 'split', srcs: ['assets/courses/wekopa-cholla/thumbs/four-peaks-fairway-vista.jpg', 'assets/courses/wekopa-saguaro/thumbs/saguaro-cactus-green.jpg'] },
+            slots: [
+                { when: 'R2', what: 'We-Ko-Pa · Cholla', meta: 'Morning · tee time TBA', courseId: 'wekopa-cholla' },
+                { when: 'R3', what: 'We-Ko-Pa · Saguaro', meta: 'Afternoon · tee time TBA', courseId: 'wekopa-saguaro' }
+            ]
+        },
+        {
+            date: '2027-04-10',
+            title: 'The final round',
+            text: 'The last Cup round of the trip. The course is still being decided.',
+            tag: 'Course TBA',
+            tagSoft: true,
+            media: { type: 'mystery' },
+            slots: [
+                { when: 'R4', what: 'Course TBA', meta: 'Tee time TBA' }
+            ]
+        },
+        {
+            date: '2027-04-11',
+            title: 'Dawn patrol & Masters Sunday',
+            text: 'An optional early round for anyone who’s up for it (sunrise is ~6:00 AM), then flights home. It’s also the final round of the Masters, and Arizona is three hours behind Augusta.',
+            tag: 'Optional',
+            tagSoft: true,
+            media: { type: 'dawn' },
+            slots: [
+                { when: 'AM', what: 'Optional early round', meta: 'Course TBA' },
+                { when: 'PM', what: 'Fly home', meta: 'Masters final round on every airport TV' }
+            ]
+        }
+    ],
+
+    // Which course each Cup round is played on (used for par on the scoreboard and in Admin score entry).
+    // Round 1 is Talking Stick O'odham. If that changes to Piipaash, use 'talking-stick-piipaash' (par 71) here
+    // and in the Talking Stick course entry's `selected` below.
+    roundCourses: {
+        1: 'talking-stick-oodham',
+        2: 'wekopa-cholla',
+        3: 'wekopa-saguaro'
+    },
+    // 'stableford' rounds rank by points (highest wins); everything else is stroke play.
+    // Round 1 stays Stableford to match the Admin score-entry math.
+    roundScoring: { 1: 'stableford' },
+    roundFormats: {},
+
+    courses: [
+        {
+            id: 'talking-stick',
+            anchor: 'talking-stick',
+            club: 'Talking Stick Golf Club · Scottsdale',
+            round: 'Round 1 · <b>Thu, Apr 8</b>',
+            when: 'Thursday, April 8 · Round 1',
+            // Talking Stick has two courses. `selected` is the one we're playing; the other stays here
+            // as a backup. Remove `selected` to show both as tabs again.
+            selected: 'talking-stick-oodham',
+            options: [
+                {
+                    id: 'talking-stick-oodham',
+                    name: 'O’odham Course',
+                    shortName: 'O’odham (North)',
+                    aka: 'Formerly the North Course',
+                    tagline: 'Wide fairways, sneaky greens, zero excuses.',
+                    description: 'Coore & Crenshaw took a pancake-flat piece of desert and built a links on it: big, open fairways, greens that shed anything half-hearted, and not a single artificial lake. It rewards the guy who plays the angles over the guy who just bombs it, and the bump-and-run is very much in play.',
+                    designer: 'Bill Coore & Ben Crenshaw',
+                    opened: 1998,
+                    stats: [
+                        { label: 'Par', value: '70' },
+                        { label: 'Yards', value: '7,133', sub: 'Black tees' },
+                        { label: 'Rating', value: '72.6', sub: 'Black tees' },
+                        { label: 'Slope', value: '124', sub: 'Black tees' }
+                    ],
+                    midTees: 'Gold tees · 6,510 yds · 69.9 / 119',
+                    holePars: [4, 5, 4, 4, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 3, 5, 4],
+                    holeYards: [394, 552, 450, 433, 391, 223, 457, 153, 446, 437, 261, 392, 391, 445, 461, 194, 582, 471],
+                    yardsTeeName: 'Black tees',
+                    signatureHoles: [
+                        { hole: 3, par: 4, yards: 450, blurb: '“Sand Hills” is the No. 1 handicap hole, with the out-of-bounds fence running along it. Bogey is a fine score.' },
+                        { hole: 11, par: 3, yards: 261, blurb: '“The Big Battle” is a par 3 over a huge bunker, and it plays 217 even from the Golds. Walking off with a bogey counts as a small win.' },
+                        { hole: 12, par: 4, yards: 392, blurb: '“Red Mountain” has a big sandy waste area splitting the landing zone. Pick the safe side or the side that sets up the better approach.' }
+                    ],
+                    accolades: [
+                        'No. 10 in Arizona · GOLF (2024–25)',
+                        'Golf Digest · 25 best you can play in Scottsdale'
+                    ],
+                    images: [
+                        { src: 'assets/courses/talking-stick-oodham/oodham-sunset-over-fairways.jpg', thumb: 'assets/courses/talking-stick-oodham/thumbs/oodham-sunset-over-fairways.jpg', alt: 'Sun setting over open, mesquite-dotted fairways on the O’odham Course', w: 1600, h: 600 },
+                        { src: 'assets/courses/talking-stick-oodham/bunkered-green-mountains.jpg', thumb: 'assets/courses/talking-stick-oodham/thumbs/bunkered-green-mountains.jpg', alt: 'Bunkered O’odham green below a rugged mountain range', w: 1000, h: 389 },
+                        { src: 'assets/courses/talking-stick-oodham/fairways-resort-tower.jpg', thumb: 'assets/courses/talking-stick-oodham/thumbs/fairways-resort-tower.jpg', alt: 'O’odham fairways and a bunker with the Talking Stick Resort tower on the horizon', w: 1000, h: 389 },
+                        { src: 'assets/courses/talking-stick-club/clubhouse-patio-dusk.jpg', thumb: 'assets/courses/talking-stick-club/thumbs/clubhouse-patio-dusk.jpg', alt: 'Talking Stick clubhouse patio at dusk with a fire pit and string lights', w: 1600, h: 600 }
+                    ],
+                    heroAspect: '2 / 1',
+                    credit: { name: 'Talking Stick Golf Club', url: 'https://www.talkingstickgolfclub.com/oodham-course/' }
+                },
+                {
+                    id: 'talking-stick-piipaash',
+                    name: 'Piipaash Course',
+                    shortName: 'Piipaash (South)',
+                    tagline: 'Tree-lined, lake-laced, Coore & Crenshaw fun.',
+                    description: 'The shorter, more traditional half of Talking Stick plays like a parkland course dropped into the desert: tree-lined fairways, raised greens that reward a well-struck approach, and a chain of lakes on the back nine. The trouble is right in front of you, so swing freely and keep the pace up.',
+                    designer: 'Bill Coore & Ben Crenshaw',
+                    opened: 1998,
+                    stats: [
+                        { label: 'Par', value: '71' },
+                        { label: 'Yards', value: '6,833', sub: 'Black tees' },
+                        { label: 'Rating', value: '72.0', sub: 'Black tees' },
+                        { label: 'Slope', value: '126', sub: 'Black tees' }
+                    ],
+                    midTees: 'Gold tees · 6,430 yds · 69.7 / 120',
+                    holePars: [4, 4, 3, 4, 4, 4, 5, 4, 3, 4, 4, 4, 3, 5, 4, 5, 3, 4],
+                    holeYards: [405, 419, 228, 327, 471, 386, 516, 476, 177, 404, 392, 441, 152, 541, 443, 548, 184, 323],
+                    yardsTeeName: 'Black tees',
+                    signatureHoles: [
+                        { hole: 5, par: 4, yards: 471, blurb: '“Sandy House” is the No. 1 handicap hole: long, tree-lined, and bunkered down the right.' },
+                        { hole: 11, par: 4, yards: 392, blurb: '“Cattail Plant” bends left around a lake. The more water you bite off, the shorter the approach.' },
+                        { hole: 17, par: 3, yards: 184, blurb: '“Little River” has water down the whole right side up to the green. It’s built for a late-round closest-to-the-pin bet.' }
+                    ],
+                    accolades: [
+                        'No. 47 · Golfweek Top 50 Casino Courses (2025)'
+                    ],
+                    images: [
+                        { src: 'assets/courses/talking-stick-piipaash/piipaash-lakes-aerial-mcdowells.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/piipaash-lakes-aerial-mcdowells.jpg', alt: 'Sunrise aerial of the Piipaash Course’s lakes and fairways with mountain ranges beyond', w: 2400, h: 1350 },
+                        { src: 'assets/courses/talking-stick-piipaash/lakeside-green-sunrise.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/lakeside-green-sunrise.jpg', alt: 'Bunkered green beside a lake dotted with pelicans at sunrise', w: 2400, h: 1350 },
+                        { src: 'assets/courses/talking-stick-piipaash/lake-and-red-mountain.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/lake-and-red-mountain.jpg', alt: 'Blue lake and bunkered green with Red Mountain in the distance', w: 1600, h: 600 },
+                        { src: 'assets/courses/talking-stick-piipaash/green-bunkers-red-mountain.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/green-bunkers-red-mountain.jpg', alt: 'Raised green ringed by bunkers and desert trees beneath Red Mountain', w: 1600, h: 600 },
+                        { src: 'assets/courses/talking-stick-piipaash/lake-reflection-mcdowell-mountains.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/lake-reflection-mcdowell-mountains.jpg', alt: 'Mountains reflected in a glassy lake beside a Piipaash green', w: 1600, h: 600 },
+                        { src: 'assets/courses/talking-stick-piipaash/golden-hour-fairways-sunburst.jpg', thumb: 'assets/courses/talking-stick-piipaash/thumbs/golden-hour-fairways-sunburst.jpg', alt: 'Low sun over tree-lined fairways and a pond at Talking Stick', w: 2400, h: 1350 }
+                    ],
+                    credit: { name: 'Talking Stick Golf Club', url: 'https://www.talkingstickgolfclub.com/piipaash-course/' }
+                }
+            ]
+        },
+        {
+            id: 'wekopa-cholla',
+            anchor: 'wekopa-cholla',
+            club: 'We-Ko-Pa Golf Club · Fort McDowell',
+            round: 'Round 2 · <b>Fri AM</b>',
+            when: 'Friday, April 9 · Morning',
+            name: 'Cholla',
+            tagline: 'Forced carries. Four Peaks. Bring extra balls.',
+            description: 'Scott Miller’s original We-Ko-Pa layout is the longer, higher-rated half of the pair. It climbs over desert ridges and drops into arroyos, and nearly every tee shot asks how much desert you want to take on. Bring your best swing and a few spare balls.',
+            designer: 'Scott Miller',
+            opened: 2001,
+            stats: [
+                        { label: 'Par', value: '72' },
+                        { label: 'Yards', value: '7,225', sub: 'Cholla tees' },
+                        { label: 'Rating', value: '73.4', sub: 'Cholla tees' },
+                        { label: 'Slope', value: '138', sub: 'Cholla tees' }
+                    ],
+                    midTees: 'Composite tees · 6,436 yds · 69.4 / 126',
+            holePars: [4, 5, 3, 4, 3, 4, 4, 5, 4, 5, 3, 4, 4, 3, 4, 4, 5, 4],
+            holeYards: [351, 588, 178, 469, 207, 436, 350, 605, 459, 566, 220, 390, 420, 177, 327, 472, 578, 432],
+            yardsTeeName: 'Cholla tees',
+            signatureHoles: [
+                { hole: 1, par: 4, yards: 351, blurb: 'An elevated opener that dares you to cut the corner over desert toward Red Mountain. Pull it off and it’s a flip wedge in.' },
+                { hole: 8, par: 5, yards: 605, blurb: 'The longest hole and No. 1 handicap: clear an arroyo off the tee, then play down to a green fronted by a stacked-rock wall, with the Superstition and Mazatzal ranges in view.' },
+                { hole: 11, par: 3, yards: 220, blurb: 'Half the group reaches for hybrid and the other half pretends they aren’t.' }
+            ],
+            accolades: [
+                'No. 8 in Arizona · Golfweek public-access (2026)',
+                'No. 23 · Golfweek Top 50 Casino Courses (2025)'
+            ],
+            images: [
+                { src: 'assets/courses/wekopa-cholla/golden-hour-fairway-mountains.jpg', thumb: 'assets/courses/wekopa-cholla/thumbs/golden-hour-fairway-mountains.jpg', alt: 'Sweeping Cholla fairway lined with palo verde and saguaros under a golden sky', w: 1800, h: 850 },
+                { src: 'assets/courses/wekopa-cholla/aerial-green-bunkers-dusk.jpg', thumb: 'assets/courses/wekopa-cholla/thumbs/aerial-green-bunkers-dusk.jpg', alt: 'Low aerial of a Cholla green ringed by bunkers in golden sunlight', w: 2400, h: 1538 },
+                { src: 'assets/courses/wekopa-cholla/four-peaks-fairway-vista.jpg', thumb: 'assets/courses/wekopa-cholla/thumbs/four-peaks-fairway-vista.jpg', alt: 'Rolling Cholla fairways toward the silhouette of Four Peaks at sunrise', w: 1600, h: 1067 },
+                { src: 'assets/courses/wekopa-cholla/hole-8-approach-superstitions.jpg', thumb: 'assets/courses/wekopa-cholla/thumbs/hole-8-approach-superstitions.jpg', alt: 'Cholla No. 8 rolling down to a rock-walled green with a rugged desert mountain range beyond', w: 1583, h: 1920 },
+                { src: 'assets/courses/wekopa-club/clubhouse-lake-mountains.jpg', thumb: 'assets/courses/wekopa-club/thumbs/clubhouse-lake-mountains.jpg', alt: 'We-Ko-Pa clubhouse on a ridge above a lake and green', w: 1800, h: 850 },
+            ],
+            credit: { name: 'We-Ko-Pa Golf Club', url: 'https://wekopa.com/cholla-course/' }
+        },
+        {
+            id: 'wekopa-saguaro',
+            anchor: 'wekopa-saguaro',
+            club: 'We-Ko-Pa Golf Club · Fort McDowell',
+            round: 'Round 3 · <b>Fri PM</b>',
+            when: 'Friday, April 9 · Afternoon',
+            name: 'Saguaro',
+            tagline: 'Arizona’s No. 1 public course. Walk it off.',
+            description: 'Golfweek has ranked it Arizona’s No. 1 public-access course two years running. Coore & Crenshaw barely moved any dirt, so the fairways follow the desert’s natural roll, the greens run firm and fast, and no houses line the fairways. It finishes beside an Adirondack-chair lounge on 18, which is where Friday’s bets get settled.',
+            designer: 'Bill Coore & Ben Crenshaw',
+            opened: 2006,
+            stats: [
+                        { label: 'Par', value: '71' },
+                        { label: 'Yards', value: '6,966', sub: 'Saguaro tees' },
+                        { label: 'Rating', value: '72.0', sub: 'Saguaro tees' },
+                        { label: 'Slope', value: '137', sub: 'Saguaro tees' }
+                    ],
+                    midTees: 'Purple tees · 6,603 yds · 70.2 / 132',
+            holePars: [4, 4, 4, 5, 3, 4, 4, 5, 3, 4, 3, 4, 4, 5, 3, 4, 4, 4],
+            holeYards: [469, 336, 416, 631, 178, 442, 331, 515, 137, 337, 197, 476, 470, 538, 255, 328, 402, 508],
+            yardsTeeName: 'Saguaro tees',
+            signatureHoles: [
+                { hole: 4, par: 5, yards: 631, blurb: 'The longest hole on the property and the No. 1 handicap, a true three-shotter aimed at a wall of blue mountains.' },
+                { hole: 13, par: 4, yards: 470, blurb: 'A dogleg left with a huge fairway and one bunker in the middle, about 280 out from the tips. This is the long-drive hole.' },
+                { hole: 15, par: 3, yards: 255, blurb: 'A long, narrow green with bunkers down the left. Plenty of the crew will be reaching for a wood, maybe even driver.' }
+            ],
+            accolades: [
+                'No. 1 public-access in Arizona · Golfweek (2025 & 2026)',
+                'No. 61 · GOLF Top 100 You Can Play (2024–25)'
+            ],
+            images: [
+                { src: 'assets/courses/wekopa-saguaro/desert-mountain-vista.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/desert-mountain-vista.jpg', alt: 'Saguaro green guarded by two bunkers in warm, low-angle light with rugged mountains behind', w: 2400, h: 1538 },
+                { src: 'assets/courses/wekopa-saguaro/hole-4-fairway.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/hole-4-fairway.jpg', alt: 'Wide rolling fairway on Saguaro No. 4 with saguaro cacti and blue mountain ranges', w: 2400, h: 1552 },
+                { src: 'assets/courses/wekopa-saguaro/saguaro-cactus-green.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/saguaro-cactus-green.jpg', alt: 'Tee view across saguaro cacti to a bunkered green with mountains beyond', w: 1600, h: 1067 },
+                { src: 'assets/courses/wekopa-saguaro/hole-14-panorama.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/hole-14-panorama.jpg', alt: 'Panorama of a striped Saguaro green and deep bunker', w: 1800, h: 800 },
+                { src: 'assets/courses/wekopa-saguaro/hole-18-lounge-golden-hour.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/hole-18-lounge-golden-hour.jpg', alt: 'Aerial of the lounge beside Saguaro’s 18th green at golden hour', w: 1534, h: 1126 },
+                { src: 'assets/courses/wekopa-club/clubhouse-dusk.jpg', thumb: 'assets/courses/wekopa-club/thumbs/clubhouse-dusk.jpg', alt: 'We-Ko-Pa clubhouse lit up at dusk', w: 1500, h: 1198 },
+                { src: 'assets/courses/wekopa-saguaro/clubhouse-pond.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/clubhouse-pond.jpg', alt: 'We-Ko-Pa’s desert clubhouse above a green and a still pond', w: 1419, h: 954 },
+                { src: 'assets/courses/wekopa-saguaro/walking-the-saguaro.jpg', thumb: 'assets/courses/wekopa-saguaro/thumbs/walking-the-saguaro.jpg', alt: 'Three golfers walking off the tee toward a desert fairway', w: 1400, h: 1060 }
+            ],
+            credit: { name: 'We-Ko-Pa Golf Club', url: 'https://wekopa.com/saguaro-course/' }
+        },
+        {
+            id: 'final-round',
+            tbd: true,
+            eyebrow: 'Round 4 · Saturday, April 10',
+            name: 'The final round: TBA',
+            description: 'The last Cup session lands on a course still to be named. Suggestions (and bribes) go to the committee.',
+            when: 'Saturday, April 10'
+        }
+    ],
+
+    photoCredits: 'Course photography courtesy of <a href="https://www.talkingstickgolfclub.com/" target="_blank" rel="noopener">Talking Stick Golf Club</a> and <a href="https://wekopa.com/" target="_blank" rel="noopener">We-Ko-Pa Golf Club</a>.',
+
+    cup: {
+        // Add the 2027 captains here once they're picked, e.g. ['First Last', 'First Last'].
+        // They get the "Capt." tag on the roster and team cards. While this is empty,
+        // the Draft card shows captainsNote instead.
+        captains: [],
+        captainsNote: 'Captains will be selected soon',
+        headline: 'Blue holds the hardware.',
+        subheadline: 'Red wants revenge.',
+        lede: 'Two captains, a draft, and three days of team match play. The losing side hears about it for twelve months.',
+        trophy: {
+            src: 'assets/past_years/web/thumb/img_0708.jpg',
+            full: 'assets/past_years/web/img_0708.jpg',
+            alt: 'The Bros before Boges trophy: two irons in a range basket on a stepped wooden base',
+            caption: 'The Cup'
+        },
+        trophyTitle: 'The Cup',
+        trophyText: 'Two irons, a range basket and a stack of hardwood. It’s the most coveted trophy in amateur golf, at least among us.',
+        draftTitle: 'Draft pending',
+        draftText: 'Once the captains are named, they’ll draft two teams schoolyard-style from the 2027 roster.',
+        points: [
+            'Two teams, drafted by the captains',
+            'Cup points on the line every round',
+            'Formats and stakes posted on the Rules page before we tee off'
+        ],
+        liveNote: 'Live Cup standings, updated by the scorekeepers after every session.'
+    },
+
+    // Past editions, newest first. The first entry with a score powers the animated
+    // champions reel. rosterDisplay: 'collapsed' (button reveals the squad),
+    // 'visible' (always shown) or 'hidden' (never shown).
+    // Optional sessions: [{ label: 'Round 1 · Point Quota', blue: 2.5, red: 1.5 }, ...]
+    history: [
+        {
+            year: 2026,
+            location: 'Horseshoe Bay, Texas',
+            courses: ['Ram Rock', 'Slick Rock', 'Summit Rock'],
+            champion: 'blue',
+            score: { blue: 10.5, red: 9.5 },
+            totalPoints: 20,
+            toWin: 10.5,
+            captains: { blue: 'David Owens', red: 'Jeff Tarlton' },
+            note: 'Blue took the Cup by the narrowest margin possible, 10½ to 9½, at Horseshoe Bay.',
+            rosterDisplay: 'collapsed',
+            rosters: {
+                blue: ['David Owens', 'Alex Indelicato', 'Blake Hayes', 'Jayme McCall', 'Kyle Motheral', 'Parker Davidson', 'Westin Tucker', 'Zac Taylor'],
+                red: ['Jeff Tarlton', 'Andy Mazzolini', 'Colby Gibson', 'Derrick Merchant', 'Dillon Griffin', 'Keith Spacek', 'Kelly Dennard', 'Tyler Lyons']
+            },
+            sessions: []
+        }
+    ],
+    hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Final round TBA',
+
+    gallery: [
+        { src: 'assets/past_years/web/thumb/img_0708.jpg', full: 'assets/past_years/web/img_0708.jpg', alt: 'The Bros before Boges trophy', w: 632, h: 1100 },
+        { src: 'assets/past_years/web/thumb/img_0574.jpg', full: 'assets/past_years/web/img_0574.jpg', alt: 'A swing from the fairway on a tree-lined hole', w: 760, h: 1013 },
+        { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on a links course with the ocean behind them', w: 760, h: 570 },
+        { src: 'assets/past_years/web/thumb/img_6933.jpg', full: 'assets/past_years/web/img_6933.jpg', alt: 'Two of the crew in matching navy polos on the tee', w: 760, h: 1013 },
+        { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept links hole', w: 760, h: 1013 },
+        { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew posing on a coastal course', w: 760, h: 570 },
+        { src: 'assets/past_years/web/thumb/img_6936.jpg', full: 'assets/past_years/web/img_6936.jpg', alt: 'The crew warming up on a hillside range', w: 760, h: 1013 },
+        { src: 'assets/past_years/web/thumb/img_6937.jpg', full: 'assets/past_years/web/img_6937.jpg', alt: 'Hitting balls on a hillside range', w: 760, h: 1013 },
+        { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes', w: 760, h: 570 }
+    ],
+
+    // Player photos in assets/PlayerCards/<FirstLast>.jpg
+    playerCards: ['JaymeMcCall']
+};

@@ -3,311 +3,499 @@
 
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('js');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bros before Boges | The Ultimate Golf Trip</title>
+    <meta name="theme-color" content="#0e0b09">
+    <title>Bros before Boges 2027 | Scottsdale, Arizona</title>
+    <meta name="description" content="The annual Bros before Boges golf trip. April 8–11, 2027 in Scottsdale, Arizona: Talking Stick, We-Ko-Pa Cholla & Saguaro, and the Cup on the line.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Bros before Boges 2027 · Scottsdale, Arizona">
+    <meta property="og:description" content="April 8–11, 2027. Talking Stick, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line.">
+    <meta property="og:url" content="https://bros-before-boges.vercel.app/">
+    <meta property="og:image" content="https://bros-before-boges.vercel.app/assets/courses/og-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://bros-before-boges.vercel.app/assets/courses/og-card.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2027.3">
+    <link rel="stylesheet" href="home.css?v=2027.3">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
 </head>
 
 <body>
-    <header class="site-header">
-        <div class="container header-container">
-            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
-            <nav class="main-nav">
-                <ul>
-                    <li><a href="index.html#overview">Trip Info</a></li>
-                    <li><a href="index.html#courses">The Links</a></li>
-                    <li><a href="index.html#attendees">The Squad</a></li>
-                    <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
-                    <li><a href="bookie.html" class="nav-link" style="color: var(--accent-gold);">The Bookie <span style="font-size: 0.75rem;">(Beta)</span></a></li>
-                    <li><a href="admin.html" class="nav-link"><span class="accent">Admin</span></a></li>
-                    <li><button id="leaderboard-btn" class="btn-nav">Scoreboard</button></li>
-                    <li><button id="start-round-btn" class="btn-nav">Start Round</button></li>
-                    <li><button id="signup-btn" class="btn-nav btn-signup">Sign Up</button></li>
-                </ul>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <!-- ============================== HEADER ============================== -->
+    <header class="nav" id="site-nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="#top" aria-label="Bros before Boges — back to top">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="bbbSun" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#f6cf86" />
+                            <stop offset="1" stop-color="#e27d4f" />
+                        </linearGradient>
+                        <clipPath id="bbbClip"><rect x="2" y="2" width="60" height="60" rx="17" /></clipPath>
+                    </defs>
+                    <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612" />
+                    <g clip-path="url(#bbbClip)">
+                        <circle cx="27" cy="43" r="15" fill="url(#bbbSun)" />
+                        <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09" />
+                        <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f" />
+                    </g>
+                    <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5" />
+                    <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f" />
+                </svg>
+                <span class="brand-word">Bros before <em>Boges</em></span>
+            </a>
+
+            <nav class="nav-primary" aria-label="Main">
+            <ul class="nav-links">
+                <li><a href="#overview" data-spy>The Trip</a></li>
+                <li><a href="#schedule" data-spy>Itinerary</a></li>
+                <li><a href="#courses" data-spy>Courses</a></li>
+                <li><a href="#cup" data-spy>The Cup</a></li>
+                <li><a href="#attendees" data-spy>The Crew</a></li>
+                <li><a href="rules.html">Rules</a></li>
+                <li><a href="bookie.html">The Bookie <span class="badge-beta">Beta</span></a></li>
+                <li class="nav-menu">
+                    <button type="button" class="nav-menu-btn" id="clubhouse-btn" aria-expanded="false" aria-controls="clubhouse-menu">
+                        Clubhouse
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </button>
+                    <ul class="nav-menu-list" id="clubhouse-menu">
+                        <li>
+                            <button type="button" id="start-round-btn" data-action="start-round">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polygon points="10 8 16 12 10 16 10 8" /></svg>
+                                Start a Round
+                            </button>
+                        </li>
+                        <li>
+                            <a href="admin.html">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                Admin
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
             </nav>
-            <button class="menu-toggle" aria-label="Toggle menu">
-                <span class="bar"></span>
-                <span class="bar"></span>
-                <span class="bar"></span>
-            </button>
+
+            <div class="nav-actions">
+                <button type="button" class="btn btn-line btn-sm" id="leaderboard-btn" data-action="scoreboard">Scoreboard</button>
+                <button type="button" class="btn btn-copper btn-sm" id="rsvp-btn" data-action="rsvp">RSVP</button>
+            </div>
+
+            <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
         </div>
     </header>
 
-    <main>
-        <section id="hero" class="hero-section">
-            <div class="hero-overlay"></div>
-            <div class="container hero-content">
-                <p class="hero-year" id="trip-year">2026</p>
-                
-                <!-- Live Team Scoreboard Widget -->
-                <div id="team-scoreboard-widget" class="glass-panel team-scoreboard-hidden" style="margin: 0 auto 30px auto; max-width: 600px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 99px;">
-                   <div style="display: flex; align-items: center; gap: 15px;">
-                       <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #60a5fa; padding: 5px 15px; border-radius: 99px; font-weight: 800; text-transform: uppercase;">Blue</span>
-                       <span id="score-team-1" style="font-size: 2rem; font-weight: 900; font-family: var(--font-heading); color: white;">0</span>
-                   </div>
-                   <div style="color: var(--text-muted); font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">Vs</div>
-                   <div style="display: flex; align-items: center; gap: 15px;">
-                       <span id="score-team-2" style="font-size: 2rem; font-weight: 900; font-family: var(--font-heading); color: white;">0</span>
-                       <span style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 5px 15px; border-radius: 99px; font-weight: 800; text-transform: uppercase;">Red</span>
-                   </div>
+    <nav class="drawer" id="drawer" aria-label="Site menu">
+        <a href="#overview">The Trip</a>
+        <a href="#schedule">Itinerary</a>
+        <a href="#courses">Courses</a>
+        <a href="#cup">The Cup</a>
+        <a href="#attendees">The Crew</a>
+        <a href="#past-trips">Hall of Fame</a>
+        <a href="rules.html">Rules</a>
+        <a href="bookie.html">The Bookie <small>Beta</small></a>
+        <div class="drawer-actions">
+            <button type="button" class="btn btn-line" data-action="scoreboard">Scoreboard</button>
+            <button type="button" class="btn btn-copper" data-action="rsvp">RSVP</button>
+        </div>
+        <div class="drawer-sub">
+            <button type="button" class="drawer-link" data-action="start-round">Start a Round</button>
+            <a href="admin.html">Admin</a>
+        </div>
+    </nav>
+
+    <main id="main">
+        <!-- ============================== HERO ============================== -->
+        <section class="hero" id="top">
+            <div class="hero-media" id="hero-media" aria-hidden="true">
+                <div class="hero-slide is-active"><img src="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" alt="" fetchpriority="high"></div>
+            </div>
+
+            <div class="wrap hero-grid">
+                <div class="hero-copy">
+                    <!-- Live Cup pill — revealed by script.js once the season is live -->
+                    <div id="team-scoreboard-widget" class="cup-pill team-scoreboard-hidden" role="status">
+                        <span class="live">Live Cup</span>
+                        <span class="team blue">Blue <b id="score-team-1">0</b></span>
+                        <span class="team red"><b id="score-team-2">0</b> Red</span>
+                    </div>
+
+                    <p class="hero-kicker"><span class="dot" aria-hidden="true"></span><span id="hero-kicker">The 2027 Edition · Scottsdale, Arizona</span></p>
+                    <h1 class="hero-title">Desert heat.<br>Cold <em>putters.</em></h1>
+                    <p class="hero-sub" id="hero-sub">Four days in the Sonoran Desert: Coore &amp; Crenshaw fairways, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line. Higher stakes, faster greens, same idiots.</p>
+                    <div class="hero-ctas">
+                        <a class="btn btn-copper" href="#schedule">
+                            See the itinerary
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                        </a>
+                        <button type="button" class="btn btn-line" data-action="rsvp">RSVP now</button>
+                    </div>
+                    <a id="hero-champs" class="hero-champs" href="#cup" hidden></a>
                 </div>
 
-                <h2 class="hero-title">Drive for Show,<br>Putt for <span class="accent">Dough</span></h2>
-                <p class="hero-subtitle">The tradition continues. Higher stakes, faster greens, same idiots.</p>
-                <div id="trip-countdown" class="countdown-container">
-                    <div class="countdown-item"><span id="cd-days" class="time-val">--</span><span class="time-label">Days</span></div>
-                    <div class="countdown-item"><span id="cd-hours" class="time-val">--</span><span class="time-label">Hours</span></div>
-                    <div class="countdown-item"><span id="cd-mins" class="time-val">--</span><span class="time-label">Mins</span></div>
-                    <div class="countdown-item"><span id="cd-secs" class="time-val">--</span><span class="time-label">Secs</span></div>
+                <aside class="hero-card" aria-label="Trip at a glance">
+                    <div class="hero-card-label"><span id="cd-label">Countdown to Scottsdale</span><span id="cd-target-label"></span></div>
+                    <div class="countdown" id="trip-countdown" role="timer" aria-live="off">
+                        <div class="countdown-cell"><b id="cd-days">--</b><span>Days</span></div>
+                        <div class="countdown-cell"><b id="cd-hours">--</b><span>Hours</span></div>
+                        <div class="countdown-cell"><b id="cd-mins">--</b><span>Mins</span></div>
+                        <div class="countdown-cell"><b id="cd-secs">--</b><span>Secs</span></div>
+                    </div>
+                    <ul class="hero-facts" id="hero-facts"></ul>
+                </aside>
+            </div>
+
+            <a class="scroll-cue" href="#overview" aria-label="Scroll to trip details"></a>
+        </section>
+
+        <!-- ============================== THE TRIP ============================== -->
+        <section class="section" id="overview">
+            <div class="wrap destination">
+                <div class="destination-copy reveal">
+                    <p class="eyebrow">The Destination</p>
+                    <h2 class="h-display" id="trip-location-title">Scottsdale, <em>Arizona</em></h2>
+                    <div class="lede" id="trip-intro" style="margin-top: 22px;"></div>
+
+                    <div class="announce" id="announcement" hidden>
+                        <div class="announce-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>
+                        </div>
+                        <div>
+                            <h3 id="announcement-title">Event Updates</h3>
+                            <p id="announcement-body"></p>
+                        </div>
+                    </div>
                 </div>
-                <a href="#overview" class="btn btn-primary">Get the Details</a>
+
+                <div class="fact-grid" id="fact-grid">
+                    <!-- Facts + cost card rendered by script.js -->
+                </div>
             </div>
         </section>
 
-        <section id="overview" class="section-padding">
-            <div class="container">
-                <h2 class="section-title">Trip <span class="text-stroke">Overview</span></h2>
-                
-                <div class="glass-panel" style="margin-bottom: 50px; padding: 20px 30px; border-left: 4px solid var(--accent-gold); background: rgba(251, 191, 36, 0.05); display: flex; align-items: flex-start; gap: 20px;">
-                    <div style="font-size: 2rem; line-height: 1;">📢</div>
+        <!-- ============================== ITINERARY ============================== -->
+        <section class="section section-alt" id="schedule">
+            <div class="wrap">
+                <div class="section-head reveal">
+                    <p class="eyebrow">The Itinerary</p>
+                    <h2 class="h-display">Four days. <em>Seventy-two holes</em><br>(and change).</h2>
+                    <p class="lede" id="itinerary-lede">Tee times get posted here as they're locked in. Plan to land in Phoenix early enough to make Thursday's round.</p>
+                </div>
+                <div class="days" id="schedule-timeline">
+                    <!-- Day cards rendered by script.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================== COURSES ============================== -->
+        <section class="section" id="courses">
+            <div class="wrap">
+                <div class="section-head reveal">
+                    <p class="eyebrow">The Battlegrounds</p>
+                    <h2 class="h-display">Desert golf, <em>done right.</em></h2>
+                    <p class="lede">Big views, firm fairways, and not a single house in play at We-Ko-Pa. Tap any photo to go full screen.</p>
+                </div>
+                <div class="course-list" id="courses-grid">
+                    <!-- Course features rendered by script.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================== THE CUP ============================== -->
+        <section class="section section-alt" id="cup">
+            <div class="wrap">
+                <div class="section-head reveal">
+                    <p class="eyebrow">The Cup</p>
+                    <h2 class="h-display"><span id="cup-headline">Blue holds the hardware.</span><br><em id="cup-subheadline">Red wants it back.</em></h2>
+                    <p class="lede" id="cup-lede">Two captains, a draft, and a few days of team match play. The losing side hears about it for twelve months.</p>
+                </div>
+                <div class="cup" id="team-selection-section">
+                    <!-- Cup cards rendered by script.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================== THE CREW / HEAD COUNT ============================== -->
+        <section class="section" id="attendees">
+            <div class="wrap">
+                <div class="section-head reveal">
+                    <p class="eyebrow">The Crew · Head Count</p>
+                    <h2 class="h-display">Good friends. <em>Questionable</em> handicaps.</h2>
+                    <p class="lede" id="crew-lede">Who’s in for Scottsdale. RSVP with your name so we can lock in tee times and rooms. Changed your mind? RSVP again and we’ll count your latest answer.</p>
+                </div>
+
+                <div class="headcount reveal" id="headcount" hidden>
+                    <div class="hc-stats">
+                        <div class="hc-stat in"><b id="hc-in">0</b><span>I’m in</span></div>
+                        <div class="hc-stat maybe"><b id="hc-maybe">0</b><span>Probably</span></div>
+                        <div class="hc-stat out"><b id="hc-out">0</b><span>Can’t make it</span></div>
+                        <div class="hc-stat sunday"><b id="hc-sunday">0</b><span>Sunday round</span></div>
+                    </div>
+                    <div class="hc-progress" id="hc-progress" hidden>
+                        <div class="hc-bar" aria-hidden="true"><i id="hc-bar-fill"></i></div>
+                        <span id="hc-progress-label"></span>
+                    </div>
+                    <div class="hc-foot">
+                        <span id="hc-updated"></span>
+                        <button type="button" class="btn btn-copper btn-sm" data-action="rsvp">RSVP</button>
+                    </div>
+                </div>
+
+                <div class="crew-head">
+                    <h3 id="confirmed-roster-title">I’m in</h3>
+                    <span class="crew-count" id="crew-count"></span>
+                </div>
+                <div class="crew-grid" id="confirmed-roster">
+                    <div class="crew-empty">Loading the crew…</div>
+                </div>
+
+                <div class="bubble" id="bubble-block" hidden>
+                    <div class="crew-head">
+                        <h3 id="potential-roster-title">Probably</h3>
+                    </div>
+                    <div class="chips" id="potential-roster"></div>
+                </div>
+
+                <div class="bubble" id="out-block" hidden>
+                    <div class="crew-head">
+                        <h3>Can’t make it</h3>
+                    </div>
+                    <div class="chips" id="out-roster"></div>
+                </div>
+
+                <div class="crew-cta reveal">
                     <div>
-                        <h3 style="color: var(--accent-gold); margin-bottom: 8px; font-size: 1.25rem; font-family: var(--font-heading);">Event Updates</h3>
-                        <p style="color: var(--text-main); margin: 0; font-size: 1.05rem;">The Ryder Cup teams have been <strong style="color: var(--accent-gold);">officially drafted and set!</strong> Prepare for battle on the links. 🏌️‍♂️</p>
+                        <h3>Are you in for 2027?</h3>
+                        <p>Put your name down so we get an accurate head count. It takes ten seconds.</p>
                     </div>
-                </div>
-
-                <div class="trip-cards">
-                    <div class="glass-panel trip-info-card">
-                        <span class="card-icon">📍</span>
-                        <h3>Location</h3>
-                        <p id="trip-location">Loading...</p>
-                    </div>
-                    <div class="glass-panel trip-info-card">
-                        <span class="card-icon">📅</span>
-                        <h3>Dates</h3>
-                        <p id="trip-dates">Loading...</p>
-                    </div>
-                    <div class="glass-panel trip-info-card">
-                        <span class="card-icon">🏨</span>
-                        <h3>HQ</h3>
-                        <p id="trip-accommodation">Loading...</p>
-                    </div>
-                </div>
-
-                <div class="cost-breakdown-container glass-panel">
-                    <h3>💰 Trip Costs (Est.)</h3>
-                    <div id="cost-breakdown" class="cost-grid">
-                        <!-- Costs rendered here -->
-                    </div>
-                    <p class="total-cost">Total Est: <span id="total-cost"></span></p>
+                    <button type="button" class="btn btn-copper" data-action="rsvp">RSVP now</button>
                 </div>
             </div>
         </section>
 
-        <section id="schedule" class="section-padding">
-            <div class="container">
-                <h2 class="section-title">The <span class="text-stroke">Itinerary</span></h2>
-                <div class="timeline" id="schedule-timeline">
-                    <!-- Schedule rendered here -->
+        <!-- ============================== HALL OF FAME ============================== -->
+        <section class="section section-alt" id="past-trips">
+            <div class="wrap">
+                <div class="section-head reveal">
+                    <p class="eyebrow">Hall of Fame</p>
+                    <h2 class="h-display">The tradition <em>continues.</em></h2>
                 </div>
+                <div class="editions" id="editions"></div>
+                <div class="gallery" id="gallery"></div>
             </div>
         </section>
-
-        <section id="courses" class="section-padding">
-            <div class="container">
-                <h2 class="section-title">The <span class="accent">Battlegrounds</span></h2>
-                <div class="courses-grid" id="courses-grid">
-                    <!-- Courses rendered here by JS -->
-                </div>
-            </div>
-        </section>
-
-        <section id="attendees" class="section-padding">
-            <div class="container">
-                <h2 class="section-title">The <span class="text-stroke">Squad</span></h2>
-
-                <h3 id="confirmed-roster-title" class="roster-category-title">Confirmed Players</h3>
-                <div class="attendees-grid" id="confirmed-roster">
-                    <!-- Confirmed rendered here -->
-                </div>
-
-                <h3 id="potential-roster-title" class="roster-category-title" style="margin-top: 60px;">On the Bubble</h3>
-                <div class="attendees-grid" id="potential-roster">
-                    <!-- Potential rendered here -->
-                </div>
-
-                <div id="team-selection-section" style="margin-top: 100px;">
-                    <h2 class="section-title">Team <span class="accent">Draft</span></h2>
-                    <p
-                        style="text-align: center; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto;">
-                        Captains Jeff Tarlton and David Owens will be selecting the teams, draft style.
-                    </p>
-
-                    <!-- Homepage Ryder Cup Scoreboard Injection -->
-                    <div style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); position: relative; overflow: hidden; margin-bottom: 40px; max-width: 800px; margin-left: auto; margin-right: auto; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">🏆</div>
-                        <h3 style="font-size: 1.8rem; margin-bottom: 15px; text-align: center;">The 2026 Ryder Cup <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal;">(Overview)</span></h3>
-                        <p style="text-align: center; color: var(--text-muted); line-height: 1.6; margin-bottom: 30px; font-size: 0.95rem;">
-                            The winning team takes all. 8 players per squad. Winners receive <strong style="color: white;">$200/man</strong> alongside eternal supremacy.
-                        </p>
-                        
-                        <div style="background: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 16px; padding: 25px;">
-                            <div style="display: flex; justify-content: space-around; align-items: center;">
-                                <div style="text-align: center; width: 33%;">
-                                    <div style="font-size: 2.2rem; font-weight: 900; color: #60a5fa; text-shadow: 0 0 20px rgba(96, 165, 250, 0.3); font-family: var(--font-heading);">BLUE</div>
-                                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Current Pts: <span id="home-ryder-blue-pts" style="color: white; font-weight: bold; font-size: 1.2rem; display: inline-block; margin-left: 5px;">0</span></div>
-                                </div>
-                                <div style="font-size: 1.2rem; color: var(--text-muted); font-weight: 900; width: 33%; text-align: center; font-family: var(--font-heading);">VS</div>
-                                <div style="text-align: center; width: 33%;">
-                                    <div style="font-size: 2.2rem; font-weight: 900; color: #fca5a5; text-shadow: 0 0 20px rgba(252, 165, 165, 0.3); font-family: var(--font-heading);">RED</div>
-                                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Current Pts: <span id="home-ryder-red-pts" style="color: white; font-weight: bold; font-size: 1.2rem; display: inline-block; margin-left: 5px;">0</span></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="trip-cards" id="team-selection-display">
-                        <!-- Dynamic Team Selection rendered here -->
-                        <div class="glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted);">
-                            Loading teams...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Past Trips Gallery Section -->
-        <section id="past-trips" class="section" style="padding-top: 50px;">
-            <div class="container">
-                <h2 class="section-title">Hall of Fame</h2>
-                <div class="masonry-grid">
-                    <div class="masonry-item"><img src="assets/past_years/IMG_0574.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_0708.PNG" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_1181.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_1256.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_1359.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_1567.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_6933.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_6936.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                    <div class="masonry-item"><img src="assets/past_years/IMG_6937.jpg" alt="Past Trip Memory" loading="lazy"></div>
-                </div>
-            </div>
-        </section>
-
     </main>
 
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</p>
-            <p class="footer-motto">Swing hard in case you hit it.</p>
+    <!-- ============================== FOOTER ============================== -->
+    <footer class="footer">
+        <div class="wrap">
+            <div class="footer-word">Bros before <em>Boges</em></div>
+            <p class="footer-motto-line">Swing hard in case you hit it.</p>
+            <div class="footer-grid">
+                <ul class="footer-links">
+                    <li><a href="#schedule">Itinerary</a></li>
+                    <li><a href="#courses">Courses</a></li>
+                    <li><a href="rules.html">Rules</a></li>
+                    <li><a href="bookie.html">The Bookie</a></li>
+                    <li><button type="button" data-action="scoreboard">Scoreboard</button></li>
+                    <li><button type="button" data-action="start-round">Start a Round</button></li>
+                    <li><a href="admin.html">Admin</a></li>
+                </ul>
+                <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
+            </div>
+            <p class="footer-credits" id="footer-credits"></p>
         </div>
     </footer>
 
-    <!-- Lightbox Modal -->
-    <div id="lightbox-modal" class="modal">
-        <button class="modal-close" id="lightbox-close"
-            style="background: rgba(0,0,0,0.5); border: none; font-size: 2.5rem; color: white; cursor: pointer; position: absolute; top: 15px; right: 15px; z-index: 10; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">&times;</button>
-        <div class="lightbox-content" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 20px;">
-            <img id="lightbox-image" src="" alt="Enlarged Memory" style="max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- ============================== LIGHTBOX ============================== -->
+    <div id="lightbox-modal" class="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+        <span class="lightbox-count" id="lightbox-count"></span>
+        <button type="button" class="modal-x" id="lightbox-close" aria-label="Close photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <figure>
+            <img id="lightbox-image" src="" alt="">
+            <figcaption id="lightbox-caption" aria-live="polite"></figcaption>
+        </figure>
+        <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+    </div>
+
+    <!-- ============================== RSVP MODAL ============================== -->
+    <div id="rsvp-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
+        <div class="modal-content glass-panel rsvp-sheet">
+            <button type="button" class="modal-x" id="rsvp-close" aria-label="Close RSVP">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+
+            <div id="rsvp-step-form">
+                <p class="eyebrow" id="rsvp-eyebrow">2027 · Scottsdale · Apr 8–11</p>
+                <h2 id="rsvp-title" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
+                <p class="modal-lede">Your name is required so we get an accurate head count. You can change your answer any time by RSVPing again.</p>
+
+                <form id="rsvp-form" class="registration-form" novalidate>
+                    <div class="form-group">
+                        <label for="rsvp-name">Your name <span class="req">First and last · required</span></label>
+                        <input type="text" id="rsvp-name" name="name" class="field-input" list="rsvp-names" autocomplete="name" autocapitalize="words" maxlength="60" required aria-describedby="rsvp-name-error">
+                        <datalist id="rsvp-names"></datalist>
+                        <p class="field-error" id="rsvp-name-error" hidden></p>
+                    </div>
+
+                    <fieldset class="rsvp-choices" aria-describedby="rsvp-status-error">
+                        <legend>Are you going?</legend>
+                        <label class="rsvp-choice in">
+                            <input type="radio" name="status" value="in" required>
+                            <span class="rc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
+                            <b>I’m in</b><small>Book it</small>
+                        </label>
+                        <label class="rsvp-choice maybe">
+                            <input type="radio" name="status" value="maybe">
+                            <span class="rc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" /></svg></span>
+                            <b>Probably</b><small>Leaning yes</small>
+                        </label>
+                        <label class="rsvp-choice out">
+                            <input type="radio" name="status" value="out">
+                            <span class="rc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg></span>
+                            <b>Can’t make it</b><small>Next year</small>
+                        </label>
+                        <p class="field-error" id="rsvp-status-error" hidden></p>
+                    </fieldset>
+
+                    <label class="rsvp-check" id="rsvp-sunday-wrap">
+                        <input type="checkbox" name="sunday" id="rsvp-sunday">
+                        <span id="rsvp-sunday-label">I’m up for the optional Sunday morning round (Apr 11)</span>
+                    </label>
+
+                    <div class="form-group">
+                        <label for="rsvp-note">Anything we should know? <span class="req">Optional</span></label>
+                        <textarea id="rsvp-note" name="note" class="field-input" rows="2" maxlength="280" placeholder="Flying in Wednesday night, need a roommate, etc."></textarea>
+                    </div>
+
+                    <div class="hp-field" aria-hidden="true">
+                        <label for="rsvp-company">Company</label>
+                        <input type="text" id="rsvp-company" name="company" tabindex="-1" autocomplete="off">
+                    </div>
+
+                    <button type="submit" class="btn btn-copper" id="rsvp-submit" style="width: 100%; margin-top: 6px;">Send my RSVP</button>
+                    <p class="form-error" id="rsvp-error" role="alert" hidden></p>
+                </form>
+            </div>
+
+            <div id="rsvp-step-done" class="rsvp-done" hidden>
+                <div class="rsvp-done-mark" id="rsvp-done-mark" aria-hidden="true"></div>
+                <h2 id="rsvp-done-title" tabindex="-1"></h2>
+                <p class="modal-lede" id="rsvp-done-text"></p>
+                <p class="rsvp-done-count" id="rsvp-done-count"></p>
+                <div class="rsvp-done-actions">
+                    <button type="button" class="btn btn-copper" id="rsvp-see-count">See the head count</button>
+                    <button type="button" class="btn btn-line" id="rsvp-roster-link" data-action="signup" hidden>Add your GHIN &amp; handicap</button>
+                    <button type="button" class="btn btn-line" id="rsvp-again">Change my answer</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Registration Modal (Nuclear Placement: Outside main flow) -->
-    <div id="registration-modal" class="modal">
-        <div class="modal-content glass-panel">
-            <div class="modal-header">
-                <h2 style="margin-bottom: 20px;">Join the Crew</h2>
-                <button class="modal-close" id="modal-close"
-                    style="background: none; border: none; font-size: 2rem; color: white; cursor: pointer; position: absolute; top: 20px; right: 20px;">&times;</button>
-            </div>
+    <!-- ============================== ROSTER SIGN-UP (GHIN / handicap) ============================== -->
+    <div id="registration-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="registration-title">
+        <div class="modal-content glass-panel" style="max-width: 560px;">
+            <button type="button" class="modal-x" id="modal-close" aria-label="Close roster form">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+            <p class="eyebrow">2027 · Scottsdale</p>
+            <h2 id="registration-title" style="margin-bottom: 14px;">Join the <em>roster</em></h2>
+            <p class="modal-lede">Add your GHIN and handicap so the captains can draft fair teams. Your RSVP is what counts for the head count.</p>
             <form id="registration-form" class="registration-form">
-                <div class="form-group">
-                    <label for="first-name">First Name</label>
-                    <input type="text" id="first-name" name="firstName" required autofocus>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first-name">First name</label>
+                        <input type="text" id="first-name" name="firstName" autocomplete="given-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last-name">Last name</label>
+                        <input type="text" id="last-name" name="lastName" autocomplete="family-name" required>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="last-name">Last Name</label>
-                    <input type="text" id="last-name" name="lastName" required>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" autocomplete="email" required placeholder="you@example.com">
                 </div>
-                <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" required placeholder="e.g. jeff@example.com">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ghin-number">GHIN number (optional)</label>
+                        <input type="text" id="ghin-number" name="ghinNumber" inputmode="numeric">
+                    </div>
+                    <div class="form-group">
+                        <label for="handicap">Handicap (optional)</label>
+                        <input type="number" id="handicap" name="handicap" step="0.1" inputmode="decimal">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="ghin-number">GHIN Number (Optional)</label>
-                    <input type="text" id="ghin-number" name="ghinNumber">
-                </div>
-                <div class="form-group">
-                    <label for="handicap">Handicap (Optional)</label>
-                    <input type="number" id="handicap" name="handicap" step="0.1">
-                </div>
-                <div class="form-group" style="display: none;">
-                    <label for="password">Registration Password</label>
-                    <input type="password" id="password" name="password" value="">
-                </div>
-                <div class="form-actions" style="display: flex; gap: 15px; margin-top: 20px;">
-                    <button type="submit" class="btn-primary" style="flex: 1; padding: 15px;">Submit
-                        Registration</button>
-                    <!-- <button type="button" class="btn-nav" id="cancel-btn" style="flex: 1;">Cancel</button> ROLLBACK -->
-                    <button type="button" class="btn-ghost" id="cancel-btn" style="flex: 1;">Cancel</button>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-copper">Add me to the roster</button>
+                    <button type="button" class="btn btn-line" id="cancel-btn">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Leaderboard Modal -->
-    <div id="leaderboard-modal" class="modal">
-        <div class="modal-content leaderboard-modal-content glass-panel" style="padding: 0; overflow-y: auto; overflow-x: hidden; max-width: 1100px; border-radius: 24px;">
-            <div class="scoreboard-hero" style="background-image: url('assets/slick_rock.png'); background-size: cover; background-position: center; height: 260px; position: relative;">
-                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(15, 23, 42, 0) 20%, var(--primary-bg-alt) 100%);"></div>
-                <button class="modal-close" id="leaderboard-close"
-                    style="background: none; border: none; font-size: 2.5rem; color: white; cursor: pointer; position: absolute; top: 15px; right: 25px; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">&times;</button>
-                <div style="position: absolute; bottom: 25px; left: 40px; z-index: 5;">
-                    <h2 style="margin: 0; font-size: 3.2rem; font-family: var(--font-heading); font-weight: 900; color: white; letter-spacing: -0.02em;">Trip <span class="accent">Leaderboard</span></h2>
-                </div>
+    <!-- ============================== LEADERBOARD MODAL ============================== -->
+    <div id="leaderboard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+        <div class="modal-content leaderboard-modal-content glass-panel" style="padding: 0; overflow-y: auto; overflow-x: hidden; max-width: 1100px;">
+            <div class="scoreboard-hero" id="scoreboard-hero">
+                <button type="button" class="modal-x" id="leaderboard-close" aria-label="Close scoreboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                </button>
+                <h2 id="leaderboard-title">Trip <em>Leaderboard</em></h2>
             </div>
-            <div class="scoreboard-container" style="padding: 5px 40px 40px 40px; background: var(--primary-bg-alt);">
+            <div class="scoreboard-container">
                 <div class="modern-scoreboard" id="dynamic-leaderboard">
-                    <!-- Dynamic Scoreboard injected here -->
-                    <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">
-                        Loading Leaderboard...</div>
+                    <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading leaderboard…</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Start Round Login Modal -->
-    <div id="round-login-modal" class="modal">
-        <div class="modal-content glass-panel" style="max-width: 400px;">
-            <div class="modal-header">
-                <h2 style="margin-bottom: 20px;">Admin Login</h2>
-                <button class="modal-close" id="round-login-close"
-                    style="background: none; border: none; font-size: 2rem; color: white; cursor: pointer; position: absolute; top: 20px; right: 20px;">&times;</button>
-            </div>
-            <div class="login-box" style="margin-top: 20px;">
-                <p style="margin-bottom: 20px; color: var(--text-muted);">Enter credentials to start a new round.</p>
-                <input type="email" id="round-email" class="admin-input" placeholder="Email Address"
-                    style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
-                <input type="password" id="round-password" class="admin-input" placeholder="Password"
-                    style="width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
-                <button id="round-login-submit" class="btn btn-primary"
-                    style="width: 100%; padding: 12px;">Login</button>
-                <p id="round-login-error" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem; display: none;">
-                </p>
-            </div>
+    <!-- ============================== START ROUND LOGIN ============================== -->
+    <div id="round-login-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="round-login-title">
+        <div class="modal-content glass-panel" style="max-width: 440px;">
+            <button type="button" class="modal-x" id="round-login-close" aria-label="Close login">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+            <p class="eyebrow">Clubhouse</p>
+            <h2 id="round-login-title" style="margin-bottom: 10px;">Start a <em>round</em></h2>
+            <p class="modal-lede">Scorekeepers only. Sign in to open the live round tracker.</p>
+            <form id="round-login-form" class="registration-form" novalidate>
+                <div class="form-group">
+                    <label for="round-email">Email</label>
+                    <input type="email" id="round-email" class="field-input" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="round-password">Password</label>
+                    <input type="password" id="round-password" class="field-input" autocomplete="current-password" required>
+                </div>
+                <button type="submit" id="round-login-submit" class="btn btn-copper" style="width: 100%; margin-top: 8px;">Log in</button>
+                <p id="round-login-error" class="form-error" role="alert" style="display: none;"></p>
+            </form>
         </div>
     </div>
-
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js"></script>
+    <script src="trip-config.js?v=2027.3"></script>
+    <script src="script.js?v=2027.3"></script>
 </body>
 
 </html>

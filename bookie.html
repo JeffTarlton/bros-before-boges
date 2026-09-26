@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>The Bookie (Beta) - Bros before Boges</title>
@@ -13,11 +14,11 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2027.3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .bet-card {
-            background: rgba(30, 41, 59, 0.7);
+            background: rgba(28, 22, 18, 0.7);
             border: 1px solid var(--glass-border);
             border-radius: 16px;
             padding: 20px;
@@ -111,20 +112,25 @@
 </head>
 
 <body>
-    <header class="site-header" style="background: rgba(15, 23, 42, 0.95);">
+    <header class="site-header" style="background: rgba(14, 11, 9, 0.95);">
         <div class="container header-container">
             <h1 class="logo" style="display: flex; align-items: center; gap: 8px;">The <span class="accent" style="color: var(--accent-gold);">Bookie</span> <span style="font-size: 1rem; color: var(--text-muted); font-weight: 600;">(Beta)</span></h1>
             <nav class="main-nav">
                 <ul>
                     <li><a href="index.html">Back to Home</a></li>
-                    <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
+                    <li><a href="rules.html" class="nav-link">Rules</a></li>
                     <li><button id="bookie-login-btn" class="btn-nav">Login / Register</button></li>
                 </ul>
             </nav>
+            <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
         </div>
     </header>
 
-    <main class="section-padding" style="margin-top: 80px;">
+    <main class="section-padding" style="padding-top: 180px;">
         <div class="container">
             <!-- Authentication Required Warning -->
             <div id="auth-wall" class="glass-panel" style="text-align: center; padding: 60px 40px; margin-bottom: 50px;">
@@ -133,9 +139,9 @@
                 <p style="color: var(--text-muted); margin-bottom: 30px; max-width: 500px; margin-left: auto; margin-right: auto;">
                     You must be logged in to access the sportsbook, place wagers, and view the ledger.
                 </p>
-                <div style="display: flex; gap: 15px; justify-content: center;">
-                    <button class="btn btn-primary" id="wall-login-btn" style="background: linear-gradient(135deg, var(--accent-gold), #b45309); border: none;">Log In as Existing Player</button>
-                    <button class="btn" id="wall-register-btn" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white;">Create Betting Account</button>
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 640px; margin: 0 auto;">
+                    <button class="btn btn-primary" id="wall-login-btn" style="flex: 1 1 240px; min-height: 48px; padding: 14px 20px; font-size: 1rem; white-space: nowrap; background: linear-gradient(135deg, var(--accent-gold), #b45309); border: none;">Log In as Existing Player</button>
+                    <button class="btn btn-ghost" id="wall-register-btn" style="flex: 1 1 220px; min-height: 48px; padding: 14px 22px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; font-weight: 700; font-size: 1rem; border-radius: 14px;">Create Betting Account</button>
                 </div>
             </div>
 
@@ -163,15 +169,15 @@
                     <!-- Left Column: Open Wagers -->
                     <div>
                         <!-- Main Event (Always pinned) -->
-                        <div class="bet-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); position: relative; overflow: hidden;">
+                        <div class="bet-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(28, 22, 18, 0.9), rgba(14, 11, 9, 0.9)); position: relative; overflow: hidden;">
                             <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">🏆</div>
                             <div class="bet-header">
                                 <span class="bet-type-badge" style="background: var(--accent-gold); color: #000;">Main Event</span>
-                                <span class="bet-amount" style="color: var(--accent-gold);">$1,600 Pot</span>
+                                <span class="bet-amount" style="color: var(--accent-gold);">Stakes TBA</span>
                             </div>
-                            <h3 style="font-size: 1.4rem; margin-bottom: 10px;">The 2026 Ryder Cup <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(Blue vs Red)</span></h3>
+                            <h3 style="font-size: 1.4rem; margin-bottom: 10px;">The 2027 Cup <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(Blue vs Red)</span></h3>
                             <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 25px;">
-                                The winning team takes all. 8 players per team. Winners receive <strong style="color: white;">$200/man</strong>. The $200 is based off the total entry fees that have been paid in. There is no extra wagering needed for this bet.
+                                The winning team takes all. Teams and stakes get set once the captains draft, and the payout comes out of the entry fees. There is no extra wagering needed for this bet.
                             </p>
                             
                             <div class="pot-total" style="background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.3);">
@@ -322,6 +328,25 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="bookie.js?v=8" defer></script>
+    <script src="bookie.js?v=10" defer></script>
+    <script>
+        // Mobile menu: the nav slides in from the right below 768px
+        (function () {
+            var toggle = document.querySelector('.menu-toggle');
+            var nav = document.querySelector('.main-nav');
+            if (!toggle || !nav) return;
+            function setOpen(open) {
+                nav.classList.toggle('active', open);
+                toggle.classList.toggle('is-open', open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+                document.body.style.overflow = open ? 'hidden' : '';
+            }
+            toggle.addEventListener('click', function () { setOpen(!nav.classList.contains('active')); });
+            nav.querySelectorAll('a, button').forEach(function (el) { el.addEventListener('click', function () { setOpen(false); }); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+        })();
+    </script>
+
 </body>
 </html>

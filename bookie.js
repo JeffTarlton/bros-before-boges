@@ -5,6 +5,13 @@ let supabaseClient = null; // Initialized inside initBookie after CDN loads
 
 // State
 let currentUser = null;
+
+// Escape text from the database before it goes into innerHTML.
+function escHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 let dbPlayers = [];
 let allWagers = [];
 let allComments = [];
@@ -447,12 +454,14 @@ async function checkUserSession() {
 }
 
 function showWall() {
+    document.body.classList.remove('is-authed');
     authWall.style.display = 'block';
     dashboard.style.display = 'none';
     navLoginBtn.textContent = 'Login / Register';
 }
 
 function showDashboard() {
+    document.body.classList.add('is-authed');
     authWall.style.display = 'none';
     dashboard.style.display = 'block';
     currentUserNameEl.textContent = currentUser.name;
@@ -734,7 +743,7 @@ function renderWagers(filter) {
             actionHtml = `
                 <div style="margin-top: 15px;">
                     <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">
-                        <i class="fas fa-clock" style="margin-right: 5px;"></i>Waiting for ${wager.target ? wager.target.name : 'opponent'} to accept...
+                        <i class="fas fa-clock" style="margin-right: 5px;"></i>Waiting for ${wager.target ? escHtml(wager.target.name) : 'opponent'} to accept...
                     </div>
                     <button class="btn cancel-btn" style="width: 100%; padding: 10px; background: rgba(239, 68, 68, 0.08); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.9rem;" onclick="window.cancelProposedWager('${wager.id}')">
                         <i class="fas fa-ban" style="margin-right: 6px;"></i>Cancel Bet
@@ -754,14 +763,14 @@ function renderWagers(filter) {
         }
         
         const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop Bet' : 'Pool');
-        const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${wager.target.name}</div>` : '';
+        const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${escHtml(wager.target.name)}</div>` : '';
         const potSize = participantsCount * wager.amount;
 
         let resultsHtml = '';
         if (wager.status === 'settled' && wager.winner_id) {
             if (wager.type === 'prop') {
                  const isCreatorWinner = wager.winner_ids && wager.winner_ids.includes(wager.creator_id);
-                 const text = isCreatorWinner ? `${wager.creator.name} won` : `The Takers won`;
+                 const text = isCreatorWinner ? `${escHtml(wager.creator.name)} won` : `The Takers won`;
                  resultsHtml = `
                     <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
                         <div style="color: var(--accent-emerald); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-trophy"></i> ${text}</div>
@@ -771,8 +780,8 @@ function renderWagers(filter) {
             } else {
                 const winnerIds = wager.winner_ids && wager.winner_ids.length > 0 ? wager.winner_ids : [wager.winner_id];
                 const losers = wager.participants.filter(id => !winnerIds.includes(id));
-                const loserNames = losers.map(id => getPlayerName(id)).join(', ');
-                const winnerNames = winnerIds.map(id => getPlayerName(id)).join(' & ');
+                const loserNames = losers.map(id => escHtml(getPlayerName(id))).join(', ');
+                const winnerNames = winnerIds.map(id => escHtml(getPlayerName(id))).join(' & ');
                 
                 resultsHtml = `
                     <div style="margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
@@ -806,8 +815,8 @@ function renderWagers(filter) {
         const comments = allComments.filter(c => c.wager_id === wager.id).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
         const commentsHtml = comments.length > 0 ? comments.map(c => `
             <div style="margin-bottom: 8px; font-size: 0.85rem; line-height: 1.3;">
-                <strong style="color: var(--accent-gold);">${c.player ? c.player.name : 'Unknown'}:</strong> 
-                <span style="color: var(--text-muted);">${c.message}</span>
+                <strong style="color: var(--accent-gold);">${c.player ? escHtml(c.player.name) : 'Unknown'}:</strong> 
+                <span style="color: var(--text-muted);">${escHtml(c.message)}</span>
             </div>
         `).join('') : '<div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; font-style: italic;">It\'s quiet... too quiet.</div>';
 
@@ -833,8 +842,8 @@ function renderWagers(filter) {
             <div class="${cardClass}" id="wager-card-${wager.id}" style="${cardStyle}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                     <div>
-                        <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? wager.creator.name : 'Unknown'} • ${typeLabel}</div>
-                        <h4 style="font-size: 1.1rem; margin-bottom: 5px;">${wager.description}</h4>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? escHtml(wager.creator.name) : 'Unknown'} • ${typeLabel}</div>
+                        <h4 style="font-size: 1.1rem; margin-bottom: 5px;">${escHtml(wager.description)}</h4>
                         ${targetLabel}
                     </div>
                     <div style="text-align: right;">
@@ -860,7 +869,7 @@ function renderWagers(filter) {
                         <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)"></i>
                     </div>
                 </div>
-                ${participantsCount > 0 ? `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"><strong>Participants:</strong> ${(wager.participants || []).map(id => getPlayerName(id)).join(', ')}</div>` : ''}
+                ${participantsCount > 0 ? `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"><strong>Participants:</strong> ${(wager.participants || []).map(id => escHtml(getPlayerName(id))).join(', ')}</div>` : ''}
                 ${actionHtml}
                 ${resultsHtml}
                 ${trashTalkHtml}
@@ -1028,7 +1037,7 @@ window.openSettleModal = function(id) {
             container.innerHTML += `
                 <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
                     <input type="checkbox" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
-                    ${getPlayerName(pid)}
+                    ${escHtml(getPlayerName(pid))}
                 </label>
             `;
         });
@@ -1038,7 +1047,7 @@ window.openSettleModal = function(id) {
         container.innerHTML += `
             <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
                 <input type="radio" name="settle-winner" value="${creatorId}" style="width: 18px; height: 18px;">
-                The Creator (${getPlayerName(creatorId)})
+                The Creator (${escHtml(getPlayerName(creatorId))})
             </label>
             <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
                 <input type="radio" name="settle-winner" value="takers" style="width: 18px; height: 18px;">
@@ -1050,7 +1059,7 @@ window.openSettleModal = function(id) {
             container.innerHTML += `
                 <label style="display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; color: white;">
                     <input type="radio" name="settle-winner" value="${pid}" style="width: 18px; height: 18px;">
-                    ${getPlayerName(pid)}
+                    ${escHtml(getPlayerName(pid))}
                 </label>
             `;
         });
@@ -1181,7 +1190,7 @@ function renderLedger() {
             const sign = b.balance > 0 ? '+' : '';
             ledgerHtml += `
                 <div style="display: flex; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <span style="font-weight: ${b.id === currentUser.id ? '700' : 'normal'}">${b.name} ${b.id === currentUser.id ? '(You)' : ''}</span>
+                    <span style="font-weight: ${b.id === currentUser.id ? '700' : 'normal'}">${escHtml(b.name)} ${b.id === currentUser.id ? '(You)' : ''}</span>
                     <span style="color: ${color}; font-weight: 700;">${sign}$${b.balance}</span>
                 </div>
             `;
@@ -1210,12 +1219,12 @@ function renderLedger() {
                 <div style="text-align: center; flex: 1; border-right: 1px solid rgba(255,255,255,0.1);">
                     <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">🏆 Big Winner</div>
                     <div style="font-size: 1.2rem; font-weight: bold; color: var(--accent-emerald); margin-top: 5px;">+$${maxBal}</div>
-                    <div style="font-size: 0.9rem; margin-top: 2px;">${maxPlayers.length ? maxPlayers.join(', ') : '-'}</div>
+                    <div style="font-size: 0.9rem; margin-top: 2px;">${maxPlayers.length ? maxPlayers.map(escHtml).join(', ') : '-'}</div>
                 </div>
                 <div style="text-align: center; flex: 1;">
                     <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">💀 Big Loser</div>
                     <div style="font-size: 1.2rem; font-weight: bold; color: #ef4444; margin-top: 5px;">-$${Math.abs(minBal)}</div>
-                    <div style="font-size: 0.9rem; margin-top: 2px;">${minPlayers.length ? minPlayers.join(', ') : '-'}</div>
+                    <div style="font-size: 0.9rem; margin-top: 2px;">${minPlayers.length ? minPlayers.map(escHtml).join(', ') : '-'}</div>
                 </div>
             `;
         } else {
@@ -1251,7 +1260,7 @@ function openWagerModal() {
     wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>';
     dbPlayers.forEach(p => {
         if (p.id !== currentUser.id && p.team_id !== null) {
-            wagerTargetSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+            wagerTargetSelect.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`;
         }
     });
 
@@ -1335,7 +1344,8 @@ window.showToast = function(message, type = 'success') {
     toast.className = `toast toast-${type}`;
     
     const icon = type === 'success' ? '<i class="fas fa-check-circle" style="color: var(--accent-emerald);"></i>' : '<i class="fas fa-exclamation-circle" style="color: #ef4444;"></i>';
-    toast.innerHTML = `${icon} <span>${message}</span>`;
+    toast.innerHTML = `${icon} <span></span>`;
+    toast.querySelector('span').textContent = message;
     
     container.appendChild(toast);
     

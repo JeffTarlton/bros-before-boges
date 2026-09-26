@@ -5,6 +5,13 @@ const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
 let supabaseInstance = null;
 let currentRoundId = null;
 let currentCourse = null;
+
+// Escape text from the database before it goes into innerHTML.
+function escHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 let selectedPlayers = [];
 let allConfirmedPlayers = [];
 let currentRoundMatchups = [];
@@ -245,8 +252,8 @@ async function renderPlayerSelectionUI(roundNumStr) {
             div.innerHTML = `
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; ${isSelf ? 'color: var(--accent-emerald); font-weight: 700;' : ''}">
                     <input type="checkbox" value="${p.id}" class="player-check" 
-                        data-name="${p.name}" data-team="${p.team_id || ''}" ${isSelf ? 'checked' : ''}>
-                    ${p.name} ${isSelf ? '(You)' : ''}
+                        data-name="${escHtml(p.name)}" data-team="${p.team_id || ''}" ${isSelf ? 'checked' : ''}>
+                    ${escHtml(p.name)} ${isSelf ? '(You)' : ''}
                 </label>
             `;
             container.appendChild(div);
@@ -296,14 +303,14 @@ async function renderPlayerSelectionUI(roundNumStr) {
                 // If I am playing and I am on Team 2, skip rendering Team 2 checkboxes
                 if (amIOnTeam2 && !isTeam1) return '';
                 
-                return `<input type="checkbox" class="player-check" value="${pNumObj.id}" data-name="${pNumObj.name}" data-team="${pNumObj.team_id}" ${isMyMatch ? 'checked' : ''}>`;
+                return `<input type="checkbox" class="player-check" value="${pNumObj.id}" data-name="${escHtml(pNumObj.name)}" data-team="${pNumObj.team_id}" ${isMyMatch ? 'checked' : ''}>`;
             };
 
             card.innerHTML = `
                 <h4 style="margin: 0 0 10px 0; color: var(--accent-gold); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Match ${index + 1}</h4>
-                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 1: ${t1names}</div>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 1: ${escHtml(t1names)}</div>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin: 5px 0;">VS</div>
-                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: ${t2names}</div>
+                <div style="font-size: 0.95rem; font-weight: 600; color: white;">Team 2: ${escHtml(t2names)}</div>
                 
                 <div style="display: none;" class="hidden-player-checks">
                     ${createHiddenCb(p1t1, true)}
@@ -488,7 +495,7 @@ function renderHoleView() {
             return `
                 <div class="player-score-card ${isCompanion ? 'companion-card' : ''}" style="${isCompanion ? 'border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; background: rgba(255,255,255,0.02); margin-top: -10px;' : ''}">
                     <div class="player-score-info">
-                        <h4>${p.name}</h4>
+                        <h4>${escHtml(p.name)}</h4>
                         <p>Total: <span style="color: ${toParColor}; font-weight: bold;">${toParText}</span>
                          ${p.team_id ? ` | Team ${p.team_id}` : ''}
                          ${isCompanion ? ' (Pair)' : ''}</p>
@@ -593,7 +600,7 @@ function renderScorecard() {
             return `
                 <tr class="player-row ${isCompanion ? 'companion-row' : ''}" style="${isCompanion ? 'border-top: none;' : ''}">
                     <td style="text-align: left; font-weight: 700; ${isCompanion ? 'padding-left: 25px;' : ''}">
-                        ${p.name}
+                        ${escHtml(p.name)}
                         ${p.team_id ? `<br><small style="color: var(--accent-gold); font-size: 0.75rem;">TEAM ${p.team_id}</small>` : ''}
                         ${isCompanion ? '<br><small style="color: var(--text-muted); font-size: 0.65rem;">PAIR PARTNER</small>' : ''}
                     </td>
@@ -824,7 +831,7 @@ async function renderLeaderboardModal() {
                 tableHTML += `
                     <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
                         <td style="padding: 12px; font-weight: bold; color: var(--text-muted);">${index + 1}</td>
-                        <td style="padding: 12px; font-weight: bold;">${pair.teamIcon} ${pair.name}</td>
+                        <td style="padding: 12px; font-weight: bold;">${pair.teamIcon} ${escHtml(pair.name)}</td>
                         <td style="padding: 12px; font-weight: 900; text-align: right; color: var(--text-bright);">${pair.score}</td>
                     </tr>
                 `;
@@ -984,7 +991,7 @@ async function renderLeaderboardModal() {
                 tableHTML += `
                     <tr>
                         <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
-                        <td style="padding: 12px;">${teamIcon} ${player.name}</td>
+                        <td style="padding: 12px;">${teamIcon} ${escHtml(player.name)}</td>
                         <td style="padding: 12px; font-weight: 900; text-align: right; color: ${rightColColor};">${rightColStr}</td>
                     </tr>
                 `;

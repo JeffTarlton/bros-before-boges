@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Round Tracker | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2027.3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -85,7 +85,7 @@
         input[type="text"] {
             width: 100%;
             padding: 12px;
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(14, 11, 9, 0.6);
             border: 1px solid var(--glass-border);
             border-radius: 8px;
             color: white;
@@ -140,7 +140,7 @@
             align-items: center;
             padding: 15px 20px;
             margin-bottom: 10px;
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(14, 11, 9, 0.6);
             border: 1px solid var(--glass-border);
             border-radius: 12px;
         }
@@ -207,7 +207,7 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            background: rgba(15, 23, 42, 0.95);
+            background: rgba(14, 11, 9, 0.95);
             backdrop-filter: blur(20px);
             border-top: 1px solid var(--glass-border);
             z-index: 1000;
@@ -279,7 +279,7 @@
                 padding: 10px 10px 120px 10px; /* 120px bottom padding protects against Nav occlusion */
             }
             .glass-panel {
-                background: rgba(30, 41, 59, 0.85); /* Slightly darker for contrast in sun */
+                background: rgba(28, 22, 18, 0.85); /* Slightly darker for contrast in sun */
             }
             .player-score-card {
                 padding: 15px;
@@ -300,6 +300,11 @@
                     <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
                 </ul>
             </nav>
+            <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
         </div>
     </header>
 
@@ -326,9 +331,10 @@
                     <div>
                         <h3>1. Select Round</h3>
                         <select id="round-number-select">
-                            <option value="1">Round 1 (Stableford)</option>
-                            <option value="2">Round 2 (Match Play - Scramble)</option>
-                            <option value="3">Round 3 (Singles Match Play)</option>
+                            <option value="1">Round 1 · Thu (Talking Stick)</option>
+                            <option value="2">Round 2 · Fri AM (Cholla)</option>
+                            <option value="3">Round 3 · Fri PM (Saguaro)</option>
+                            <option value="4">Round 4 · Sat (final round)</option>
                         </select>
                     </div>
                     <div>
@@ -443,7 +449,26 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="round_tracker.js"></script>
+    <script src="round_tracker.js?v=2027.3"></script>
+    <script>
+        // Mobile menu: the nav slides in from the right below 768px
+        (function () {
+            var toggle = document.querySelector('.menu-toggle');
+            var nav = document.querySelector('.main-nav');
+            if (!toggle || !nav) return;
+            function setOpen(open) {
+                nav.classList.toggle('active', open);
+                toggle.classList.toggle('is-open', open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+                document.body.style.overflow = open ? 'hidden' : '';
+            }
+            toggle.addEventListener('click', function () { setOpen(!nav.classList.contains('active')); });
+            nav.querySelectorAll('a, button').forEach(function (el) { el.addEventListener('click', function () { setOpen(false); }); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+        })();
+    </script>
+
 </body>
 
 </html>

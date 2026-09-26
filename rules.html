@@ -2,214 +2,240 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0f172a">
+    <script>document.documentElement.classList.add('js');</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Tournament Rules | Bros before Boges</title>
+    <meta name="description" content="Formats, scoring and the playoff for the Bros before Boges Cup.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2027.3">
+    <link rel="stylesheet" href="home.css?v=2027.3">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
-    <header class="site-header" style="background: rgba(15, 23, 42, 0.95);">
-        <div class="container header-container">
-            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
-            <nav class="main-nav">
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
-                    <li><a href="bookie.html" class="nav-link" style="color: var(--accent-gold);">The Bookie <span style="font-size: 0.75rem;">(Beta)</span></a></li>
-                    <li><a href="round_tracker.html" class="nav-link">Round Tracker</a></li>
-                </ul>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="nav nav--compact is-solid" id="site-nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="index.html" aria-label="Bros before Boges home">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="bbbSun" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#f6cf86" />
+                            <stop offset="1" stop-color="#e27d4f" />
+                        </linearGradient>
+                        <clipPath id="bbbClip"><rect x="2" y="2" width="60" height="60" rx="17" /></clipPath>
+                    </defs>
+                    <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612" />
+                    <g clip-path="url(#bbbClip)">
+                        <circle cx="27" cy="43" r="15" fill="url(#bbbSun)" />
+                        <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09" />
+                        <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f" />
+                    </g>
+                    <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5" />
+                    <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f" />
+                </svg>
+                <span class="brand-word">Bros before <em>Boges</em></span>
+            </a>
+            <nav class="nav-primary" aria-label="Main">
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="index.html#schedule">Itinerary</a></li>
+                <li><a href="index.html#courses">Courses</a></li>
+                <li><a href="index.html#cup">The Cup</a></li>
+                <li><a href="rules.html" class="is-active" aria-current="page">Rules</a></li>
+                <li><a href="bookie.html">The Bookie <span class="badge-beta">Beta</span></a></li>
+                <li><a href="round_tracker.html">Round Tracker</a></li>
+            </ul>
             </nav>
-            <button class="menu-toggle" aria-label="Toggle menu">
-                <span class="bar"></span>
-                <span class="bar"></span>
-                <span class="bar"></span>
-            </button>
+            <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
         </div>
     </header>
 
-    <main class="container" style="padding-top: 120px; padding-bottom: 50px;">
-        <h2 class="section-title">Tournament <span class="accent">Rules</span></h2>
-        <p style="text-align: center; color: var(--text-muted); margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
-            Tap on any round below to view the format, scoring, and specific rules.
-        </p>
+    <nav class="drawer" id="drawer" aria-label="Site menu">
+        <a href="index.html">Home</a>
+        <a href="index.html#schedule">Itinerary</a>
+        <a href="index.html#courses">Courses</a>
+        <a href="index.html#cup">The Cup</a>
+        <a href="rules.html" aria-current="page">Rules</a>
+        <a href="bookie.html">The Bookie <small>Beta</small></a>
+        <a href="round_tracker.html">Round Tracker</a>
+    </nav>
 
-        <!-- Global Rules Callout -->
-        <div class="glass-panel" style="margin-bottom: 30px; padding: 25px; border-left: 4px solid var(--accent-gold); background: rgba(251, 191, 36, 0.05);">
-            <h3 style="color: var(--accent-gold); margin-bottom: 12px; font-size: 1.25rem; font-family: var(--font-heading);">⛳ Universal Rule: The "Inside the Leather" Gimme</h3>
-            <p style="color: var(--text-main); margin: 0; line-height: 1.6;">
-                Any ball <strong style="color: white;">within the leather</strong> of your putter is considered a "gimme" (add 1 stroke to your score, no putt required).
-                <br><br>
-                <strong style="color: #ef4444;">Warning:</strong> If you decide to go ahead and attempt the putt and miss, <strong style="color: #ef4444;">that stroke counts</strong> and the gimme is no longer available. Take the gimme, or putt it—you cannot do both!
-            </p>
-        </div>
-        
-        <div class="rules-accordion" style="display: flex; flex-direction: column; gap: 20px;">
-            <!-- Round 1 -->
-            <div class="rules-accordion-item">
-                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 1: The Grind</h3>
-                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
-                    </div>
-                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <p><strong>Format:</strong> Team Point Quota</p>
-                        <p>Two-man teams, playing own ball. Both players’ scores on every hole contribute to the team total.</p>
-                        <h4 style="margin-top: 25px; color: var(--accent-gold); margin-bottom: 10px;">Scoring (Per Player)</h4>
-                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-bottom: 25px;">
-                            <li><strong style="color: white;">Eagle or better:</strong> 5 pts</li>
-                            <li><strong style="color: white;">Birdie:</strong> 3 pts</li>
-                            <li><strong style="color: white;">Par:</strong> 2 pts</li>
-                            <li><strong style="color: white;">Bogey:</strong> 1 pts</li>
-                            <li><strong style="color: white;">Double or worse:</strong> 0 pts</li>
+    <main id="main">
+        <section class="page-hero">
+            <div class="page-hero-bg" aria-hidden="true">
+                <img src="assets/courses/wekopa-saguaro/hole-14-panorama.jpg" alt="">
+            </div>
+            <div class="wrap" style="max-width: 920px;">
+                <p class="eyebrow">The Cup</p>
+                <h1 class="h-display">Tournament <em>rules</em></h1>
+                <p class="lede" style="margin-top: 18px;">Formats, scoring and how the Cup gets decided. Tap any round to open it.</p>
+            </div>
+        </section>
+
+        <section class="wrap" style="padding-bottom: 100px; max-width: 920px;">
+            <div class="rule-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                <p>The 2027 formats will be posted once the captains are picked. Until then, these are the 2026 rules from Horseshoe Bay.</p>
+            </div>
+
+            <div class="callout">
+                <h2>Universal rule: the “inside the leather” gimme</h2>
+                <p>Any ball <strong>within the leather</strong> of your putter is a gimme: add one stroke to your score, no putt required.</p>
+                <p style="margin-top: 10px;"><strong class="warn">Warning:</strong> if you decide to putt it anyway and miss, <strong class="warn">that stroke counts</strong> and the gimme is gone. Take the gimme or putt it. You can’t do both.</p>
+            </div>
+
+            <div class="rules-list">
+                <details class="rule" open>
+                    <summary>
+                        <span class="rule-num">1</span>
+                        <h2>The Grind <small>Team point quota · two-man teams</small></h2>
+                        <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="rule-body">
+                        <p><strong>Format:</strong> Team point quota.</p>
+                        <p>Two-man teams, each playing their own ball. Both players’ scores on every hole count toward the team total.</p>
+                        <h3>Scoring (per player)</h3>
+                        <ul>
+                            <li><strong>Eagle or better:</strong> 5 pts</li>
+                            <li><strong>Birdie:</strong> 3 pts</li>
+                            <li><strong>Par:</strong> 2 pts</li>
+                            <li><strong>Bogey:</strong> 1 pt</li>
+                            <li><strong>Double or worse:</strong> 0 pts</li>
                         </ul>
-                        <h4 style="margin-top: 20px; color: var(--accent-gold); margin-bottom: 10px;">Match Points</h4>
-                        <p style="color: var(--text-muted);">The team with the highest point total after 18 holes wins the match.</p>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-top: 15px;">
-                            <strong>Win:</strong> 1 point | <strong>Tie:</strong> ½ point
-                        </div>
-                        <div style="margin-top: 25px; padding: 15px; border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.1); border-radius: 0 8px 8px 0;">
-                            <strong style="color: #ef4444;">Strict Rule:</strong> Pick up your ball if a bogey is not made. No mulligans.
-                        </div>
+                        <h3>Match points</h3>
+                        <p>The team with the most points after 18 holes wins the match.</p>
+                        <div class="pts"><span><strong>Win:</strong> 1 point</span><span><strong>Tie:</strong> ½ point</span></div>
+                        <div class="flag" style="--flag: var(--red-team);"><b>Strict rule:</b> Pick up once you can’t make bogey. No mulligans.</div>
                     </div>
-                </div>
-            </div>
+                </details>
 
-            <!-- Round 2 -->
-            <div class="rules-accordion-item">
-                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 2: The Split Decision</h3>
-                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
-                    </div>
-                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <p><strong>Format:</strong> 18-hole match split into two distinct 9-hole formats.</p>
-                        <p><strong>Points:</strong> Each 9-hole "side" is worth 1 point. Total of 2 points available per match.</p>
+                <details class="rule">
+                    <summary>
+                        <span class="rule-num">2</span>
+                        <h2>The Split Decision <small>Front 9 scramble · back 9 alternate shot</small></h2>
+                        <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="rule-body">
+                        <p><strong>Format:</strong> An 18-hole match split into two 9-hole formats.</p>
+                        <p><strong>Points:</strong> Each 9-hole side is worth 1 point, so each match is worth 2 points.</p>
 
-                        <h4 style="margin-top: 30px; color: var(--accent-gold); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">Front 9: Two-Man Scramble</h4>
-                        <p style="color: var(--text-muted); margin-top: 15px;"><strong>Captain’s Choice.</strong> Both players tee off, choose the best ball, and both play from that spot until holed.</p>
-                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-top: 15px;">
-                            <li><strong style="color: white;">Scoring:</strong> Stroke Play (total strokes for 9 holes).</li>
-                            <li><strong style="color: white;">Winner:</strong> The team with the lowest total strokes on the Front 9 wins 1 point.</li>
+                        <h3>Front 9: two-man scramble</h3>
+                        <p><strong>Captain’s choice.</strong> Both players tee off, pick the best ball, and both play from that spot until the ball is holed.</p>
+                        <ul style="margin-top: 10px;">
+                            <li><strong>Scoring:</strong> Stroke play (total strokes for the nine).</li>
+                            <li><strong>Winner:</strong> Lowest total on the front 9 wins 1 point.</li>
                         </ul>
-                        <div style="margin-top: 20px; padding: 15px; border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.1); border-radius: 0 8px 8px 0;">
-                            <strong style="color: #60a5fa;">Safety Net:</strong> Triple Bogey Max. If you haven't holed out by triple bogey, pick up and move to the next tee.
-                        </div>
+                        <div class="flag" style="--flag: var(--blue-team);"><b>Safety net:</b> Triple-bogey max. If you haven’t holed out by triple, pick up and move on.</div>
 
-                        <h4 style="margin-top: 40px; color: var(--accent-gold); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">Back 9: Modified Alternate Shot</h4>
-                        <p style="color: var(--text-muted); margin-top: 15px;"><strong>Greensomes.</strong> Both players tee off on every hole. The team chooses the best drive.</p>
-                        <ul style="color: var(--text-muted); padding-left: 20px; line-height: 1.6; margin-top: 15px;">
-                            <li><strong style="color: white;">The Rotation:</strong> The player whose drive was NOT used hits the second shot. Players then alternate until the ball is holed.</li>
-                            <li><strong style="color: white;">Winner:</strong> The team with the lowest total strokes on the Back 9 wins 1 point.</li>
+                        <h3>Back 9: modified alternate shot</h3>
+                        <p><strong>Greensomes.</strong> Both players tee off on every hole and the team picks the best drive.</p>
+                        <ul style="margin-top: 10px;">
+                            <li><strong>The rotation:</strong> The player whose drive was <em>not</em> used hits the second shot, then the players alternate until the ball is holed.</li>
+                            <li><strong>Winner:</strong> Lowest total on the back 9 wins 1 point.</li>
                         </ul>
-                        <div style="margin-top: 20px; padding: 15px; border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.1); border-radius: 0 8px 8px 0;">
-                            <strong style="color: #fbbf24;">Tee Ball Requirement:</strong> Each player must have at least 4 of their tee shots used during the 9-hole stretch.
-                        </div>
+                        <div class="flag" style="--flag: var(--gold);"><b>Tee ball requirement:</b> Each player must have at least 4 of their drives used over the nine.</div>
                     </div>
-                </div>
-            </div>
+                </details>
 
-            <!-- Round 3 -->
-            <div class="rules-accordion-item">
-                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px;">
-                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <h3 style="margin: 0; font-family: var(--font-heading); font-size: 1.5rem; color: var(--accent-gold);">Round 3: Championship Singles</h3>
-                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-emerald);">▼</span>
-                    </div>
-                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <p><strong>Format:</strong> Individual Head-to-Head Match Play. 8 matches total (Team A vs. Team B).</p>
-                        <p><strong>Scoring:</strong> Traditional Match Play. Holes are won, lost, or halved.</p>
-                        
-                        <h4 style="margin-top: 25px; color: var(--accent-gold); margin-bottom: 15px;">Points</h4>
-                        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
-                            <div style="margin-bottom: 10px;"><strong>Match Win:</strong> 1 point</div>
-                            <div style="margin-bottom: 10px;"><strong>Match Halved (Tie):</strong> ½ point</div>
-                            <div><strong>Match Loss:</strong> 0 points</div>
+                <details class="rule">
+                    <summary>
+                        <span class="rule-num">3</span>
+                        <h2>Championship Singles <small>Head-to-head match play</small></h2>
+                        <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="rule-body">
+                        <p><strong>Format:</strong> Individual head-to-head match play. 8 matches total, Team A vs. Team B.</p>
+                        <p><strong>Scoring:</strong> Traditional match play. Holes are won, lost or halved.</p>
+                        <h3>Points</h3>
+                        <div class="pts">
+                            <span><strong>Match win:</strong> 1 point</span>
+                            <span><strong>Halved:</strong> ½ point</span>
+                            <span><strong>Loss:</strong> 0 points</span>
                         </div>
+                        <div class="path-to-cup">
+                            <div class="eyebrow" style="margin: 0;">Path to the Cup</div>
+                            <div style="color: var(--ink); font-weight: 600; margin-top: 6px;">Total points available (16 players)</div>
+                            <div class="eq">4 + 4 + 4 + 8 = 20</div>
+                            <div class="win">10½ points wins the Cup</div>
+                        </div>
+                    </div>
+                </details>
 
-                        <div style="margin-top: 30px; text-align: center; border: 1px dashed rgba(255,255,255,0.2); padding: 25px; border-radius: 12px; background: rgba(0,0,0,0.2);">
-                            <div style="font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Path to the Cup</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: white; margin-top: 8px;">Total points available (16 players):</div>
-                            <div style="font-size: 1.6rem; color: var(--accent-emerald); font-family: monospace; font-weight: 800; margin-top: 12px;">4 + 4 + 4 + 8 = 20</div>
-                            <div style="font-size: 1.4rem; color: var(--accent-gold); font-weight: 800; margin-top: 12px;">10.5 points wins the Cup!</div>
-                        </div>
+                <details class="rule" style="border-color: rgba(232, 184, 107, 0.4);">
+                    <summary>
+                        <span class="rule-num" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                        </span>
+                        <h2>The Playoff <small>Tournament tie-breaker</small></h2>
+                        <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="rule-body">
+                        <p>If team points are tied after all three rounds, this decides the champion.</p>
+                        <h3>Team putting contest</h3>
+                        <p>Each captain picks 3 players. Most made putts from 20 feet wins.</p>
+                        <h3>Sudden death</h3>
+                        <p>If nobody holes a putt after 6 attempts, flip a tee to decide who starts sudden death. Players then alternate putts, and the first one to hole out wins the tournament.</p>
                     </div>
-                </div>
+                </details>
             </div>
-
-            <!-- Tie Breaker -->
-            <div class="rules-accordion-item">
-                <div class="glass-panel" style="padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(251, 191, 36, 0.4);">
-                    <div class="rules-accordion-header" style="padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(251, 191, 36, 0.1); border-bottom: 1px solid rgba(251, 191, 36, 0.2);">
-                        <h3 style="margin: 0; color: var(--accent-gold); font-family: var(--font-heading); font-size: 1.5rem;">Tournament Tie-Breaker: "The Playoff"</h3>
-                        <span class="accordion-icon" style="transition: transform 0.3s ease; font-size: 1.2rem; color: var(--accent-gold);">▼</span>
-                    </div>
-                    <div class="rules-accordion-content" style="display: none; padding: 30px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <p style="font-size: 1.1rem; line-height: 1.6;">If the total team points are deadlocked after all three rounds, this format will be used to crown the champion.</p>
-                        
-                        <div style="margin-top: 25px; padding: 25px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                            <h4 style="color: white; margin-bottom: 12px; font-size: 1.2rem;">Team Putting Contest</h4>
-                            <p style="color: var(--text-muted); line-height: 1.5;">Each captain picks 3 players. Total made putts from 20 feet wins.</p>
-                            
-                            <hr style="border: none; border-top: 1px dashed rgba(255,255,255,0.1); margin: 20px 0;">
-                            
-                            <h4 style="color: white; margin-bottom: 12px; font-size: 1.2rem;">Sudden Death</h4>
-                            <p style="color: var(--text-muted); line-height: 1.5; margin: 0;">If no putts are holed after 6 putts, a tee is flipped to determine who starts sudden death. Then, players alternate putts and the first holed ball wins the tournament.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </section>
     </main>
 
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 Bros before Boges. All rights reserved.</p>
-            <p class="footer-motto">Swing hard in case you hit it.</p>
+    <footer class="footer">
+        <div class="wrap">
+            <div class="footer-word">Bros before <em>Boges</em></div>
+            <p class="footer-motto-line">Swing hard in case you hit it.</p>
+            <div class="footer-grid">
+                <ul class="footer-links">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="index.html#schedule">Itinerary</a></li>
+                    <li><a href="bookie.html">The Bookie</a></li>
+                    <li><a href="round_tracker.html">Round Tracker</a></li>
+                    <li><a href="admin.html">Admin</a></li>
+                </ul>
+                <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
+            </div>
         </div>
     </footer>
 
     <script>
-        // Nav Menu Toggle
-        const menuToggle = document.querySelector('.menu-toggle');
-        const mainNav = document.querySelector('.main-nav');
-        if (menuToggle && mainNav) {
-            menuToggle.addEventListener('click', () => {
-                mainNav.classList.toggle('active');
-                menuToggle.classList.toggle('is-open');
-            });
-        }
+        (function () {
+            var year = document.getElementById('footer-year');
+            if (year) year.textContent = new Date().getFullYear();
 
-        // Accordion Logic
-        const headers = document.querySelectorAll('.rules-accordion-header');
-        headers.forEach((header, index) => {
-            const item = header.closest('.rules-accordion-item');
-            const content = item.querySelector('.rules-accordion-content');
-            const icon = item.querySelector('.accordion-icon');
-            
-            // Auto-open the very first item (Round 1)
-            if (index === 0) {
-                content.style.display = 'block';
-                icon.style.transform = 'rotate(180deg)';
+            var toggle = document.getElementById('nav-toggle');
+            var drawer = document.getElementById('drawer');
+            function setDrawer(open) {
+                drawer.classList.toggle('is-open', open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+                document.body.classList.toggle('drawer-open', open);
+                // Keep Tab inside the drawer while it covers the page.
+                ['main', 'footer', '.skip-link'].forEach(function (sel) {
+                    var n = document.querySelector(sel);
+                    if (n) n.inert = open;
+                });
             }
-            
-            header.addEventListener('click', function() {
-                const isOpen = content.style.display === 'block';
-                if (isOpen) {
-                    content.style.display = 'none';
-                    icon.style.transform = 'rotate(0deg)';
-                } else {
-                    content.style.display = 'block';
-                    icon.style.transform = 'rotate(180deg)';
-                }
-            });
-        });
+            if (toggle && drawer) {
+                toggle.addEventListener('click', function () { setDrawer(!drawer.classList.contains('is-open')); });
+                drawer.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { setDrawer(false); }); });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Escape') return;
+                    if (drawer.contains(document.activeElement)) toggle.focus();
+                    setDrawer(false);
+                });
+                window.matchMedia('(min-width: 1081px)').addEventListener('change', function (e) { if (e.matches) setDrawer(false); });
+            }
+        })();
     </script>
 </body>
 </html>

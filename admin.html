@@ -5,25 +5,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2027.3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@400;600;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Outfit:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
     <style>
         /* Admin-specific Styles (Premium Glassmorphism) */
         :root {
-            --admin-bg: #0f172a;
-            --admin-card: rgba(30, 41, 59, 0.7);
+            --admin-bg: #0e0b09;
+            --admin-card: rgba(28, 22, 18, 0.7);
             --admin-accent: #10b981;
             /* Emerald/Golf Green */
             --admin-gold: #fbbf24;
         }
 
         body.admin-mode {
-            background: radial-gradient(circle at top right, #1e293b, #0f172a);
-            color: #f8fafc;
+            background: radial-gradient(circle at top right, #1c1612, #0e0b09);
+            color: #f4ebdf;
             min-height: 100vh;
             font-family: 'Inter', sans-serif;
         }
@@ -229,7 +229,7 @@
         }
 
         .modal-box {
-            background: rgba(15, 23, 42, 0.95);
+            background: rgba(14, 11, 9, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 24px;
             padding: 40px;
@@ -296,8 +296,12 @@
 
         @media (max-width: 1024px) {
             .dashboard.active {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
+
+            .admin-content { min-width: 0; }
+            #score-entry-round-tabs { flex-wrap: wrap; }
+            .sidebar-item { white-space: nowrap; }
 
             .admin-sidebar {
                 flex-direction: row;
@@ -504,8 +508,9 @@
                         <button class="filter-btn active" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(1)">Round 1</button>
                         <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(2)">Round 2</button>
                         <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(3)">Round 3</button>
+                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(4)">Round 4</button>
                     </div>
-                    <div id="matchups-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+                    <div id="matchups-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 20px;">
                         <!-- Matchups rendered here -->
                     </div>
                 </div>
@@ -570,6 +575,7 @@
                         <button class="admin-btn score-round-tab active" data-round="1" style="width: auto; padding: 10px 20px; margin: 0;">Round 1</button>
                         <button class="admin-btn secondary score-round-tab" data-round="2" style="width: auto; padding: 10px 20px; margin: 0;">Round 2</button>
                         <button class="admin-btn secondary score-round-tab" data-round="3" style="width: auto; padding: 10px 20px; margin: 0;">Round 3</button>
+                        <button class="admin-btn secondary score-round-tab" data-round="4" style="width: auto; padding: 10px 20px; margin: 0;">Round 4</button>
                     </div>
 
                     <!-- Score Entry Table -->
@@ -577,7 +583,7 @@
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th style="min-width: 150px; position: sticky; left: 0; background: rgba(30, 41, 59, 0.95); z-index: 10;">Player</th>
+                                    <th style="min-width: 150px; position: sticky; left: 0; background: rgba(28, 22, 18, 0.95); z-index: 10;">Player</th>
                                     <th style="min-width: 80px;">Team</th>
                                     <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
                                     <th>10</th><th>11</th><th>12</th><th>13</th><th>14</th><th>15</th><th>16</th><th>17</th><th>18</th>
@@ -653,7 +659,8 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="admin.js"></script>
+    <script src="trip-config.js?v=2027.3"></script>
+    <script src="admin.js?v=2027.3"></script>
 </body>
 
 </html>

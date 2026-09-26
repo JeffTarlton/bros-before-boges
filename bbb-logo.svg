@@ -1,39 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e3a8a" />
-      <stop offset="100%" stop-color="#0f172a" />
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6cf86"/>
+      <stop offset="1" stop-color="#e27d4f"/>
     </linearGradient>
-    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fcd34d" />
-      <stop offset="50%" stop-color="#fbbf24" />
-      <stop offset="100%" stop-color="#d97706" />
-    </linearGradient>
-    <filter id="shadow">
-      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-opacity="0.4"/>
-    </filter>
+    <clipPath id="tile"><rect x="2" y="2" width="60" height="60" rx="17"/></clipPath>
   </defs>
-  
-  <rect width="512" height="512" rx="100" fill="url(#bgGradient)" />
-  
-  <!-- Stylized Golf Green -->
-  <path d="M 0 380 Q 150 300 256 360 T 512 340 L 512 512 L 0 512 Z" fill="#047857" opacity="0.8" />
-  <path d="M 0 420 Q 200 340 350 400 T 512 370 L 512 512 L 0 512 Z" fill="#065f46" opacity="0.95" />
-  
-  <!-- Golf hole -->
-  <ellipse cx="380" cy="400" rx="30" ry="10" fill="#022c22" opacity="0.6"/>
-  <ellipse cx="380" cy="400" rx="22" ry="7" fill="#000000" />
-  
-  <!-- Flag pole -->
-  <rect x="375" y="160" width="10" height="240" fill="#f8fafc" rx="5" filter="url(#shadow)"/>
-  
-  <!-- Flag -->
-  <path d="M 380 170 L 480 210 L 380 250 Z" fill="#ef4444" filter="url(#shadow)"/>
-  
-  <!-- BBB Text -->
-  <text x="220" y="300" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="170" font-style="italic" text-anchor="middle" fill="url(#goldGradient)" filter="url(#shadow)" letter-spacing="-6">BBB</text>
-  
-  <!-- Golf ball -->
-  <circle cx="120" cy="380" r="18" fill="#ffffff" filter="url(#shadow)"/>
-  <circle cx="115" cy="375" r="5" fill="#f1f5f9" opacity="0.8"/>
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612"/>
+  <g clip-path="url(#tile)">
+    <circle cx="27" cy="43" r="15" fill="url(#sun)"/>
+    <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09"/>
+    <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f"/>
+  </g>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5"/>
+  <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f"/>
 </svg>
