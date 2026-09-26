@@ -1318,7 +1318,7 @@ body.drawer-open { overflow: hidden; }
 }
 .player-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .player-info { flex: 1; min-width: 0; }
-.player-name { font-weight: 700; font-size: 0.98rem; line-height: 1.25; }
+.player-name { font-weight: 700; font-size: 0.94rem; line-height: 1.25; }
 .player-name .cap-tag { margin-left: 6px; }
 .player-meta { font-size: 0.78rem; color: var(--ink-dim); margin-top: 2px; }
 .player-hcp { margin-left: auto; text-align: right; flex: none; }
@@ -2381,8 +2381,8 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 
 /* Course text column is the wider side on small laptops */
 @media (min-width: 961px) and (max-width: 1100px) {
-    .course { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
-    .course:nth-child(even) { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+    .course:not(.no-media) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+    .course:nth-child(even):not(.no-media) { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
 }
 
 @media (max-width: 640px) {

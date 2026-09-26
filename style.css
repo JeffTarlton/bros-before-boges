@@ -40,6 +40,9 @@ body {
     overflow-x: hidden;
 }
 
+/* Form controls use the page font instead of the browser default */
+button, input, select, textarea { font-family: inherit; }
+
 h1,
 h2,
 h3,
