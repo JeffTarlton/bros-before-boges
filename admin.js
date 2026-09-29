@@ -78,14 +78,23 @@ function init() {
     }
 }
 
+// Match an email literally in an ilike filter: % and _ are wildcards, so escape them.
+// PostgREST turns * into %; escaping it too means an email with * simply never matches.
+function escapeLike(value) {
+    return String(value || '').replace(/[\\%_*]/g, '\\$&');
+}
+
 async function checkInitialAuth() {
     if (!supabaseInstance) {
         console.warn('Supabase not configured. Showing demo mode.');
         return;
     }
 
+    showGoogleButtonsIfEnabled();
     try {
         const { data: { session } } = await supabaseInstance.auth.getSession();
+        // Coming back from Google: the tokens are in the address bar; clear them
+        if (/(^|[#&])(access_token|error)=/.test(window.location.hash)) history.replaceState(null, '', window.location.pathname);
         if (session) {
             await verifyAdminAndShowDashboard(session.user.email);
         }
@@ -94,18 +103,40 @@ async function checkInitialAuth() {
     }
 }
 
+// Google buttons only show when trip-config.js turns them on AND the Google provider
+// is switched on in Supabase.
+async function showGoogleButtonsIfEnabled() {
+    const cfg = window.BBB || {};
+    if (!(cfg.auth && cfg.auth.google)) return;
+    try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } });
+        const settings = res.ok ? await res.json() : null;
+        const on = !!(settings && settings.external && settings.external.google);
+        document.querySelectorAll('[data-google-block]').forEach(el => { el.hidden = !on; });
+    } catch (e) { /* offline or blocked: email login still works */ }
+}
+
+async function signInWithGoogle() {
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await supabaseInstance.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    if (error) window.showToast('Google sign-in didn’t start: ' + escHtml(error.message), 'error');
+}
+
 async function verifyAdminAndShowDashboard(email) {
     try {
-        const { data: player, error } = await supabaseInstance
+        // Any admin row with this email counts (the same rule the database uses), even if a
+        // second, non-admin row has the same email
+        const { data: adminRows, error } = await supabaseInstance
             .from('players')
             .select('is_admin')
-            .ilike('email', email)
-            .single();
+            .ilike('email', escapeLike(email))
+            .eq('is_admin', true)
+            .limit(1);
 
-        if (error || !player || !player.is_admin) {
+        if (error || !adminRows || !adminRows.length) {
+            // Stay on the login screen. No sign-out: that would also end this player's
+            // Round Tracker / Bookie session on the same phone.
             alert("Access Denied: You do not have administrator privileges.");
-            await supabaseInstance.auth.signOut();
-            // Stay on login screen
         } else {
             showDashboard();
         }
@@ -130,6 +161,21 @@ function setupEventListeners() {
     if (elements.logoutBtn) {
         elements.logoutBtn.addEventListener('click', handleLogout);
     }
+    document.getElementById('admin-google-btn')?.addEventListener('click', signInWithGoogle);
+
+    // RSVPs tab
+    document.getElementById('rsvp-refresh-btn')?.addEventListener('click', loadRsvpAdmin);
+    document.getElementById('rsvp-export-btn')?.addEventListener('click', exportRsvpCsv);
+    document.getElementById('rsvp-filters')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-rsvp-filter]');
+        if (!btn) return;
+        rsvpFilter = btn.dataset.rsvpFilter;
+        renderRsvpAdmin();
+    });
+    document.getElementById('rsvp-admin-tbody')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-approve]');
+        if (btn) approvePlayer(btn.dataset.approve, btn);
+    });
 
     // Add Player Button
     if (elements.addPlayerBtn) {
@@ -180,6 +226,7 @@ function setupEventListeners() {
             if (tab === 'scores') renderScoresUI();
             if (tab === 'score-entry') renderScoreEntryUI();
             if (tab === 'potential') renderPotentialUI();
+            if (tab === 'rsvps') loadRsvpAdmin();
         });
     });
 
@@ -273,6 +320,7 @@ async function loadRoster() {
             const { data, error } = await supabaseInstance
                 .from('players')
                 .select('*')
+                .order('status') // 'confirmed' before 'potential', so real players always load
                 .order('name');
 
             if (!error && data) {
@@ -691,6 +739,29 @@ function discardChanges() {
     }
 }
 
+const ADMIN_PLAYER_FIELDS = ['name', 'email', 'ghin', 'handicap', 'team_id', 'status'];
+
+// Returns a confirm message when players about to be deleted have Bookie bets, else ''.
+async function bookieHistoryWarning(playerIds) {
+    try {
+        const { data: wagers, error } = await supabaseInstance
+            .from('wagers')
+            .select('creator_id, target_id, participants');
+        if (error || !wagers) return '';
+        const involved = playerIds.map(id => {
+            const count = wagers.filter(w => w.creator_id === id || w.target_id === id || (w.participants || []).includes(id)).length;
+            const p = originalPlayers.find(op => op.id === id);
+            return count ? `${p ? p.name : 'A player'} (${count} bet${count === 1 ? '' : 's'})` : null;
+        }).filter(Boolean);
+        if (!involved.length) return '';
+        return `These players have bets in The Bookie: ${involved.join(', ')}.\n\n` +
+            `Deleting them also deletes the bets they created, leaves "Unknown" in bets they joined, and changes other players' ledger totals. ` +
+            `Press Cancel to stop this save, then Discard to bring them back.\n\nDelete anyway?`;
+    } catch (e) {
+        return '';
+    }
+}
+
 async function saveChanges() {
     if (!supabaseInstance) {
         alert('Saving is disabled in demo mode.');
@@ -705,8 +776,11 @@ async function saveChanges() {
         const currentIds = players.map(p => p.id).filter(id => id);
         const deletedIds = originalIds.filter(id => !currentIds.includes(id));
 
-        // 2. Perform Deletions
+        // 2. Perform Deletions (deleting a player also deletes the Bookie bets they created)
         if (deletedIds.length > 0) {
+            const warning = await bookieHistoryWarning(deletedIds);
+            if (warning && !confirm(warning)) return;
+
             const { error: delError } = await supabaseInstance
                 .from('players')
                 .delete()
@@ -715,15 +789,44 @@ async function saveChanges() {
             if (delError) throw delError;
         }
 
-        // 3. Perform Upserts (Insert new or Update existing)
-        const { data, error: upsertError } = await supabaseInstance
-            .from('players')
-            .upsert(players, { onConflict: 'id' });
+        // 3. Save roster edits: only the fields you actually changed, only on the players you
+        // changed. Writing whole rows from this page's snapshot would undo anything changed
+        // since it loaded (a player's own GHIN/handicap update, an approval, a Bookie link).
+        const editable = p => ADMIN_PLAYER_FIELDS.reduce((row, key) => {
+            if (p[key] !== undefined) row[key] = p[key];
+            return row;
+        }, {});
+        const changedFields = p => {
+            const before = originalPlayers.find(o => o.id === p.id) || {};
+            return ADMIN_PLAYER_FIELDS.reduce((diff, key) => {
+                if (p[key] !== undefined && JSON.stringify(p[key]) !== JSON.stringify(before[key])) diff[key] = p[key];
+                return diff;
+            }, {});
+        };
+        const updates = players.filter(p => p.id)
+            .map(p => ({ id: p.id, name: p.name, fields: changedFields(p) }))
+            .filter(u => Object.keys(u.fields).length > 0);
+        const newRows = players.filter(p => !p.id).map(editable);
 
-        if (upsertError) throw upsertError;
+        for (const u of updates) {
+            const { data: updated, error: updateError } = await supabaseInstance
+                .from('players')
+                .update(u.fields)
+                .eq('id', u.id)
+                .select('id');
+            if (updateError) throw updateError;
+            // Row-level security can skip a row without an error; say so instead of "saved"
+            if (!updated || !updated.length) throw new Error(`${u.name || 'A player'} wasn't updated (no permission, or they were removed). Reload and try again.`);
+        }
+        if (newRows.length > 0) {
+            const { error: insertError } = await supabaseInstance
+                .from('players')
+                .insert(newRows);
+            if (insertError) throw insertError;
+        }
 
         // 4. Update Matchups
-        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name')).data;
+        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name').order('status').order('name')).data;
         const matchupsToSave = matchups.map(m => {
             const t1p1 = refreshedPlayers.find(rp => rp.id === m.t1_player1_id || rp.name === m.t1_player1_id);
             const t1p2 = refreshedPlayers.find(rp => rp.id === m.t1_player2_id || rp.name === m.t1_player2_id);
@@ -751,7 +854,7 @@ async function saveChanges() {
         loadRoster();
     } catch (err) {
         console.error('Save failed:', err);
-        window.showToast('Error saving changes: ' + err.message, 'error');
+        window.showToast('Error saving changes: ' + escHtml(err.message), 'error');
     }
 }
 
@@ -1033,7 +1136,7 @@ async function saveScoreEntries() {
         }, 2000);
     } catch (err) {
         console.error('Error saving round scores:', err);
-        window.showToast('Error saving scores: ' + err.message, 'error');
+        window.showToast('Error saving scores: ' + escHtml(err.message), 'error');
         saveBtn.textContent = '\ud83d\udcbe Save Round Scores';
     } finally {
         saveBtn.style.opacity = '1';
@@ -1096,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 2000);
                 } catch (err) {
                     console.error('Error updating Ryder Cup scores:', err);
-                    window.showToast('Error saving scores: ' + err.message, 'error');
+                    window.showToast('Error saving scores: ' + escHtml(err.message), 'error');
                     saveScoresBtn.textContent = 'Save Scores';
                     saveScoresBtn.style.opacity = '1';
                 }
@@ -1104,3 +1207,241 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 500);
 });
+
+// ==========================================
+// RSVPs: who's coming, who hasn't answered, and new sign-ups to approve
+// ==========================================
+const RSVP_ANSWERS = { in: 'In', maybe: 'Probably', out: 'Out' };
+const RSVP_ORDER = { in: 0, maybe: 1, out: 2, none: 3 };
+let rsvpRows = [];        // every RSVP row for the trip, oldest first (notes included)
+let rsvpRoster = [];      // players as of the last RSVP load (fresher than the roster tab's copy)
+let rsvpFilter = 'all';
+let rsvpLoadError = null;
+
+function rsvpTripYear() {
+    const cfg = window.BBB || {};
+    return (cfg.rsvp && cfg.rsvp.year) || (cfg.trip && cfg.trip.year) || new Date().getFullYear();
+}
+
+async function loadRsvpAdmin() {
+    const tbody = document.getElementById('rsvp-admin-tbody');
+    const yearEl = document.getElementById('rsvp-admin-year');
+    if (yearEl) yearEl.textContent = rsvpTripYear();
+    if (!supabaseInstance || !tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="rsvp-message">Loading RSVPs…</td></tr>';
+    // The roster is re-read here too, so players who signed up after this page opened show
+    // up (with Approve). It's kept apart from the roster tab so unsaved edits there survive.
+    const [rsvpResult, rosterResult] = await Promise.all([
+        supabaseInstance.rpc('admin_rsvps', { p_trip_year: rsvpTripYear() }),
+        // Same columns as the roster tab, so rows merged into it below have the same shape
+        supabaseInstance.from('players').select('*').order('status').order('name')
+    ]);
+    const { data, error } = rsvpResult;
+    rsvpRoster = !rosterResult.error && rosterResult.data ? rosterResult.data : originalPlayers.filter(p => p.id);
+    // Players added since this page loaded (new sign-ups) join the roster tab's lists as well,
+    // so they can be removed on the Potential tab without a reload. Both lists get the same
+    // copy, so Save sees no change for them.
+    if (!rosterResult.error && rosterResult.data) {
+        const known = new Set(originalPlayers.map(p => p.id));
+        const added = rosterResult.data.filter(p => !known.has(p.id));
+        added.forEach(p => {
+            originalPlayers.push(JSON.parse(JSON.stringify(p)));
+            players.push(JSON.parse(JSON.stringify(p)));
+        });
+        if (added.length) {
+            renderRosterTable();
+            renderPotentialUI();
+            renderDraftingUI();
+            checkChanges();
+        }
+    }
+    if (error) {
+        const text = `${error.code || ''} ${error.message || ''}`;
+        rsvpLoadError = /PGRST202|could not find the function/i.test(text)
+            ? 'The RSVP setup script hasn’t been run yet. Run rsvp_accounts.sql in the Supabase SQL Editor, then Refresh.'
+            : /admins only/i.test(text)
+                ? 'Supabase doesn’t see this login as an admin. The player row needs is_admin turned on and the same email as this login.'
+                : `Couldn’t load RSVPs: ${error.message}`;
+        rsvpRows = [];
+    } else {
+        rsvpLoadError = null;
+        // admin_rsvps sends newest first; the history view wants oldest first
+        rsvpRows = (data || []).slice().sort((a, b) => (a.created_at > b.created_at ? 1 : a.created_at < b.created_at ? -1 : 0));
+    }
+    renderRsvpAdmin();
+}
+
+function rsvpKeyForName(name) {
+    return 'name:' + String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+// One entry per player on the roster (confirmed or potential), plus any RSVP that
+// doesn't belong to a current player (e.g. the player row was deleted).
+function rsvpEntries() {
+    const byKey = new Map();
+    rsvpRows.forEach(r => {
+        const key = r.player_id || rsvpKeyForName(r.name);
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(r);
+    });
+    const entries = rsvpRoster.map(p => ({ player: p, name: p.name, history: byKey.get(p.id) || [] }));
+    const known = new Set(entries.map(e => e.player.id));
+    byKey.forEach((history, key) => {
+        if (!known.has(key)) entries.push({ player: null, name: history[history.length - 1].name, history });
+    });
+    entries.forEach(e => {
+        e.latest = e.history.length ? e.history[e.history.length - 1] : null;
+        e.answer = e.latest ? e.latest.status : 'none';
+        e.isNew = !!(e.player && e.player.status === 'potential');
+        e.needsApproval = e.isNew && !!(e.player.user_id || e.latest);
+    });
+    return entries.sort((a, b) => (RSVP_ORDER[a.answer] - RSVP_ORDER[b.answer]) || a.name.localeCompare(b.name));
+}
+
+// admin_rsvps returns each player's 20 newest answers; say so when a history is trimmed
+const RSVP_HISTORY_LIMIT = 20;
+function answerCount(e) {
+    return e.history.length >= RSVP_HISTORY_LIMIT ? `+` : String(e.history.length);
+}
+
+function fmtWhen(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function renderRsvpAdmin() {
+    const tbody = document.getElementById('rsvp-admin-tbody');
+    const summary = document.getElementById('rsvp-summary');
+    if (!tbody) return;
+    document.querySelectorAll('[data-rsvp-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rsvpFilter === rsvpFilter)));
+
+    if (rsvpLoadError) {
+        if (summary) summary.innerHTML = '';
+        tbody.innerHTML = `<tr><td colspan="8" class="rsvp-message">${escHtml(rsvpLoadError)}</td></tr>`;
+        return;
+    }
+
+    const entries = rsvpEntries();
+    const count = fn => entries.filter(fn).length;
+    if (summary) {
+        const pill = (label, n) => `<div class="rsvp-pill"><b>${n}</b>${label}</div>`;
+        summary.innerHTML = [
+            pill('In', count(e => e.answer === 'in')),
+            pill('Probably', count(e => e.answer === 'maybe')),
+            pill('Out', count(e => e.answer === 'out')),
+            pill('No reply yet', count(e => e.answer === 'none')),
+            pill('Sunday round', count(e => e.latest && e.latest.sunday_round && e.answer !== 'out')),
+            pill('Needs approval', count(e => e.needsApproval))
+        ].join('');
+    }
+
+    const shown = entries.filter(e => rsvpFilter === 'all' ? true
+        : rsvpFilter === 'approve' ? e.needsApproval
+        : e.answer === rsvpFilter);
+    if (!shown.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="rsvp-message">Nobody here.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = shown.map(e => {
+        const p = e.player;
+        const tag = !p ? '<span class="answer-badge answer-none">Not on roster</span>'
+            : e.isNew ? `<span class="answer-badge answer-new">${p.user_id ? 'New sign-up' : 'Potential'}</span>` : '';
+        const answer = e.latest
+            ? `<span class="answer-badge answer-${e.answer}">${RSVP_ANSWERS[e.answer]}</span>`
+            : '<span class="answer-badge answer-none">No reply</span>';
+        const history = e.history.length > 1
+            ? `<details class="rsvp-history"><summary>${answerCount(e)} answers</summary><ul>${e.history.slice().reverse().map(h =>
+                `<li>${escHtml(RSVP_ANSWERS[h.status] || h.status)}${h.sunday_round ? ' + Sunday' : ''} · ${escHtml(fmtWhen(h.created_at))}${h.note ? ` · “${escHtml(h.note)}”` : ''}</li>`).join('')}</ul></details>`
+            : `<span class="rsvp-muted">${e.history.length ? '1 answer' : '—'}</span>`;
+        const login = !p ? '—' : p.user_id ? 'Yes' : '<span class="rsvp-muted">No login yet</span>';
+        const action = e.needsApproval
+            ? `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve</button>`
+            : '';
+        return `
+        <tr>
+            <td data-label="Player" style="font-weight: 600;">${escHtml(e.name)} ${tag}</td>
+            <td data-label="Answer">${answer}</td>
+            <td data-label="Answered"><span class="rsvp-muted" style="white-space: nowrap;">${e.latest ? escHtml(fmtWhen(e.latest.created_at)) : '—'}</span></td>
+            <td data-label="Sunday">${e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : '<span class="rsvp-muted">—</span>'}</td>
+            <td data-label="Note"><div class="rsvp-note">${e.latest && e.latest.note ? escHtml(e.latest.note) : '<span class="rsvp-muted">—</span>'}</div></td>
+            <td data-label="Login">${login}</td>
+            <td data-label="History">${history}</td>
+            <td data-label="${action ? 'Approve' : ''}">${action}</td>
+        </tr>`;
+    }).join('');
+}
+
+// Confirming a new player puts them on the public roster and head count and lets them bet.
+// Goes through approve_player() (admin-only, in rsvp_accounts.sql) so it doesn't depend on
+// the players table's update policies.
+async function approvePlayer(id, btn) {
+    const p = rsvpRoster.find(x => x.id === id);
+    if (!p || !confirm(`Confirm ${p.name} for the trip? They'll show on the site's head count and can use The Bookie.`)) return;
+    btn.disabled = true;
+    const { error } = await supabaseInstance.rpc('approve_player', { p_player_id: id });
+    if (error) {
+        btn.disabled = false;
+        window.showToast('Couldn’t approve: ' + escHtml(error.message), 'error');
+        return;
+    }
+    p.status = 'confirmed';
+    // Keep the roster tab in step (Save treats a player missing from only one of its two
+    // lists as deleted). Approving someone marked for removal, not yet saved, cancels that.
+    [players, originalPlayers].forEach(list => {
+        const row = list.find(x => x.id === id);
+        if (row) row.status = 'confirmed';
+    });
+    if (!originalPlayers.some(x => x.id === id)) originalPlayers.push(JSON.parse(JSON.stringify(p)));
+    if (!players.some(x => x.id === id)) {
+        // Put him back where he was, so the page doesn't think the roster changed
+        const order = new Map(originalPlayers.map((x, i) => [x.id, i]));
+        const at = players.findIndex(x => (order.has(x.id) ? order.get(x.id) : Infinity) > order.get(id));
+        players.splice(at === -1 ? players.length : at, 0, JSON.parse(JSON.stringify(originalPlayers.find(x => x.id === id))));
+    }
+    renderRosterTable();
+    renderPotentialUI();
+    renderDraftingUI();
+    renderRsvpAdmin();
+    checkChanges();
+    window.showToast(`${escHtml(p.name)} is confirmed for the trip.`, 'success');
+}
+
+// Spreadsheet-safe CSV: quote everything and stop text cells being read as formulas.
+// Numbers (handicaps, counts) can't carry a formula, so they stay plain numbers.
+function csvCell(value) {
+    if (typeof value === 'number') return `"${value}"`;
+    let s = value === null || value === undefined ? '' : String(value);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return `"${s.replace(/"/g, '""')}"`;
+}
+
+function exportRsvpCsv() {
+    if (rsvpLoadError) return window.showToast(escHtml(rsvpLoadError), 'error');
+    const header = ['Name', 'Answer', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has login', 'Times answered'];
+    const rows = rsvpEntries().map(e => {
+        const p = e.player || {};
+        return [
+            e.name,
+            e.latest ? RSVP_ANSWERS[e.answer] : 'No reply',
+            e.latest ? new Date(e.latest.created_at).toISOString() : '',
+            e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : 'No',
+            e.latest ? e.latest.note || '' : '',
+            p.email || '',
+            p.ghin || '',
+            p.handicap === null || p.handicap === undefined || p.handicap === '' ? '' : Number(p.handicap),
+            e.player ? (p.status || 'confirmed') : 'not on roster',
+            p.user_id ? 'Yes' : 'No',
+            answerCount(e)
+        ];
+    });
+    const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bbb-${rsvpTripYear()}-rsvps.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

@@ -23,15 +23,18 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').mat
 // Live roster pulled from Supabase
 const roster = { confirmed: [], potential: [] };
 
-// RSVP / head count (Supabase `rsvps` table — see rsvp_schema.sql)
+// RSVP / head count (Supabase `rsvps` table — see rsvp_schema.sql and rsvp_accounts.sql)
 const RSVP = CFG.rsvp || {};
 const RSVP_YEAR = RSVP.year || TRIP.year;
-const RSVP_STORAGE_KEY = `bbb_rsvp_${RSVP_YEAR}`;
 const RSVP_LABELS = { in: 'I’m in', maybe: 'Probably', out: 'Can’t make it' };
 const rsvpState = { available: false, missingTable: false, latest: [], lastAt: null };
 
-// Registration + RSVP alerts go to the commissioner's inbox
-const NOTIFY_EMAIL = 'westin.tucker@gmail.com';
+// RSVP and new-player alerts (trip-config.js → alerts)
+const ALERTS = CFG.alerts || {};
+
+// The signed-in visitor and their roster row. RSVPs need both; accounts are set up on
+// The Bookie page (bookie.html?next=…), which sends people back here when they're done.
+const account = { checked: false, user: null, player: null, myRsvp: undefined };
 
 // DOM Element Registry (populated in init)
 let elements = {};
@@ -169,9 +172,11 @@ async function init() {
                 try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
             });
 
-        await Promise.all([loadRosterData(), loadRsvps()]);
+        showGoogleButtonsIfEnabled();
+        await Promise.all([loadRosterData(), loadRsvps(), loadAccount()]);
         renderRoster();
         roster.loaded = true;
+        openFromAddress();
         if (elements.leaderboardModal && elements.leaderboardModal.classList.contains('active')) renderDynamicScoreboard();
         fetchRyderCupScores();
         // The roster only changes the Cup section once teams are live; re-rendering
@@ -664,11 +669,11 @@ function renderCup() {
         const teamCard = (team, n) => {
             const color = n === 1 ? 'var(--blue-team)' : 'var(--red-team)';
             const withHcp = team.filter(p => typeof p.handicap === 'number');
-            const avg = withHcp.length ? (withHcp.reduce((a, p) => a + p.handicap, 0) / withHcp.length).toFixed(1) : '–';
+            const avg = withHcp.length ? fmtHcp(withHcp.reduce((a, p) => a + p.handicap, 0) / withHcp.length) : '–';
             return `
             <div class="team-card" style="--team-color: ${color};">
                 <h3>${n === 1 ? 'Team Blue' : 'Team Red'} <small>Avg HCP ${avg}</small></h3>
-                ${team.map(p => `<div class="team-row"><span>${esc(p.name)}${isCaptain(p.name) ? '<span class="cap-tag">Capt.</span>' : ''}</span><span class="hcp">${typeof p.handicap === 'number' ? p.handicap.toFixed(1) : '–'}</span></div>`).join('')}
+                ${team.map(p => `<div class="team-row"><span>${esc(p.name)}${isCaptain(p.name) ? '<span class="cap-tag">Capt.</span>' : ''}</span><span class="hcp">${fmtHcp(p.handicap)}</span></div>`).join('')}
             </div>`;
         };
         html += `<div class="teams">${teamCard(team1, 1)}${teamCard(team2, 2)}</div>`;
@@ -777,7 +782,7 @@ function renderHallOfFame() {
             </div>`;
         const past = (CFG.history || []).map(e => {
             const w = e.champion;
-            const result = e.score && w ? `<b>${fmtPoints(e.score[w])}–${fmtPoints(e.score[w === 'blue' ? 'red' : 'blue'])}</b><span style="color: var(--${w}-team);">Team ${w === 'blue' ? 'Blue' : 'Red'} wins</span>` : `<b>${esc(e.resultText || '')}</b>`;
+            const result = e.score && w ? `<b>${fmtPoints(e.score[w])}–${fmtPoints(e.score[w === 'blue' ? 'red' : 'blue'])}</b><span style="color: var(--${w}-team);">Team ${w === 'blue' ? 'Blue' : 'Red'} wins</span>` : (e.resultText ? `<b>${esc(e.resultText)}</b>` : '');
             const album = (CFG.photoAlbums || []).find(a => String(a.year) === String(e.year) && (a.photos || []).length);
             return `
             <div class="edition reveal">
@@ -870,24 +875,26 @@ function openAlbum(albumId, index) {
 // ---------------------------------------------------------------------------
 // Roster (Supabase)
 // ---------------------------------------------------------------------------
+// init() renders once both the roster and the RSVPs are in, so nothing here renders.
 async function loadRosterData() {
     if (!supabaseInstance) {
         console.warn('Supabase not configured. Using empty roster.');
         roster.error = true;
-        renderRoster();
         return;
     }
 
     try {
+        // Only rows the page shows: confirmed players and names the commissioner added.
+        // (Self sign-ups waiting for approval stay private, and can't crowd the list.)
         const { data, error } = await supabaseInstance
             .from('players')
-            .select('id, name, ghin, handicap, team_id, status')
+            .select('id, name, ghin, handicap, team_id, status, user_id')
+            .or('status.eq.confirmed,user_id.is.null')
             .order('name');
 
         if (error) {
             console.error('Error fetching roster:', error);
             roster.error = true;
-            renderRoster();
             return;
         }
 
@@ -905,23 +912,29 @@ async function loadRosterData() {
                     handicap: p.handicap !== null && p.handicap !== undefined ? parseFloat(p.handicap) : null,
                     team_id: p.team_id
                 });
-            } else if (p.status === 'potential') {
+            } else if (p.status === 'potential' && !p.user_id) {
+                // Only names the commissioner added. Self sign-ups stay private until approved.
                 roster.potential.push(p.name);
             }
         });
-        renderRoster();
     } catch (e) {
         console.error('Roster fetch failed:', e);
         roster.error = true;
-        renderRoster();
     }
+}
+
+// Plus handicaps are stored as negative numbers; golfers write them as "+2.1".
+function fmtHcp(h) {
+    if (h === null || h === undefined || h === '' || isNaN(Number(h))) return '–';
+    const n = Number(h);
+    return n < 0 ? `+${Math.abs(n).toFixed(1)}` : n.toFixed(1);
 }
 
 function playerCardHTML(p, i, meta) {
     const nameKey = p.name.replace(/\s+/g, '');
     const hasCard = (CFG.playerCards || []).includes(nameKey);
     const cap = isCaptain(p.name);
-    const hcp = typeof p.handicap === 'number' && !isNaN(p.handicap) ? p.handicap.toFixed(1) : '–';
+    const hcp = fmtHcp(p.handicap);
     return `
             <div class="player ${cap ? 'is-captain' : ''} reveal" style="transition-delay: ${Math.min(i, 12) * 30}ms;">
                 <div class="player-avatar">
@@ -939,11 +952,12 @@ function playerCardHTML(p, i, meta) {
 function renderRoster() {
     const grid = elements.confirmedRoster;
     if (!grid) return;
-    if (rsvpState.available) {
+    // The head count needs the roster too (only confirmed players count); without it, show
+    // "couldn't load" rather than zero.
+    if (rsvpState.available && !roster.error) {
         renderHeadcount();
         return;
     }
-    const PLAYERS_WITH_CARDS = (CFG.playerCards || []);
     const inTitle = document.getElementById('confirmed-roster-title');
     const maybeTitle = document.getElementById('potential-roster-title');
     // Until the season is live the DB roster is last year's crew, not 2027 commitments.
@@ -961,23 +975,7 @@ function renderRoster() {
             if (ca !== cb) return ca - cb;
             return (a.name || '').localeCompare(b.name || '');
         });
-        grid.innerHTML = sorted.map((p, i) => {
-            const nameKey = p.name.replace(/\s+/g, '');
-            const hasCard = PLAYERS_WITH_CARDS.includes(nameKey);
-            const cap = isCaptain(p.name);
-            return `
-            <div class="player ${cap ? 'is-captain' : ''} reveal" style="transition-delay: ${Math.min(i, 12) * 30}ms;">
-                <div class="player-avatar">
-                    <span>${esc(getInitials(p.name))}</span>
-                    ${hasCard ? `<img src="assets/PlayerCards/${esc(nameKey)}.jpg" alt="" loading="lazy" onerror="this.remove()">` : ''}
-                </div>
-                <div class="player-info">
-                    <div class="player-name">${esc(p.name)}${cap ? '<span class="cap-tag">Capt.</span>' : ''}</div>
-                    <div class="player-meta">GHIN ${realGhin(p.ghin) ? esc(realGhin(p.ghin)) : '—'}</div>
-                </div>
-                <div class="player-hcp"><b>${p.handicap !== null ? esc(p.handicap.toFixed(1)) : '–'}</b><span>HCP</span></div>
-            </div>`;
-        }).join('');
+        grid.innerHTML = sorted.map((p, i) => playerCardHTML(p, i, `GHIN ${realGhin(p.ghin) || '—'}`)).join('');
     }
 
     if (elements.crewCount) {
@@ -1024,12 +1022,18 @@ function timeAgo(iso) {
 async function loadRsvps() {
     if (!supabaseInstance) return;
     try {
-        const { data, error } = await supabaseInstance
-            .from('rsvps')
-            .select('name, status, sunday_round, created_at')
-            .eq('trip_year', RSVP_YEAR)
-            .order('created_at', { ascending: true })
-            .limit(2000);
+        // One latest row per player, from rsvp_accounts.sql, so a long history can't crowd out
+        // anyone's current answer. Until that script has run, read the table instead.
+        let { data, error } = await supabaseInstance.rpc('rsvp_latest', { p_trip_year: RSVP_YEAR });
+        if (error && /PGRST202|could not find the function/i.test(`${error.code || ''} ${error.message || ''}`)) {
+            ({ data, error } = await supabaseInstance
+                .from('rsvps')
+                .select('name, status, sunday_round, created_at, player_id')
+                .eq('trip_year', RSVP_YEAR)
+                .order('created_at', { ascending: false })
+                .limit(1000));
+        }
+        if (data) data = data.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
         if (error) {
             rsvpState.available = false;
@@ -1038,23 +1042,15 @@ async function loadRsvps() {
             return;
         }
 
-        // Rows are oldest-first, so each person's latest answer wins. Keep the
-        // best-capitalized spelling anyone used for the name ("kelly dennard" -> "Kelly Dennard").
+        // Sorted newest first, so the first row seen for each player is their latest answer
         const latest = new Map();
-        const spelling = new Map();
         (data || []).forEach(r => {
-            if (!r || !r.name || !RSVP_LABELS[r.status]) return;
-            const key = normName(r.name);
-            const tidy = cleanName(r.name);
-            if (/[A-Z]/.test(tidy) || !spelling.has(key)) spelling.set(key, tidy);
-            latest.set(key, r);
+            if (!r || !RSVP_LABELS[r.status]) return;
+            const key = r.player_id || `name:${normName(r.name)}`;
+            if (!latest.has(key)) latest.set(key, r);
         });
-        rsvpState.latest = [...latest.entries()].map(([key, r]) => {
-            let name = spelling.get(key);
-            if (!/[A-Z]/.test(name)) name = name.replace(/(^|[\s'-])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
-            return { ...r, name };
-        });
-        rsvpState.lastAt = data && data.length ? data[data.length - 1].created_at : null;
+        rsvpState.latest = [...latest.values()];
+        rsvpState.lastAt = data && data.length ? data[0].created_at : null;
         rsvpState.available = true;
         rsvpState.missingTable = false;
     } catch (e) {
@@ -1062,8 +1058,14 @@ async function loadRsvps() {
     }
 }
 
+function rosterPlayerById(id) {
+    return id ? roster.confirmed.find(p => p.id === id) || null : null;
+}
+
+// Only confirmed roster players count publicly; new sign-ups show up once the
+// commissioner approves them in Admin.
 function rsvpCounts() {
-    const list = rsvpState.latest;
+    const list = rsvpState.latest.filter(r => rosterPlayerById(r.player_id));
     const pick = status => list
         .filter(r => r.status === status)
         .sort((a, b) => rsvpName(a).localeCompare(rsvpName(b)));
@@ -1075,15 +1077,15 @@ function rsvpCounts() {
     };
 }
 
-function findRosterPlayer(name) {
-    const key = normName(name);
-    return roster.confirmed.find(p => normName(p.name) === key) || null;
+// Prefer the roster's spelling of a name.
+function rsvpName(r) {
+    const player = rosterPlayerById(r.player_id);
+    return player ? player.name : cleanName(r.name);
 }
 
-// Prefer the roster's spelling of a name when the person is on it.
-function rsvpName(r) {
-    const player = findRosterPlayer(r.name);
-    return player ? player.name : cleanName(r.name);
+function myLatestRsvp() {
+    const id = account.player && account.player.id;
+    return id ? rsvpState.latest.find(r => r.player_id === id) || null : null;
 }
 
 function renderHeadcount() {
@@ -1115,11 +1117,10 @@ function renderHeadcount() {
     if (grid) {
         grid.innerHTML = counts.in.length
             ? counts.in.map((r, i) => {
-                const player = findRosterPlayer(r.name);
-                const shown = player ? { ...player } : { name: rsvpName(r), handicap: null };
-                const meta = [player && realGhin(player.ghin) ? `GHIN ${realGhin(player.ghin)}` : null, r.sunday_round ? 'Sunday round' : null]
+                const player = rosterPlayerById(r.player_id);
+                const meta = [realGhin(player.ghin) ? `GHIN ${realGhin(player.ghin)}` : null, r.sunday_round ? 'Sunday round' : null]
                     .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
-                return playerCardHTML(shown, i, meta);
+                return playerCardHTML(player, i, meta);
             }).join('')
             : `<div class="crew-empty" style="grid-column: 1 / -1;">No one’s in yet. Be the first to RSVP.</div>`;
     }
@@ -1155,28 +1156,112 @@ function updateHeroHeadcount(counts) {
     li.innerHTML = `${icon('users')}<span>${esc(label)}</span><button type="button" class="hero-rsvp" data-action="rsvp">RSVP</button>`;
 }
 
-function refreshNameSuggestions() {
-    const list = document.getElementById('rsvp-names');
-    if (!list) return;
-    const names = new Map();
-    roster.confirmed.forEach(p => names.set(normName(p.name), cleanName(p.name)));
-    roster.potential.forEach(n => names.set(normName(n), cleanName(n)));
-    rsvpState.latest.forEach(r => { if (!names.has(normName(r.name))) names.set(normName(r.name), rsvpName(r)); });
-    list.innerHTML = [...names.values()].sort().map(n => `<option value="${esc(n)}"></option>`).join('');
-}
-
-function readSavedRsvp() {
+// ---------------------------------------------------------------------------
+// Accounts (shared with The Bookie and the round tracker)
+// ---------------------------------------------------------------------------
+async function loadAccount() {
+    account.user = null;
+    account.player = null;
+    account.myRsvp = undefined;
+    account.error = false;
+    if (!supabaseInstance) { account.checked = true; return; }
     try {
-        return JSON.parse(localStorage.getItem(RSVP_STORAGE_KEY) || 'null');
+        const { data: { session } } = await supabaseInstance.auth.getSession();
+        account.user = session ? session.user : null;
+        if (account.user) {
+            const { data, error } = await supabaseInstance
+                .from('players')
+                .select('id, name, status, ghin, handicap')
+                .eq('user_id', account.user.id)
+                .limit(1);
+            if (error) throw error;
+            account.player = data && data.length ? data[0] : null;
+        }
+        account.checked = true;
     } catch (e) {
-        return null;
+        // Leave it unchecked so the next RSVP / profile tap tries again, and don't claim
+        // "not linked" when we simply couldn't look
+        console.error('Account check failed:', e);
+        account.error = true;
+        account.checked = false;
     }
 }
 
-function saveRsvpLocally(rsvp) {
+// Before showing or saving an RSVP / profile: re-read the account if the login changed
+// (signed out or switched players in another tab) or the last check failed.
+async function ensureFreshAccount() {
+    let session = null;
     try {
-        localStorage.setItem(RSVP_STORAGE_KEY, JSON.stringify({ name: rsvp.name, status: rsvp.status, at: new Date().toISOString() }));
-    } catch (e) { /* storage unavailable — not important */ }
+        ({ data: { session } } = supabaseInstance ? await supabaseInstance.auth.getSession() : { data: {} });
+    } catch (e) { /* treated as signed out */ }
+    const sessionUserId = session && session.user ? session.user.id : null;
+    const knownUserId = account.user ? account.user.id : null;
+    if (!account.checked || sessionUserId !== knownUserId) await loadAccount();
+}
+
+// Where The Bookie should send someone after they sign in or finish setting up.
+function accountUrl(next, mode) {
+    return `bookie.html?next=${next}${mode ? `&mode=${mode}` : ''}`;
+}
+
+// Google buttons only show when trip-config.js turns them on AND the Google provider
+// is switched on in Supabase.
+async function showGoogleButtonsIfEnabled() {
+    if (!(CFG.auth && CFG.auth.google)) return;
+    try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } });
+        const settings = res.ok ? await res.json() : null;
+        const on = !!(settings && settings.external && settings.external.google);
+        document.querySelectorAll('[data-google-block]').forEach(el => { el.hidden = !on; });
+    } catch (e) { /* offline or blocked: email login still works */ }
+}
+
+async function signInWithGoogle(next) {
+    if (!supabaseInstance) return;
+    const redirectTo = new URL(accountUrl(next), window.location.href).href;
+    const { error } = await supabaseInstance.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    if (error) alert(`Google sign-in didn’t start: ${error.message}`);
+}
+
+// Pages that finish signing someone in send them back to #rsvp or #profile.
+function openFromAddress() {
+    const hash = window.location.hash;
+    if (hash !== '#rsvp' && hash !== '#profile') return;
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    runAction(hash === '#rsvp' ? 'rsvp' : 'profile');
+}
+
+// FormSubmit relays these to the alerts inbox (fire and forget).
+function sendAlert(subject, fields) {
+    if (!ALERTS.to) return Promise.resolve(false);
+    const body = Object.assign({}, fields, { _subject: subject, _template: 'table' });
+    if (ALERTS.cc) body._cc = ALERTS.cc;
+    return fetch(`https://formsubmit.co/ajax/${ALERTS.to}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(body)
+    }).then(res => res.ok).catch(err => { console.error('Alert email failed:', err); return false; });
+}
+
+// ---------------------------------------------------------------------------
+// RSVP modal
+// ---------------------------------------------------------------------------
+// The signed-in player's own latest RSVP, note included. Notes aren't public, so the head
+// count can't supply it. Loaded once per page and updated after each RSVP.
+async function loadMyRsvp() {
+    if (!account.player) return null;
+    if (account.myRsvp !== undefined) return account.myRsvp;
+    const fromHeadcount = () => rsvpState.latest.find(r => r.player_id === account.player.id) || null;
+    if (!supabaseInstance) return fromHeadcount();
+    try {
+        const { data, error } = await supabaseInstance.rpc('my_rsvp', { p_trip_year: RSVP_YEAR });
+        if (error) throw error;
+        account.myRsvp = data || null;
+        return account.myRsvp;
+    } catch (e) {
+        console.error('Could not load your RSVP:', e);
+        return fromHeadcount(); // no note, and not cached so the next open tries again
+    }
 }
 
 function setFieldError(id, message, input) {
@@ -1191,11 +1276,22 @@ function setFieldError(id, message, input) {
     }
 }
 
+// Show an error message and make sure it's on screen (it can sit below the fold on phones)
+function showFormError(el, message) {
+    el.textContent = message;
+    el.hidden = false;
+    el.scrollIntoView({ block: 'nearest', behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
+}
+
+const RSVP_STEP_TITLES = { account: 'rsvp-account-title', form: 'rsvp-title', done: 'rsvp-done-title' };
+
 function showRsvpStep(step) {
-    const form = document.getElementById('rsvp-step-form');
-    const done = document.getElementById('rsvp-step-done');
-    if (form) form.hidden = step !== 'form';
-    if (done) done.hidden = step !== 'done';
+    Object.keys(RSVP_STEP_TITLES).forEach(s => {
+        const el = document.getElementById(`rsvp-step-${s}`);
+        if (el) el.hidden = s !== step;
+    });
+    // Screen readers announce the heading of the step that's showing
+    if (elements.rsvpModal) elements.rsvpModal.setAttribute('aria-labelledby', RSVP_STEP_TITLES[step]);
 }
 
 function syncSundayOption() {
@@ -1206,84 +1302,187 @@ function syncSundayOption() {
     if (wrap) wrap.hidden = status === 'out' || !RSVP.sundayQuestion;
 }
 
-function openRsvp(keepValues) {
+// The first control matching `selector` that's actually on screen (not inside a hidden block)
+function firstVisible(root, selector) {
+    return [...root.querySelectorAll(selector)].find(el => el.getClientRects().length > 0) || null;
+}
+
+// pickFocus runs once the dialog is showing and returns the element to focus
+function openRsvpModal(pickFocus) {
+    const modal = elements.rsvpModal;
+    if (!modal.classList.contains('active')) {
+        openDialog(modal, () => pickFocus() || document.getElementById('rsvp-close'));
+    } else {
+        setTimeout(() => { const el = pickFocus(); if (el) el.focus(); }, 30);
+    }
+}
+
+// Signed out, or signed in but not linked to a roster name yet: send them to set up.
+// `purpose` is where they come back to afterwards ('rsvp' or 'profile').
+function showAccountStep(purpose, note) {
+    const next = purpose || 'rsvp';
+    const failed = !!account.error; // couldn't look the account up: don't guess
+    const linked = !failed && !!account.user;
+    const lede = document.getElementById('rsvp-account-lede');
+    const title = document.getElementById('rsvp-account-title');
+    if (title) title.innerHTML = next === 'profile' ? 'Your golf <em>profile</em>' : 'Are you <em>in?</em>';
+    if (lede) {
+        const text = failed
+            ? 'We couldn’t check your account just now. Check your connection, then close this and try again.'
+            : linked
+                ? `You’re logged in as ${account.user.email || 'this account'}, but it isn’t linked to a name on the trip roster yet. Finish setting up and you’ll come right back here.`
+                : next === 'profile'
+                    ? 'Log in to update your GHIN and handicap. It’s the same login as The Bookie.'
+                    : 'RSVPs need a player account. It’s the same login as The Bookie and the round tracker, so you only set it up once.';
+        lede.textContent = note && !failed ? `${note} ${text}` : text;
+    }
+    const set = (id, show, href) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.hidden = !show;
+        if (href) el.href = href;
+    };
+    set('rsvp-create-link', !failed && !linked, accountUrl(next, 'register'));
+    set('rsvp-login-link', !failed && !linked, accountUrl(next, 'login'));
+    set('rsvp-finish-link', linked, accountUrl(next));
+    set('rsvp-switch-account', linked);
+    const google = elements.rsvpModal.querySelector('#rsvp-step-account [data-google-signin]');
+    if (google) {
+        google.dataset.next = next;
+        google.closest('[data-google-block]').style.display = linked || failed ? 'none' : '';
+    }
+    setRsvpEyebrows();
+    showRsvpStep('account');
+    openRsvpModal(() => firstVisible(elements.rsvpModal, '#rsvp-step-account .google-btn, #rsvp-step-account .btn, #rsvp-step-account .link-btn'));
+}
+
+function setRsvpEyebrows() {
+    document.querySelectorAll('.rsvp-eyebrow').forEach(el => {
+        el.textContent = `${TRIP.year} · ${(TRIP.location || '').split(',')[0]} · ${TRIP.dates ? TRIP.dates.short : ''}`;
+    });
+}
+
+async function openRsvp(keepValues) {
     const form = elements.rsvpForm;
     if (!form) return;
-    if (!keepValues) {
+    const shownPlayer = account.player ? { id: account.player.id, name: account.player.name } : null;
+    await ensureFreshAccount();
+    if (!account.player) {
+        showAccountStep('rsvp');
+        return;
+    }
+    // "Change my answer" after a different player logged in (another tab): start from the
+    // new player's own RSVP, not the previous player's answers and note
+    const switched = !!(keepValues && shownPlayer && shownPlayer.id !== account.player.id);
+
+    if (!keepValues || switched) {
         form.reset();
-        const saved = readSavedRsvp();
-        if (saved && saved.name) {
-            form.elements.namedItem('name').value = saved.name;
-            const radio = form.querySelector(`input[name="status"][value="${saved.status}"]`);
+        const mine = await loadMyRsvp();
+        if (mine) {
+            const radio = form.querySelector(`input[name="status"][value="${mine.status}"]`);
             if (radio) radio.checked = true;
+            const sunday = form.elements.namedItem('sunday');
+            if (sunday) sunday.checked = !!mine.sunday_round;
+            form.elements.namedItem('note').value = mine.note || '';
         }
     }
-    setFieldError('rsvp-name-error', '', form.elements.namedItem('name'));
+    document.getElementById('rsvp-who-name').textContent = account.player.name;
     setFieldError('rsvp-status-error', '');
     const err = document.getElementById('rsvp-error');
     if (err) err.hidden = true;
     const sundayLabel = document.getElementById('rsvp-sunday-label');
     if (sundayLabel && RSVP.sundayQuestion) sundayLabel.textContent = RSVP.sundayQuestion;
-    const eyebrow = document.getElementById('rsvp-eyebrow');
-    if (eyebrow) eyebrow.textContent = `${TRIP.year} · ${(TRIP.location || '').split(',')[0]} · ${TRIP.dates ? TRIP.dates.short : ''}`;
+    setRsvpEyebrows();
     syncSundayOption();
-    refreshNameSuggestions();
     showRsvpStep('form');
-    if (!elements.rsvpModal.classList.contains('active')) openDialog(elements.rsvpModal, '#rsvp-name');
-    else setTimeout(() => form.elements.namedItem('name').focus(), 30);
+    openRsvpModal(() => form.querySelector('input[name="status"]:checked') || form.querySelector('input[name="status"]'));
+    if (switched) showNoteAfterFocus(err, switchedNote(shownPlayer.name));
+}
+
+async function signOutHere() {
+    try {
+        if (supabaseInstance) await supabaseInstance.auth.signOut({ scope: 'local' });
+    } catch (e) {
+        console.error('Sign-out failed:', e);
+    }
+    account.user = null;
+    account.player = null;
+    account.myRsvp = undefined;
+    account.checked = true;
+}
+
+// A request without a login (it ended in another tab, or expired) is refused by the
+// database before the function's own "Log in" message can run.
+function looksSignedOut(error) {
+    const text = `${error && error.code || ''} ${error && error.message || ''}`;
+    return /42501|PGRST30\d|JWT|permission denied for function|log in/i.test(text);
+}
+
+// Reload who's signed in. If they're no longer a linked player, show the account step
+// instead and return false.
+async function recheckAccount(purpose) {
+    await loadAccount();
+    if (account.player) return true;
+    closeDialog(elements.registrationModal);
+    showAccountStep(purpose, account.user ? '' : 'You’ve been logged out.');
+    return false;
+}
+
+// Before an RSVP or profile save: is the same player still logged in? The login can end,
+// or switch to someone else, in another tab. Never save for a player the form doesn't show.
+async function stillSignedIn(purpose) {
+    let session = null;
+    try {
+        ({ data: { session } } = await supabaseInstance.auth.getSession());
+    } catch (e) { /* treated as signed out */ }
+    const shownPlayer = account.player ? { id: account.player.id, name: account.player.name } : null;
+    if (session && account.user && session.user.id === account.user.id && account.player) return true;
+    if (!(await recheckAccount(purpose))) return false;
+    // Same player after all (e.g. the session read hiccuped): go ahead and save
+    if (shownPlayer && account.player.id === shownPlayer.id) return true;
+    // A different linked player is logged in now: reopen the form for them instead of saving
+    const note = switchedNote(shownPlayer && shownPlayer.name);
+    if (purpose === 'profile') {
+        await openProfile();
+        showNoteAfterFocus(document.getElementById('profile-error'), note);
+    } else {
+        await openRsvp();
+        showNoteAfterFocus(document.getElementById('rsvp-error'), note);
+    }
+    return false;
+}
+
+function switchedNote(previousName) {
+    return `You’re now logged in as ${account.player.name}${previousName ? ` (not ${previousName})` : ''}. Check the details and save again.`;
+}
+
+// Reopening a form moves focus (and scroll) a moment later; show the note after that so it
+// stays on screen.
+function showNoteAfterFocus(el, message) {
+    setTimeout(() => showFormError(el, message), 80);
 }
 
 function validateRsvp(form) {
-    const nameInput = form.elements.namedItem('name');
-    const name = cleanName(nameInput.value);
     const status = (form.querySelector('input[name="status"]:checked') || {}).value;
-    let firstInvalid = null;
-
-    if (!name) {
-        setFieldError('rsvp-name-error', 'Your name is required to RSVP.', nameInput);
-        firstInvalid = nameInput;
-    } else if (!/^\S+(\s+\S+)+$/.test(name) || !/[a-z]/i.test(name) || name.length < 3) {
-        setFieldError('rsvp-name-error', 'Please enter your first and last name.', nameInput);
-        firstInvalid = nameInput;
-    } else {
-        setFieldError('rsvp-name-error', '', nameInput);
-    }
-
     if (!RSVP_LABELS[status]) {
         setFieldError('rsvp-status-error', 'Pick one: in, probably, or can’t make it.');
-        firstInvalid = firstInvalid || form.querySelector('input[name="status"]');
-    } else {
-        setFieldError('rsvp-status-error', '');
-    }
-
-    if (firstInvalid) {
-        firstInvalid.focus();
+        form.querySelector('input[name="status"]').focus();
         return null;
     }
+    setFieldError('rsvp-status-error', '');
     const sundayBox = form.elements.namedItem('sunday');
-    let tidy = name.slice(0, 60);
-    if (!/[A-Z]/.test(tidy)) tidy = tidy.replace(/(^|[\s'-])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
     return {
-        name: tidy,
         status,
         sunday: status !== 'out' && !!(sundayBox && sundayBox.checked),
         note: cleanName(form.elements.namedItem('note').value).slice(0, 280)
     };
 }
 
-async function sendRsvpEmail(rsvp) {
-    const res = await fetch(`https://formsubmit.co/ajax/${NOTIFY_EMAIL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-            name: rsvp.name,
-            rsvp: RSVP_LABELS[rsvp.status],
-            sunday_round: rsvp.sunday ? 'Yes' : 'No',
-            note: rsvp.note || '—',
-            _subject: `BBB ${RSVP_YEAR} RSVP: ${rsvp.name} — ${RSVP_LABELS[rsvp.status]}`
-        })
-    });
-    if (!res.ok) throw new Error(`Email notification failed (${res.status})`);
+function rsvpErrorMessage(error) {
+    const text = `${error && error.code || ''} ${error && error.message || ''}`;
+    if (/PGRST202|could not find the function/i.test(text)) return 'RSVPs are being set up. Try again in a few minutes, or text the commissioner.';
+    if (/54000|lot of RSVP changes/i.test(text)) return error.message;
+    return 'We couldn’t save your RSVP. Check your connection and try again.';
 }
 
 async function handleRsvpSubmit(e) {
@@ -1295,61 +1494,50 @@ async function handleRsvpSubmit(e) {
     const button = document.getElementById('rsvp-submit');
     const errorEl = document.getElementById('rsvp-error');
     errorEl.hidden = true;
-
-    // Bots fill the hidden field; real people never see it.
-    if (form.elements.namedItem('company').value) {
-        showRsvpDone(rsvp, false);
-        return;
-    }
-
     button.disabled = true;
     button.textContent = 'Sending…';
-    let saved = false;
-    let emailed = false;
 
     try {
-        if (supabaseInstance && !rsvpState.missingTable) {
-            const { error } = await supabaseInstance.from('rsvps').insert([{
-                trip_year: RSVP_YEAR,
-                name: rsvp.name,
-                status: rsvp.status,
-                sunday_round: rsvp.sunday,
-                note: rsvp.note || null
-            }]);
-            if (!error) saved = true;
-            else if (isMissingTable(error)) rsvpState.missingTable = true;
-            else throw error;
-        }
-
-        // Email the commissioner; if the RSVP table isn't set up yet, email is the only record.
-        if (RSVP.emailNotify !== false || !saved) {
-            try {
-                await sendRsvpEmail(rsvp);
-                emailed = true;
-            } catch (mailErr) {
-                console.error(mailErr);
+        if (!supabaseInstance) throw new Error('Supabase is not configured');
+        if (!(await stillSignedIn('rsvp'))) return;
+        const { data, error } = await supabaseInstance.rpc('submit_rsvp', {
+            p_trip_year: RSVP_YEAR,
+            p_status: rsvp.status,
+            p_sunday: rsvp.sunday,
+            p_note: rsvp.note || null
+        });
+        if (error) {
+            if (looksSignedOut(error) || /not linked/i.test(error.message || '')) {
+                if (!(await recheckAccount('rsvp'))) return;
             }
+            throw error;
+        }
+        const saved = Object.assign({}, rsvp, { name: (data && data.name) || account.player.name, pending: !!(data && data.player_status && data.player_status !== 'confirmed') });
+        account.myRsvp = { status: saved.status, sunday_round: saved.sunday, note: saved.note || null, created_at: data && data.created_at };
+
+        if (RSVP.emailNotify !== false) {
+            sendAlert(`BBB ${RSVP_YEAR} RSVP: ${saved.name} — ${RSVP_LABELS[saved.status]}${saved.pending ? ' (new player)' : ''}`, {
+                name: saved.name,
+                rsvp: RSVP_LABELS[saved.status],
+                sunday_round: saved.sunday ? 'Yes' : 'No',
+                note: saved.note || '—',
+                roster: saved.pending ? 'New player: approve in Admin → RSVPs' : 'On the roster'
+            });
         }
 
-        if (!saved && !emailed) throw new Error('RSVP could not be saved or emailed');
-
-        saveRsvpLocally(rsvp);
-        if (saved) {
-            await loadRsvps();
-            renderRoster();
-        }
-        showRsvpDone(rsvp, saved);
+        await loadRsvps();
+        renderRoster();
+        showRsvpDone(saved);
     } catch (err) {
         console.error('RSVP failed:', err);
-        errorEl.textContent = 'We couldn’t save your RSVP. Check your connection and try again.';
-        errorEl.hidden = false;
+        showFormError(errorEl, rsvpErrorMessage(err));
     } finally {
         button.disabled = false;
         button.textContent = 'Send my RSVP';
     }
 }
 
-function showRsvpDone(rsvp, savedToHeadcount) {
+function showRsvpDone(rsvp) {
     const first = rsvp.name.split(' ')[0];
     const copy = {
         in: [`You’re in, ${first}.`, 'See you in Scottsdale. Tee times and rooms get posted here as they’re booked.'],
@@ -1362,13 +1550,13 @@ function showRsvpDone(rsvp, savedToHeadcount) {
         mark.innerHTML = icon(rsvp.status === 'in' ? 'check' : rsvp.status === 'maybe' ? 'clock' : 'x');
     }
     document.getElementById('rsvp-done-title').textContent = copy[0];
-    document.getElementById('rsvp-done-text').textContent = savedToHeadcount || !rsvpState.missingTable
-        ? copy[1]
-        : `${copy[1]} (Your RSVP went straight to the commissioner’s inbox.)`;
+    document.getElementById('rsvp-done-text').textContent = rsvp.pending
+        ? `${copy[1]} You’re new, so your name shows on the head count once the commissioner confirms you.`
+        : copy[1];
 
     const countEl = document.getElementById('rsvp-done-count');
     if (countEl) {
-        if (rsvpState.available) {
+        if (rsvpState.available && !roster.error) {
             const c = rsvpCounts();
             countEl.textContent = `Head count so far: ${c.in.length} in · ${c.maybe.length} probably · ${c.out.length} out`;
             countEl.hidden = false;
@@ -1377,22 +1565,91 @@ function showRsvpDone(rsvp, savedToHeadcount) {
         }
     }
 
+    // Nudge for a GHIN / handicap when they're coming and either is missing
     const rosterLink = document.getElementById('rsvp-roster-link');
-    if (rosterLink) rosterLink.hidden = !(rsvp.status === 'in' && !findRosterPlayer(rsvp.name));
+    const p = account.player || {};
+    if (rosterLink) rosterLink.hidden = !(rsvp.status !== 'out' && (!realGhin(p.ghin) || p.handicap === null || p.handicap === undefined));
 
     showRsvpStep('done');
     const title = document.getElementById('rsvp-done-title');
     if (title) title.focus();
 }
 
-function prefillRegistrationFromRsvp() {
-    const saved = readSavedRsvp();
-    if (!saved || !saved.name) return;
-    const parts = cleanName(saved.name).split(' ');
-    const first = document.getElementById('first-name');
-    const last = document.getElementById('last-name');
-    if (first && !first.value) first.value = parts[0] || '';
-    if (last && !last.value) last.value = parts.slice(1).join(' ');
+// ---------------------------------------------------------------------------
+// Golf profile (GHIN / handicap) for the signed-in player
+// ---------------------------------------------------------------------------
+async function openProfile() {
+    await ensureFreshAccount();
+    if (!account.player) {
+        showAccountStep('profile');
+        return;
+    }
+    closeDialog(elements.rsvpModal);
+    const p = account.player;
+    const hcp = p.handicap === null || p.handicap === undefined || p.handicap === '' ? null : Number(p.handicap);
+    document.getElementById('profile-name').textContent = p.name;
+    document.getElementById('ghin-number').value = realGhin(p.ghin) || '';
+    // Plus handicaps are stored as negatives: show the number plus a ticked "plus" box
+    document.getElementById('handicap').value = hcp === null || isNaN(hcp) ? '' : Math.abs(hcp).toFixed(1);
+    document.getElementById('handicap-plus').checked = hcp !== null && hcp < 0;
+    setFieldError('profile-error', '');
+    openDialog(elements.registrationModal, '#ghin-number');
+}
+
+// "9.4" -> 9.4, "+2.1" or "2.1" with the plus box ticked -> -2.1. A comma decimal ("9,4",
+// the only decimal key on some phones' keypads) works too. Returns NaN when unreadable.
+function parseHandicap(text, plusTicked) {
+    const m = String(text || '').replace(/\s+/g, '').replace(',', '.').match(/^([+-])?(\d{1,2}(?:\.\d+)?)$/);
+    if (!m) return NaN;
+    const n = Math.round(parseFloat(m[2]) * 10) / 10;
+    return m[1] || plusTicked ? -n : n;
+}
+
+async function handleProfileSubmit(e) {
+    e.preventDefault();
+    const ghinInput = document.getElementById('ghin-number');
+    const hcpInput = document.getElementById('handicap');
+    const ghin = ghinInput.value.replace(/\D/g, '');
+    const hcpText = hcpInput.value.trim();
+    const handicap = hcpText === '' ? null : parseHandicap(hcpText, document.getElementById('handicap-plus').checked);
+    const errEl = document.getElementById('profile-error');
+    const btn = document.getElementById('profile-submit');
+    const fail = (msg, input) => { showFormError(errEl, msg); if (input) input.focus(); };
+    errEl.hidden = true;
+
+    if (ghin && (ghin.length < 5 || ghin.length > 12)) return fail('A GHIN number is 5 to 12 digits.', ghinInput);
+    if (handicap !== null && isNaN(handicap)) return fail('Enter your handicap as a number, like 9.4.', hcpInput);
+    if (handicap !== null && (handicap < -10 || handicap > 54)) return fail('Enter a handicap between +10 and 54.', hcpInput);
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+        if (!(await stillSignedIn('profile'))) return;
+        const { data, error } = await supabaseInstance.rpc('update_my_profile', { p_ghin: ghin || null, p_handicap: handicap });
+        if (error) {
+            if (looksSignedOut(error) || /not linked/i.test(error.message || '')) {
+                if (!(await recheckAccount('profile'))) return;
+            }
+            throw error;
+        }
+        Object.assign(account.player, { ghin: data ? data.ghin : ghin || null, handicap: data ? data.handicap : handicap });
+        const onRoster = roster.confirmed.find(p => p.id === account.player.id);
+        if (onRoster) Object.assign(onRoster, { ghin: account.player.ghin, handicap: account.player.handicap === null ? null : parseFloat(account.player.handicap) });
+        renderRoster();
+        btn.textContent = 'Saved';
+        setTimeout(() => closeDialog(elements.registrationModal), 700);
+    } catch (err) {
+        console.error('Profile save failed:', err);
+        const text = `${err.code || ''} ${err.message || ''}`;
+        fail(/PGRST202|could not find the function/i.test(text)
+            ? 'Profiles are being set up. Try again in a few minutes.'
+            : /22023/.test(text) && err.message
+                ? err.message
+                : 'That didn’t save. Check your connection and try again.');
+    } finally {
+        btn.disabled = false;
+        setTimeout(() => { btn.textContent = 'Save'; }, 800);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1626,7 +1883,7 @@ function renderFallbackLeaderboard() {
                 <div class="leaderboard-row">
                     <div class="col-rank">${index + 1}</div>
                     <div class="col-player" style="color: var(--ink); font-weight: 700;">${esc(player.name)}</div>
-                    <div class="col-hcp" style="color: var(--fairway); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.1rem;">${player.handicap !== null && !isNaN(player.handicap) ? esc(Number(player.handicap).toFixed(1)) : '-'}</div>
+                    <div class="col-hcp" style="color: var(--fairway); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.1rem;">${player.handicap !== null && !isNaN(player.handicap) ? esc(fmtHcp(player.handicap)) : '-'}</div>
                     <div class="col-ghin" style="font-variant-numeric: tabular-nums; color: var(--ink-dim);">${esc(realGhin(player.ghin) || '-')}</div>
                 </div>`).join('')}
         </div>`;
@@ -1711,7 +1968,8 @@ function setBackgroundInert(on) {
     document.querySelectorAll('body > :not(.modal):not(.lightbox):not(script)').forEach(n => { n.inert = on; });
 }
 
-function openDialog(el, focusSelector) {
+// focusTarget: a selector, an element, or a function (run once the dialog shows) returning one
+function openDialog(el, focusTarget) {
     if (!el) return;
     if (!document.querySelector('.modal.active, .lightbox.active')) {
         const t = focusReturnTarget();
@@ -1720,7 +1978,9 @@ function openDialog(el, focusSelector) {
     el.classList.add('active');
     document.body.style.overflow = 'hidden';
     setBackgroundInert(true);
-    const target = el.querySelector(focusSelector || 'input, button, [href]');
+    const target = typeof focusTarget === 'function' ? focusTarget()
+        : focusTarget && typeof focusTarget !== 'string' ? focusTarget
+        : el.querySelector(focusTarget || 'input, button, [href]');
     if (target) setTimeout(() => target.focus(), 30);
 }
 
@@ -1760,17 +2020,16 @@ function runAction(action) {
     setDrawer(false);
     setClubhouse(false);
     if (action === 'rsvp') openRsvp();
-    if (action === 'signup') {
-        closeDialog(elements.rsvpModal);
-        prefillRegistrationFromRsvp();
-        const firstName = document.getElementById('first-name');
-        openDialog(elements.registrationModal, firstName && firstName.value ? '#ghin-number' : '#first-name');
-    }
+    if (action === 'profile' || action === 'signup') openProfile();
     if (action === 'scoreboard') {
         openDialog(elements.leaderboardModal, '#leaderboard-close');
         renderDynamicScoreboard();
     }
-    if (action === 'start-round') openDialog(elements.roundLoginModal, '#round-email');
+    if (action === 'start-round') {
+        // Already signed in (email or Google): go straight to the tracker
+        if (account.user) window.location.href = 'round_tracker.html';
+        else openDialog(elements.roundLoginModal, '#round-email');
+    }
 }
 
 function setupEventListeners() {
@@ -1878,7 +2137,7 @@ function setupEventListeners() {
         });
     });
 
-    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleFormSubmit);
+    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleProfileSubmit);
 
     // RSVP modal
     if (elements.rsvpForm) {
@@ -1889,10 +2148,17 @@ function setupEventListeners() {
                 syncSundayOption();
             }
         });
-        elements.rsvpForm.elements.namedItem('name').addEventListener('input', (e) => {
-            if (e.target.getAttribute('aria-invalid')) setFieldError('rsvp-name-error', '', e.target);
-        });
     }
+    document.querySelectorAll('[data-google-signin]').forEach(btn => {
+        btn.addEventListener('click', () => signInWithGoogle(btn.dataset.next || 'rsvp'));
+    });
+    // "Not you?" / "Use a different account": sign out on this device, then show the account step
+    ['rsvp-signout', 'rsvp-switch-account'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', async () => {
+            await signOutHere();
+            showAccountStep('rsvp');
+        });
+    });
     document.getElementById('rsvp-close')?.addEventListener('click', () => closeDialog(elements.rsvpModal));
     document.getElementById('rsvp-again')?.addEventListener('click', () => openRsvp(true));
     document.getElementById('rsvp-see-count')?.addEventListener('click', () => {
@@ -1979,47 +2245,6 @@ function closeLightbox() {
 // ---------------------------------------------------------------------------
 // Registration + round login (Supabase)
 // ---------------------------------------------------------------------------
-async function handleFormSubmit(e) {
-    e.preventDefault();
-    const formData = new FormData(elements.registrationForm);
-    const firstName = (formData.get('firstName') || '').trim();
-    const lastName = (formData.get('lastName') || '').trim();
-    const email = (formData.get('email') || '').trim();
-    const ghinNumber = (formData.get('ghinNumber') || '').trim();
-    const handicap = formData.get('handicap');
-
-    // NOTE: Registration access is enforced server-side via Supabase Row Level Security.
-    if (!firstName || !lastName) {
-        alert('Please enter your first and last name.');
-        return;
-    }
-
-    const newPlayer = {
-        name: `${firstName} ${lastName}`,
-        email: email || null,
-        ghin: ghinNumber || null,
-        handicap: handicap ? parseFloat(handicap) : null
-    };
-
-    const submitBtn = elements.registrationForm.querySelector('[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
-    const saved = await saveToSupabase(newPlayer);
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add me to the roster'; }
-    if (!saved) {
-        alert('Sorry, that didn’t save. Check your connection and try again.');
-        return;
-    }
-
-    sendEmailNotification(newPlayer);
-    roster.confirmed.push(newPlayer);
-    renderRoster();
-    alert(`Thanks, ${newPlayer.name}! You’re on the roster.`);
-    closeDialog(elements.registrationModal);
-    elements.registrationForm.reset();
-    const attendeeSection = document.getElementById('attendees');
-    if (attendeeSection) attendeeSection.scrollIntoView({ behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
-}
-
 async function handleRoundLogin() {
     const email = document.getElementById('round-email').value;
     const password = document.getElementById('round-password').value;
@@ -2042,41 +2267,6 @@ async function handleRoundLogin() {
         errorEl.textContent = 'An unexpected error occurred.';
         errorEl.style.display = 'block';
     }
-}
-
-async function saveToSupabase(player) {
-    if (!supabaseInstance) return false;
-    try {
-        const { error } = await supabaseInstance.from('players').insert([{
-            name: player.name,
-            email: player.email,
-            ghin: player.ghin,
-            handicap: player.handicap,
-            status: 'confirmed'
-        }]);
-        if (error) {
-            console.error('Failed to save to Supabase:', error);
-            return false;
-        }
-        return true;
-    } catch (err) {
-        console.error('Failed to save to Supabase:', err);
-        return false;
-    }
-}
-
-function sendEmailNotification(player) {
-    fetch(`https://formsubmit.co/ajax/${NOTIFY_EMAIL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-            name: player.name,
-            email: player.email || 'Not provided',
-            ghin: player.ghin || 'Not provided',
-            handicap: player.handicap !== null ? player.handicap : 'Not provided',
-            _subject: 'New Bros before Boges Registration'
-        })
-    }).catch(error => console.error('Error sending email:', error));
 }
 
 // Global initialization

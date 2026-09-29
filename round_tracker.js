@@ -20,6 +20,26 @@ let currentHole = 1;
 let currentUserPlayer = null;
 let activeRound = null;
 
+// Match an email literally in an ilike filter: % and _ are wildcards, so escape them.
+// PostgREST turns * into %; escaping it too means an email with * simply never matches.
+function escapeLike(value) {
+    return String(value || '').replace(/[\\%_*]/g, '\\$&');
+}
+
+// A visible warning when a score doesn't reach the database (bad signal, or logged out)
+function showSaveProblem(message) {
+    let bar = document.getElementById('save-problem');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'save-problem';
+        bar.setAttribute('role', 'alert');
+        bar.style.cssText = 'position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5000; padding: 14px 16px; border-radius: 14px; background: #7f1d1d; color: #fff; font-weight: 600; line-height: 1.4; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); cursor: pointer;';
+        bar.addEventListener('click', () => bar.remove());
+        document.body.appendChild(bar);
+    }
+    bar.textContent = message + ' (Tap to dismiss.)';
+}
+
 // Initialize
 async function init() {
     try {
@@ -31,16 +51,32 @@ async function init() {
                 return;
             }
 
-            // Link logged in user to player record
-            const { data: userData } = await supabaseInstance
+            // Link logged in user to player record: the Bookie login link first, then the roster email
+            const { data: byLogin } = await supabaseInstance
                 .from('players')
                 .select('*')
-                .ilike('email', session.user.email)
-                .single();
+                .eq('user_id', session.user.id)
+                .limit(1);
+            let userData = byLogin && byLogin[0];
+            if (!userData) {
+                const { data: byEmail } = await supabaseInstance
+                    .from('players')
+                    .select('*')
+                    .ilike('email', escapeLike(session.user.email))
+                    .limit(1);
+                userData = byEmail && byEmail[0];
+            }
 
             if (userData) {
                 currentUserPlayer = userData;
             }
+
+            // Logging out anywhere else on this phone ends this session too; say so instead of losing scores
+            supabaseInstance.auth.onAuthStateChange((event) => {
+                if (event === 'SIGNED_OUT') {
+                    showSaveProblem('You were logged out, so scores aren’t saving. Log in again from the homepage.');
+                }
+            });
         }
 
         await loadInitialData();
@@ -364,13 +400,15 @@ async function startRound(joining = false) {
         const { data: roundData, error: roundError } = await supabaseInstance
             .from('rounds')
             .insert([{ course_id: courseId, status: 'active', round_number: parseInt(roundNumber) }])
-            .select();
+            .select('*, courses(*)');
 
         if (roundError) {
             alert('Error creating round: ' + roundError.message);
             return;
         }
         currentRoundId = roundData[0].id;
+        // This device now scores its own round, not whichever round another group started last
+        activeRound = roundData[0];
     }
 
     currentCourse = { id: courseId, name: courseName, pars: coursePars };
@@ -452,6 +490,19 @@ async function startRound(joining = false) {
     localStorage.setItem('bbb_tracked_players', JSON.stringify(selectedPlayers.map(p => p.id)));
 }
 
+// Round 2 partners share one ball, so the tracker shows and saves them together.
+function findCompanionId(playerId) {
+    const match = currentRoundMatchups.find(m =>
+        m.t1_player1_id === playerId || m.t1_player2_id === playerId ||
+        m.t2_player1_id === playerId || m.t2_player2_id === playerId
+    );
+    if (!match) return null;
+    if (match.t1_player1_id === playerId) return match.t1_player2_id;
+    if (match.t1_player2_id === playerId) return match.t1_player1_id;
+    if (match.t2_player1_id === playerId) return match.t2_player2_id;
+    return match.t2_player1_id;
+}
+
 function renderHoleView() {
     const holePar = currentCourse.pars[currentHole - 1] || 4; // default to 4
 
@@ -472,11 +523,8 @@ function renderHoleView() {
 
         let companion = null;
         if (isRound2) {
-            const pair = pairings.find(p => p.player1_id === player.id || p.player2_id === player.id);
-            if (pair) {
-                const companionId = pair.player1_id === player.id ? pair.player2_id : pair.player1_id;
-                companion = selectedPlayers.find(p => p.id === companionId);
-            }
+            const companionId = findCompanionId(player.id);
+            if (companionId) companion = selectedPlayers.find(p => p.id === companionId);
         }
 
         const renderPlayerCard = (p, isCompanion = false) => {
@@ -549,20 +597,9 @@ function renderScorecard() {
         if (processedPlayerIds.has(player.id)) return;
 
         let companion = null;
-        if (isRound2 && currentRoundMatchups.length > 0) {
-            const match = currentRoundMatchups.find(m => 
-                m.t1_player1_id === player.id || m.t1_player2_id === player.id || 
-                m.t2_player1_id === player.id || m.t2_player2_id === player.id
-            );
-            if (match) {
-                let companionId = null;
-                if (match.t1_player1_id === player.id) companionId = match.t1_player2_id;
-                else if (match.t1_player2_id === player.id) companionId = match.t1_player1_id;
-                else if (match.t2_player1_id === player.id) companionId = match.t2_player2_id;
-                else if (match.t2_player2_id === player.id) companionId = match.t2_player1_id;
-                
-                if (companionId) companion = selectedPlayers.find(p => p.id === companionId);
-            }
+        if (isRound2) {
+            const companionId = findCompanionId(player.id);
+            if (companionId) companion = selectedPlayers.find(p => p.id === companionId);
         }
 
         const renderRow = (p, isCompanion = false) => {
@@ -680,35 +717,28 @@ async function updateScore(playerId, hole, val) {
     updateData.total_score = total;
     updateData.total_to_par = toPar;
 
-    const { error } = await supabaseInstance
+    const { data: saved, error } = await supabaseInstance
         .from('scores')
         .update(updateData)
-        .eq('id', player.scoreId);
+        .eq('id', player.scoreId)
+        .select('id');
 
-    if (error) console.error('Save failed:', error);
+    if (error || !saved || !saved.length) {
+        console.error('Save failed:', error);
+        showSaveProblem(`Hole ${hole} for ${player.name} didn’t save. Check your signal, or log in again from the homepage.`);
+    }
 
     // If Round 2 and paired, update the companion as well
     const isRound2 = (activeRound && activeRound.round_number === 2) || (document.getElementById('round-number-select') && document.getElementById('round-number-select').value == 2);
-    if (isRound2 && currentRoundMatchups.length > 0) {
-        const match = currentRoundMatchups.find(m => 
-            m.t1_player1_id === playerId || m.t1_player2_id === playerId || 
-            m.t2_player1_id === playerId || m.t2_player2_id === playerId
-        );
-        if (match) {
-            let companionId = null;
-            if (match.t1_player1_id === playerId) companionId = match.t1_player2_id;
-            else if (match.t1_player2_id === playerId) companionId = match.t1_player1_id;
-            else if (match.t2_player1_id === playerId) companionId = match.t2_player2_id;
-            else if (match.t2_player2_id === playerId) companionId = match.t2_player1_id;
-
-            if (companionId) {
-                const companion = selectedPlayers.find(p => p.id === companionId);
-                if (companion && companion.scores[hole - 1] !== scoreVal) {
-                    companion.scores[hole - 1] = scoreVal;
-                    const compInput = document.querySelector(`.score-input[data-player-id="${companionId}"][data-hole="${hole}"]`);
-                    if (compInput) compInput.value = val;
-                    updateScore(companionId, hole, val);
-                }
+    if (isRound2) {
+        const companionId = findCompanionId(playerId);
+        if (companionId) {
+            const companion = selectedPlayers.find(p => p.id === companionId);
+            if (companion && companion.scores[hole - 1] !== scoreVal) {
+                companion.scores[hole - 1] = scoreVal;
+                const compInput = document.querySelector(`.score-input[data-player-id="${companionId}"][data-hole="${hole}"]`);
+                if (compInput) compInput.value = val;
+                updateScore(companionId, hole, val);
             }
         }
     }

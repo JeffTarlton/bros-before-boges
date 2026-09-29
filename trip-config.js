@@ -55,21 +55,40 @@ window.BBB = {
         }
     },
 
-    // RSVP / head count. Needs the `rsvps` table — run rsvp_schema.sql in Supabase once.
-    // Until that table exists, RSVPs are emailed to the commissioner instead of lost.
+    // RSVP / head count. Needs rsvp_schema.sql and then rsvp_accounts.sql run in Supabase.
+    // Every RSVP belongs to a player account (the same login as The Bookie).
     rsvp: {
         year: 2027,
         // Set a number (e.g. 16) to show an "X of 16 spots" progress bar.
         target: null,
-        // Email each RSVP to the commissioner (same inbox as roster sign-ups).
+        // Email each RSVP to the alerts inbox below.
         emailNotify: true,
         sundayQuestion: 'I’m up for the optional Sunday morning round (Apr 11)'
+    },
+
+    // Where RSVP and new-player alerts are emailed (sent through formsubmit.co).
+    // The first alert to a new "to" address is held until someone clicks the
+    // activation link FormSubmit emails to that address.
+    alerts: {
+        to: 'brosbeforeboges@lokdit.net',
+        cc: 'jeff.tarlton@lokdit.net'
+    },
+
+    // Sign-in options. Google is built but parked: set google to true only after the
+    // Google provider is set up in Supabase (steps in email-templates/README.md).
+    // Even then, the buttons stay hidden until Supabase reports Google as enabled.
+    auth: {
+        google: false
     },
 
     // Flip to true once teams are drafted and last year's scores are cleared in Admin.
     // While false, the homepage shows last year's champions instead of live teams/scores,
     // and the Scoreboard shows pre-tournament rankings.
     season: { live: false },
+
+    // The Bookie (side bets). Bets made before seasonStart belong to earlier trips: they move to
+    // the "Past Trips" tab and drop out of this year's ledger. Move the date up after each trip.
+    bookie: { seasonStart: '2026-06-01' },
 
     hero: {
         subtitle: 'Four days in the Sonoran Desert: Coore & Crenshaw fairways, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line. Higher stakes, faster greens, same idiots.',
@@ -372,6 +391,12 @@ window.BBB = {
                 red: ['Jeff Tarlton', 'Andy Mazzolini', 'Colby Gibson', 'Derrick Merchant', 'Dillon Griffin', 'Keith Spacek', 'Kelly Dennard', 'Tyler Lyons']
             },
             sessions: []
+        },
+        {
+            // Result not recorded yet: add champion/score (or resultText) and courses when known
+            year: 2025,
+            location: 'Bandon Dunes, Oregon',
+            courses: []
         }
     ],
     hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Final round TBA',
@@ -396,15 +421,22 @@ window.BBB = {
             ]
         },
         {
+            id: '2025',
+            year: 2025,
+            label: '2025 · Bandon Dunes',
+            photos: [
+                { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on the Bandon links with the Pacific behind them' },
+                { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew on a clifftop hole above the Pacific' },
+                { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept Bandon links hole', pos: '50% 45%' },
+                { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes' }
+            ]
+        },
+        {
             id: 'earlier',
             label: 'Earlier trips',
             photos: [
-                { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on a links course with the ocean behind them' },
                 { src: 'assets/past_years/web/thumb/img_0574.jpg', full: 'assets/past_years/web/img_0574.jpg', alt: 'A swing from the fairway on a tree-lined hole', pos: '50% 60%' },
-                { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew posing on a coastal course' },
                 { src: 'assets/past_years/web/thumb/img_6933.jpg', full: 'assets/past_years/web/img_6933.jpg', alt: 'Two of the crew in matching navy polos on the tee', pos: '50% 40%' },
-                { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes' },
-                { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept links hole', pos: '50% 45%' },
                 { src: 'assets/past_years/web/thumb/img_6936.jpg', full: 'assets/past_years/web/img_6936.jpg', alt: 'The crew warming up on a hillside range' },
                 { src: 'assets/past_years/web/thumb/img_6937.jpg', full: 'assets/past_years/web/img_6937.jpg', alt: 'Hitting balls on a hillside range' }
             ]

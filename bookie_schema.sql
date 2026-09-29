@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS wagers (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   creator_id uuid REFERENCES players(id) ON DELETE CASCADE NOT NULL,
   target_id uuid REFERENCES players(id) ON DELETE SET NULL, 
-  type text NOT NULL CHECK (type IN ('pool', 'h2h', 'main_event')),
+  type text NOT NULL CHECK (type IN ('pool', 'h2h', 'prop', 'main_event')),
   amount integer NOT NULL DEFAULT 0,
   odds integer DEFAULT 100,
   description text NOT NULL,
@@ -59,7 +59,7 @@ CREATE POLICY "Allow creator to delete open wagers"
   USING (
     creator_id IN (SELECT id FROM players WHERE user_id = auth.uid()) AND (
       (type = 'h2h' AND status = 'proposed') OR
-      (type = 'pool' AND jsonb_array_length(participants) <= 1)
+      (type IN ('pool', 'prop') AND jsonb_array_length(participants) <= 1)
     )
   );
 

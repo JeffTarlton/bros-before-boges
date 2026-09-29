@@ -2168,7 +2168,55 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
     accent-color: var(--copper);
     cursor: pointer;
 }
-.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+/* Who's RSVPing, and the account step before it */
+.rsvp-who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin: -8px 0 18px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(14, 11, 9, 0.3);
+    color: var(--ink-muted);
+    font-size: 0.92rem;
+}
+.rsvp-who b { color: var(--ink); font-weight: 600; }
+.link-btn {
+    background: none;
+    border: 0;
+    padding: 6px 2px;
+    margin-left: auto;
+    color: var(--gold);
+    font: inherit;
+    font-size: 0.88rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.rsvp-sheet .eyebrow { padding-right: 52px; }   /* clear the close button on narrow phones */
+.rsvp-sheet .modal-lede { overflow-wrap: anywhere; } /* long login emails wrap instead of overflowing */
+.rsvp-check.hcp-plus { margin: 10px 0 0; padding: 10px 12px; font-size: 0.9rem; }
+/* Same checkbox treatment as the RSVP form's Sunday box (the form's generic label/input
+   rules would otherwise stack it and stretch the box to 48px) */
+#registration-form .rsvp-check { display: flex; align-items: center; font-weight: 500; color: var(--ink); text-transform: none; letter-spacing: normal; }
+#registration-form .rsvp-check input {
+    min-height: 0;
+    height: 22px;
+    width: 22px;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    color-scheme: dark;
+}
+#profile-error { margin: 0 0 14px; }
+.rsvp-auth { display: grid; gap: 10px; }
+.rsvp-auth .btn { width: 100%; justify-content: center; text-align: center; }
+.rsvp-auth .link-btn { margin: 4px auto 0; }
+.rsvp-auth .or-divider { margin: 14px 0 4px; }
+.round-forgot { margin-top: 14px; font-size: 0.88rem; text-align: center; }
+.round-forgot a { color: var(--gold); text-underline-offset: 3px; }
 
 .rsvp-done { text-align: center; padding: 10px 0 4px; }
 .rsvp-done h2 { margin: 18px 0 10px; outline: none; }
