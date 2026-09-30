@@ -98,6 +98,7 @@ function parsForRound(roundNumber) {
 }
 
 function scoringForRound(roundNumber) {
+    if (CFG.roundPlay && CFG.roundPlay[roundNumber] === 'points') return 'stableford';
     return (CFG.roundScoring && CFG.roundScoring[roundNumber]) || 'stroke';
 }
 
@@ -1695,6 +1696,8 @@ async function fetchRyderCupScores() {
 // ---------------------------------------------------------------------------
 async function renderDynamicScoreboard() {
     if (!elements.dynamicLeaderboard) return;
+    const liveCta = document.getElementById('live-board-cta');
+    if (liveCta) liveCta.hidden = !SEASON_LIVE;
 
     // Until the new season is switched on, the database still holds last year's rounds.
     if (!supabaseInstance || !SEASON_LIVE) {
@@ -1866,8 +1869,9 @@ function renderFallbackLeaderboard() {
     elements.dynamicLeaderboard.innerHTML = `
         <div style="border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
             <div>
-                <div style="font: 500 1.6rem var(--serif);">Pre-Tournament Rankings</div>
+                <div style="font: 500 1.6rem var(--serif);">${SEASON_LIVE ? 'The Roster' : 'Pre-Tournament Rankings'}</div>
                 <div style="color: var(--gold); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">${SEASON_LIVE ? 'Confirmed Squad' : `Live scoring opens ${esc(TRIP.dates && TRIP.dates.start ? new Date(`${TRIP.dates.start}T12:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '')}`}</div>
+                ${SEASON_LIVE ? '<div style="color: var(--ink-dim); font-size: 0.85rem; margin-top: 6px; line-height: 1.45;">Match scores are on the live leaderboard above. Round totals show here once the commissioner posts them.</div>' : ''}
             </div>
             <div style="color: var(--ink-dim); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Ranked by handicap</div>
         </div>

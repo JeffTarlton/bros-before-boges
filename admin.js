@@ -939,6 +939,7 @@ function adminParsForRound(roundNumber) {
 
 function adminScoringForRound(roundNumber) {
     const cfg = window.BBB;
+    if (cfg && cfg.roundPlay && cfg.roundPlay[roundNumber] === 'points') return 'stableford';
     if (!cfg || !cfg.roundScoring) return roundNumber === 1 ? 'stableford' : 'stroke';
     return cfg.roundScoring[roundNumber] || 'stroke';
 }
@@ -1015,9 +1016,9 @@ function renderScoreEntryTable() {
                     hasAny = true;
                     const par = roundPars ? roundPars[holeIdx] : null;
                     if (isStableford) {
-                        // Stableford (rules page): eagle or better 5, birdie 3, par 2, bogey 1, double+ 0
-                        const diff = val - par;
-                        totalVal += diff <= -2 ? 5 : diff === -1 ? 3 : diff === 0 ? 2 : diff === 1 ? 1 : 0;
+                        // Quota points (rules page): eagle or better 5, birdie 3, par 2, bogey 1, double+ 0
+                        totalVal += window.BBBScoring ? window.BBBScoring.quotaPoints(val, par)
+                            : (val - par <= -2 ? 5 : val - par === -1 ? 3 : val - par === 0 ? 2 : val - par === 1 ? 1 : 0);
                     } else {
                         // Stroke play (tracks to-par when the course pars are known)
                         totalVal += val;
@@ -1064,8 +1065,81 @@ document.addEventListener('DOMContentLoaded', () => {
         if (saveBtn) {
             saveBtn.addEventListener('click', saveScoreEntries);
         }
+        const fillBtn = document.getElementById('fill-from-tracker-btn');
+        if (fillBtn) {
+            fillBtn.addEventListener('click', fillFromTracker);
+        }
     }, 500);
 });
+
+// Copy the Round Tracker's scorecards for this round into the table, merging duplicates the
+// same way the tracker's board does (scoring.js). A round number can have rounds on more than
+// one day (a stray start): use the day with the most scores, then the scheduled day, then the
+// latest. Holes the tracker doesn't have keep whatever is typed in. Nothing is saved until
+// Save Round Scores.
+async function fillFromTracker() {
+    if (!supabaseInstance) return;
+    const SC = window.BBBScoring;
+    const btn = document.getElementById('fill-from-tracker-btn');
+    btn.disabled = true;
+    try {
+        const cfg = window.BBB || {};
+        const since = (cfg.bookie && cfg.bookie.seasonStart) || '2000-01-01';
+        const { data: rounds, error } = await supabaseInstance
+            .from('rounds')
+            .select('id, date')
+            .eq('round_number', scoreEntryRound)
+            .gte('date', since);
+        if (error) throw error;
+        if (!rounds || !rounds.length) {
+            window.showToast(`The Round Tracker has no Round ${scoreEntryRound} cards yet.`, 'error');
+            return;
+        }
+        const { data: rows, error: rowsError } = await supabaseInstance.from('scores').select('*').in('round_id', rounds.map(r => r.id));
+        if (rowsError) throw rowsError;
+
+        const dayOf = new Map(rounds.map(r => [r.id, r.date || '']));
+        const holesByDay = {};
+        rounds.forEach(r => { holesByDay[r.date || ''] = holesByDay[r.date || ''] || 0; });
+        (rows || []).forEach(r => { holesByDay[dayOf.get(r.round_id)] += SC.countEntered(SC.holesOf(r)); });
+        let planned = null;
+        (cfg.itinerary || []).forEach(d => (d.slots || []).forEach(slot => { if (slot.when === `R${scoreEntryRound}`) planned = d.date; }));
+        const tripStart = cfg.trip && cfg.trip.dates && cfg.trip.dates.start;
+        const inTrip = Object.keys(holesByDay).filter(d => tripStart && d >= tripStart);
+        const day = (inTrip.length ? inTrip : Object.keys(holesByDay)).sort((a, b) =>
+            (holesByDay[b] - holesByDay[a]) || ((b === planned) - (a === planned)) || b.localeCompare(a))[0];
+
+        const byPlayer = {};
+        (rows || []).filter(r => dayOf.get(r.round_id) === day).forEach(r => { (byPlayer[r.player_id] = byPlayer[r.player_id] || []).push(r); });
+        let filled = 0, missing = 0, changed = 0;
+        Object.keys(byPlayer).forEach(pid => {
+            const holes = SC.mergeHoles(byPlayer[pid]);
+            if (!holes.some(v => v !== null)) return;
+            const inputs = document.querySelectorAll(`.score-hole-input[data-player="${pid}"]`);
+            if (!inputs.length) { missing++; return; }
+            inputs.forEach(input => {
+                const v = holes[Number(input.dataset.hole) - 1];
+                if (v === null) return;
+                if (input.value !== '' && Number(input.value) !== v) changed++;
+                input.value = v;
+            });
+            inputs[0].dispatchEvent(new Event('input')); // recompute the total and to-par
+            filled++;
+        });
+        const notes = [
+            changed ? `${changed} hole${changed === 1 ? '' : 's'} already typed in were different and got the tracker’s number.` : '',
+            missing ? `${missing} card${missing === 1 ? ' belongs' : 's belong'} to players not on the confirmed roster.` : ''
+        ].filter(Boolean).join(' ');
+        window.showToast(filled
+            ? `Filled ${filled} player${filled === 1 ? '' : 's'} from the Round Tracker (${escHtml(day)}). ${notes} Check the numbers, then press Save Round Scores.`
+            : 'The Round Tracker has no scores for this round yet.', filled ? 'success' : 'error');
+    } catch (err) {
+        console.error('Fill from tracker failed:', err);
+        window.showToast('Couldn’t read the Round Tracker: ' + escHtml(err.message || err), 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
 
 async function saveScoreEntries() {
     if (!supabaseInstance) return;

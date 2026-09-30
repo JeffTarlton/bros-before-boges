@@ -14,7 +14,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.7">
+    <link rel="stylesheet" href="style.css?v=2027.8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         html {
@@ -35,10 +35,22 @@
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .bet-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border-color: rgba(255, 255, 255, 0.15);
+        /* Hover lift only with a real mouse: on iPhone :hover sticks after a tap */
+        @media (hover: hover) and (pointer: fine) {
+            .bet-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                border-color: rgba(255, 255, 255, 0.15);
+            }
+        }
+
+        /* The fixed header is about 87px tall; keep the first bet close under it */
+        main.section-padding.bookie-main {
+            padding-top: 120px;
+        }
+
+        #bookie-dashboard .section-title::after {
+            display: none;
         }
 
         .bet-header {
@@ -84,9 +96,75 @@
             gap: 30px;
         }
 
+        /* A compact Cup card, so the first bet shows without scrolling */
+        #cup-card {
+            padding: 16px 20px;
+            margin-bottom: 16px;
+        }
+
+        #cup-card .cup-card-desc {
+            display: none;
+        }
+
+        #cup-card h3 {
+            font-size: 1.15rem !important;
+            margin-bottom: 0 !important;
+        }
+
+        #cup-card .bet-header {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+        }
+
+        #cup-card .pot-total {
+            margin: 12px 0 0;
+            padding: 10px;
+        }
+
+        #cup-card .pot-total div[style*="1.8rem"] {
+            font-size: 1.3rem !important;
+        }
+
         @media (max-width: 768px) {
             .bookie-grid {
                 grid-template-columns: minmax(0, 1fr);
+            }
+
+            main.section-padding.bookie-main {
+                padding-top: 100px;
+            }
+
+            /* 'Main Event / Stakes TBA' says nothing new on a small screen */
+            #cup-card .bet-header {
+                display: none;
+            }
+
+            .bookie-nav button,
+            .bookie-nav a {
+                padding: 10px 16px !important;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Tablets and small laptops: give the ledger a usable width */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .bookie-grid {
+                grid-template-columns: minmax(0, 1fr) 280px;
+            }
+        }
+
+        /* Laptops: the ledger stays in view while you scroll the bets */
+        @media (min-width: 769px) {
+            #ledger-panel {
+                position: sticky;
+                top: 100px;
+                max-height: calc(100vh - 120px);
+                overflow-y: auto;
+            }
+
+            #bookie-modal .modal-content {
+                max-width: 520px !important;
+                padding: 32px;
             }
         }
 
@@ -101,6 +179,7 @@
         }
 
         .bookie-nav button {
+            font-size: 0.85rem;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--glass-border);
             color: var(--text-muted);
@@ -110,6 +189,60 @@
             cursor: pointer;
             white-space: nowrap;
             transition: var(--transition);
+        }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .bookie-nav {
+                flex-wrap: wrap;
+                overflow-x: visible;
+            }
+        }
+
+        .bookie-nav a {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.85rem;
+            padding: 10px 20px;
+            min-height: 44px;
+            border-radius: 99px;
+            white-space: nowrap;
+            text-decoration: none;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-emerald);
+        }
+
+        a.bottom-nav-btn {
+            text-decoration: none;
+        }
+
+        /* How many challenges are waiting on you */
+        .count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            margin-left: 6px;
+            border-radius: 99px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+        }
+
+        .bottom-nav-btn {
+            position: relative;
+        }
+
+        .bottom-nav-btn .count-badge {
+            position: absolute;
+            top: -2px;
+            right: 4px;
+            margin: 0;
         }
 
         .bookie-nav button.active {
@@ -155,9 +288,162 @@
             top: calc(16px + env(safe-area-inset-top));
         }
 
+        /* While a sheet is open the board behind it stays put */
+        body.modal-open {
+            overflow: hidden;
+        }
+
         /* Modal */
         #bookie-modal .modal-content {
             position: relative;
+            max-width: 520px;
+            overscroll-behavior: contain;
+        }
+
+        /* Create sheet: the line on a head-to-head */
+        .odds-side {
+            border: none;
+            padding: 0;
+            margin: 0 0 18px;
+            min-width: 0;
+        }
+
+        .odds-side legend {
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .odds-side-options {
+            display: flex;
+            gap: 8px;
+        }
+
+        .odds-side-options label {
+            flex: 1 1 0;
+            min-width: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .odds-side-options label {
+            position: relative;
+        }
+
+        .odds-side-options input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: 0;
+        }
+
+        .odds-side-options span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 6px 8px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1.2;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }
+
+        .odds-side-options input:checked + span {
+            border-color: var(--accent-gold);
+            background: rgba(251, 191, 36, 0.12);
+            color: var(--accent-gold);
+        }
+
+        .odds-side-options input:focus-visible + span {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: 2px;
+        }
+
+        #wager-error {
+            color: #ef4444;
+        }
+
+        /* Card header: status badge above the title on narrow phones */
+        @media (max-width: 400px) {
+            .wager-head {
+                flex-direction: column-reverse;
+                gap: 6px !important;
+            }
+
+            .wager-head > div:last-child {
+                text-align: left !important;
+            }
+        }
+
+        .refresh-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 8px 14px;
+            border-radius: 99px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .stale-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
+
+        /* Ledger: who pays whom */
+        .settle-up {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .settle-up h4 {
+            margin-bottom: 4px;
+            font-size: 0.95rem;
+        }
+
+        .settle-up p {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+        }
+
+        .settle-up-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.9rem;
+        }
+
+        .settle-up-row.mine {
+            font-weight: 700;
         }
 
         #bookie-modal .modal-close {
@@ -275,10 +561,59 @@
 
         @media (max-width: 420px) {
             .dash-head {
-                flex-wrap: wrap;
-                align-items: flex-start !important;
+                flex-wrap: nowrap;
+                align-items: center !important;
                 gap: 12px;
+                margin-bottom: 18px !important;
             }
+
+            .dash-head > div:first-child {
+                min-width: 0;
+            }
+
+            #refresh-board-btn {
+                width: 44px;
+                padding: 0;
+                flex-shrink: 0;
+            }
+
+            #refresh-board-btn span {
+                display: none;
+            }
+        }
+
+        @media (max-width: 359px) {
+            .dash-head .section-title {
+                font-size: 2rem;
+            }
+        }
+
+        /* Just above the phone layout the header links need room */
+        @media (min-width: 769px) and (max-width: 900px) {
+            .main-nav ul {
+                gap: 16px;
+            }
+
+            .main-nav a,
+            .main-nav .btn-nav {
+                white-space: nowrap;
+            }
+
+            .main-nav .btn-nav {
+                padding: 10px 16px;
+            }
+        }
+
+        /* A long head-to-head form scrolls; Propose stays reachable at the bottom of the sheet */
+        #bookie-modal .modal-content {
+            scroll-padding-bottom: 100px;
+        }
+
+        #create-wager-submit {
+            position: sticky;
+            bottom: 0;
+            z-index: 1;
+            box-shadow: 0 14px 0 14px rgba(28, 22, 18, 0.98);
         }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
@@ -292,6 +627,7 @@
             <nav class="main-nav">
                 <ul>
                     <li><a href="index.html">Back to Home</a></li>
+                    <li><a href="round_tracker.html">Round Tracker</a></li>
                     <li><a href="rules.html" class="nav-link">Rules</a></li>
                     <li><button id="bookie-login-btn" class="btn-nav">Login / Register</button></li>
                 </ul>
@@ -304,13 +640,13 @@
         </div>
     </header>
 
-    <main class="section-padding" style="padding-top: 180px;">
+    <main class="section-padding bookie-main">
         <div class="container">
             <!-- Authentication Required Warning -->
             <div id="auth-wall" class="glass-panel" style="text-align: center; padding: 60px 40px; margin-bottom: 50px;">
                 <div style="font-size: 3.5rem; margin-bottom: 20px; color: var(--accent-gold);"><i class="fas fa-user-secret" aria-hidden="true"></i></div>
-                <h2 style="font-family: var(--font-heading); margin-bottom: 15px;">Members Only</h2>
-                <p style="color: var(--text-muted); margin-bottom: 30px; max-width: 500px; margin-left: auto; margin-right: auto;">
+                <h2 id="auth-wall-title" style="font-family: var(--font-heading); margin-bottom: 15px;">Members Only</h2>
+                <p id="auth-wall-text" style="color: var(--text-muted); margin-bottom: 30px; max-width: 500px; margin-left: auto; margin-right: auto;">
                     You must be logged in to access the sportsbook, place wagers, and view the ledger.
                 </p>
                 <p id="auth-wall-note" role="status" hidden style="max-width: 520px; margin: 0 auto 24px; padding: 14px 16px; border-radius: 12px; background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); color: var(--text-main); line-height: 1.5;"></p>
@@ -346,14 +682,17 @@
                         <h2 class="section-title" style="margin-bottom: 0;">Active <span class="text-stroke">Action</span></h2>
                         <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
                     </div>
-                    <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ Propose Bet</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="button" id="refresh-board-btn" class="refresh-btn" aria-label="Refresh the board"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>Refresh</span></button>
+                        <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ Propose Bet</button>
+                    </div>
                 </div>
 
-                <div class="bookie-nav" role="toolbar" aria-label="Filter bets">
+                <div class="bookie-nav" role="group" aria-label="Filter bets">
                     <button class="active" data-filter="all" aria-pressed="true">All Action</button>
-                    <button onclick="window.location.href='round_tracker.html'" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: var(--accent-emerald);">
+                    <a href="round_tracker.html">
                         <i class="fas fa-satellite-dish" style="margin-right: 6px;" aria-hidden="true"></i>Live Tracker
-                    </button>
+                    </a>
                     <button data-filter="pools" aria-pressed="false">Pools & Props</button>
                     <button data-filter="h2h" aria-pressed="false">Head-to-Head</button>
                     <button data-filter="me" aria-pressed="false">My Wagers</button>
@@ -364,14 +703,14 @@
                     <!-- Left Column: Open Wagers -->
                     <div>
                         <!-- Main Event (Always pinned) -->
-                        <div class="bet-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(28, 22, 18, 0.9), rgba(14, 11, 9, 0.9)); position: relative; overflow: hidden;">
+                        <div class="bet-card" id="cup-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(28, 22, 18, 0.9), rgba(14, 11, 9, 0.9)); position: relative; overflow: hidden;">
                             <div aria-hidden="true" style="position: absolute; top: -10px; right: -10px; font-size: 7rem; opacity: 0.05; transform: rotate(15deg);"><i class="fas fa-trophy"></i></div>
                             <div class="bet-header">
                                 <span class="bet-type-badge" style="background: var(--accent-gold); color: #000;">Main Event</span>
                                 <span class="bet-amount" style="color: var(--accent-gold);">Stakes TBA</span>
                             </div>
                             <h3 style="font-size: 1.4rem; margin-bottom: 10px;">The <span id="cup-card-year">2027</span> Cup <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(Blue vs Red)</span></h3>
-                            <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 25px;">
+                            <p class="cup-card-desc" style="color: var(--text-muted); line-height: 1.6; margin-bottom: 25px;">
                                 The winning team takes all. Teams and stakes get set once the captains draft, and the payout comes out of the entry fees. There is no extra wagering needed for this bet.
                             </p>
 
@@ -427,15 +766,15 @@
             <i class="fas fa-list" aria-hidden="true"></i>
             <span>Action</span>
         </button>
-        <button class="bottom-nav-btn" onclick="window.location.href='round_tracker.html'">
+        <a class="bottom-nav-btn" href="round_tracker.html">
             <i class="fas fa-satellite-dish" aria-hidden="true"></i>
             <span>Live Play</span>
-        </button>
+        </a>
         <button class="bottom-nav-btn" data-filter="me" aria-pressed="false">
             <i class="fas fa-user" aria-hidden="true"></i>
             <span>My Bets</span>
         </button>
-        <button class="bottom-nav-btn" onclick="document.getElementById('ledger-panel').scrollIntoView({behavior: 'smooth'})">
+        <button class="bottom-nav-btn" id="ledger-nav-btn">
             <i class="fas fa-book" aria-hidden="true"></i>
             <span>Ledger</span>
         </button>
@@ -448,7 +787,7 @@
 
     <!-- Generic Modal for Login/Register/Create Wager -->
     <div id="bookie-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-content">
             <button type="button" class="modal-close" id="bookie-modal-close" aria-label="Close">×</button>
             <h3 id="modal-title" style="margin-bottom: 20px; font-family: var(--font-heading); font-size: 1.5rem;">Authenticate</h3>
 
@@ -497,10 +836,11 @@
             <form id="create-wager-form" class="registration-form" style="display: none;" novalidate>
                 <label for="wager-type">Wager Type</label>
                 <select id="wager-type">
-                    <option value="pool">Pool (Anyone can join)</option>
-                    <option value="h2h">Head-to-Head (Challenge a specific player)</option>
-                    <option value="prop">Prop Bet (Custom Scenario, anyone can take action)</option>
+                    <option value="pool">Pool</option>
+                    <option value="h2h">Head-to-Head</option>
+                    <option value="prop">Prop Bet</option>
                 </select>
+                <p id="wager-type-hint" class="field-hint"></p>
 
                 <div id="h2h-target-container" style="display: none;">
                     <label for="wager-target">Player to Challenge</label>
@@ -509,32 +849,47 @@
                         <!-- Populated by JS -->
                     </select>
 
-                    <label for="wager-odds">Moneyline Odds for Opponent</label>
-                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: -5px; margin-bottom: 8px;">Plus (+150) means they're the underdog, minus (-120) means they're favored, and 100 is even money.</p>
-                    <input type="number" id="wager-odds" step="1" placeholder="+150, -120, or 100" value="100" style="margin-bottom: 15px;">
-                    <div id="odds-preview-text" aria-live="polite" style="font-size: 0.85rem; color: var(--accent-gold); display: none; margin-bottom: 20px; line-height: 1.5; padding: 10px; background: rgba(251,191,36,0.05); border-radius: 8px; border: 1px solid rgba(251,191,36,0.2);"></div>
+                    <fieldset class="odds-side">
+                        <legend id="odds-side-legend">The line</legend>
+                        <div class="odds-side-options">
+                            <label><input type="radio" name="odds-side" value="even" checked><span>Even money</span></label>
+                            <label><input type="radio" name="odds-side" value="dog"><span id="odds-dog-label">They’re the underdog</span></label>
+                            <label><input type="radio" name="odds-side" value="fav"><span id="odds-fav-label">They’re the favorite</span></label>
+                        </div>
+                    </fieldset>
+
+                    <div id="odds-number-wrap" hidden>
+                        <label for="wager-odds">Odds</label>
+                        <input type="text" id="wager-odds" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="150" aria-describedby="wager-odds-hint">
+                        <p id="wager-odds-hint" class="field-hint">100 or more. 150 means 3 to 2; 200 means 2 to 1.</p>
+                    </div>
                 </div>
 
                 <label for="wager-desc">Terms of the Bet</label>
                 <input type="text" id="wager-desc" required maxlength="140" placeholder="E.g., Lowest raw score on Friday">
 
-                <label for="wager-amt">Wager Amount ($)</label>
-                <input type="number" inputmode="numeric" pattern="[0-9]*" id="wager-amt" required min="1" step="1" placeholder="20">
+                <label for="wager-amt" id="wager-amt-label">Wager Amount ($)</label>
+                <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" id="wager-amt" required placeholder="20">
+
+                <div id="odds-preview-text" aria-live="polite" style="font-size: 0.85rem; color: var(--accent-gold); display: none; margin-bottom: 20px; line-height: 1.5; padding: 10px; background: rgba(251,191,36,0.05); border-radius: 8px; border: 1px solid rgba(251,191,36,0.2);"></div>
+                <p id="wager-error" class="auth-message" role="alert"></p>
 
                 <button type="submit" id="create-wager-submit" class="btn btn-primary" style="width: 100%;">Propose Wager</button>
             </form>
             <form id="settle-wager-form" class="registration-form" style="display: none;">
                 <input type="hidden" id="settle-wager-id">
-                <p style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">Pick the winner. The ledger updates right away, and a note in the bet's trash talk shows who settled it.</p>
-                <p style="margin-bottom: 10px; color: var(--text-muted); font-weight: 600;">Who won?</p>
-                <div id="settle-wager-winners-container" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 15px; margin-bottom: 20px; max-height: 50vh; overflow-y: auto;">
-                    <!-- Populated by JS -->
-                </div>
+                <p id="settle-wager-summary" style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">Pick the winner. The ledger updates right away, and a note in the bet's trash talk shows who settled it.</p>
+                <fieldset style="border: none; padding: 0; margin: 0; min-width: 0;">
+                    <legend style="margin-bottom: 10px; color: var(--text-muted); font-weight: 600;">Who won?</legend>
+                    <div id="settle-wager-winners-container" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 15px; margin-bottom: 20px;">
+                        <!-- Populated by JS -->
+                    </div>
+                </fieldset>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Confirm Winner & Settle</button>
+                <button type="submit" id="settle-submit-btn" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Confirm Winner & Settle</button>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                     <button type="button" id="settle-push-btn" class="btn" style="flex: 1; background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.3);">Declare Tie (Push)</button>
-                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Cancel Bet</button>
+                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Void Bet</button>
                 </div>
                 <button type="button" id="settle-auto-btn" class="btn" style="width: 100%; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px dashed #60a5fa; display: none;">
                     <i class="fas fa-bolt" style="margin-right: 5px;" aria-hidden="true"></i> Auto-Settle via Live Scores
@@ -543,9 +898,12 @@
         </div>
     </div>
 
+    <!-- Toasts: the live region exists from the start so screen readers announce the first one -->
+    <div class="toast-container" role="status" aria-live="polite"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.7"></script>
-    <script src="bookie.js?v=2027.7" defer></script>
+    <script src="trip-config.js?v=2027.8"></script>
+    <script src="bookie.js?v=2027.8" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

@@ -42,6 +42,11 @@ let authMode = 'login'; // 'login' | 'register' | 'reset'
 let currentFilter = 'all';
 let lastRefresh = 0;
 let creatingWager = false;
+let pendingWagerId = null; // the id a new bet is saved under, so a retry after a lost reply can't double-post it
+let pendingWagerTerms = null; // ...but only while the terms are the same: a changed bet is a new bet
+let settling = false;
+const busyWagers = new Set(); // bets with an action still saving: a second tap does nothing
+let rsvpOut = null; // players whose latest RSVP for this trip is "out" (left out of the challenge list)
 let modalReturnFocus = null;
 let resetPending = OPENED_FROM_RESET_LINK; // don't leave the page before the new password is saved
 
@@ -89,6 +94,8 @@ const wagerOddsInput = document.getElementById('wager-odds');
 const wagerDescInput = document.getElementById('wager-desc');
 const wagerAmtInput = document.getElementById('wager-amt');
 const wagerSubmitBtn = document.getElementById('create-wager-submit');
+const wagerErrorEl = document.getElementById('wager-error');
+const oddsNumberWrap = document.getElementById('odds-number-wrap');
 
 // Containers
 const wagersContainer = document.getElementById('wagers-container');
@@ -133,6 +140,23 @@ function h2hPayouts(amount, odds) {
     return o > 0
         ? { creatorWins: amount, targetWins: roundCents(amount * m) }
         : { creatorWins: roundCents(amount * m), targetWins: amount };
+}
+
+// Whole dollars typed into a text box ("$20", "1,000"). Anything else comes back NaN or a
+// fraction, which the form rejects.
+function parseDollars(value) {
+    const s = String(value || '').replace(/[$,\s]/g, '');
+    return /^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
+}
+
+// A pool pot split between winners, in cents, so the shares add back up to the pot exactly.
+// The first winners in the list get the leftover pennies.
+function potShares(amount, players, winners) {
+    if (!winners) return [];
+    const pot = Math.round(amount * 100) * players;
+    const base = Math.floor(pot / winners);
+    const extra = pot - base * winners;
+    return Array.from({ length: winners }, (_, i) => (base + (i < extra ? 1 : 0)) / 100);
 }
 
 function fmtPoints(n) {
@@ -184,7 +208,14 @@ async function initBookie() {
     // Registered once. PASSWORD_RECOVERY fires when someone opens a reset link.
     supabaseClient.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') {
+            // Logged out from another tab (or the session ran out) with a bet sheet open
+            const sheetOpen = modal.classList.contains('active') && authForm.style.display !== 'block';
             currentUser = null;
+            if (sheetOpen) {
+                closeModal();
+                showToast('You were logged out. Log in again to keep betting.', 'error');
+            }
+            resetCreateForm();
             showWall();
         } else if (event === 'PASSWORD_RECOVERY') {
             resetPending = true;
@@ -208,10 +239,14 @@ async function initBookie() {
 }
 
 function setupEventListeners() {
-    // Modal controls
+    // Modal controls. The backdrop closes the sheet only when the press also started on it,
+    // so drag-selecting text and letting go outside the card doesn't throw the form away.
     modalClose.addEventListener('click', closeModal);
+    let pressedOnBackdrop = false;
+    modal.addEventListener('pointerdown', (e) => { pressedOnBackdrop = e.target === modal; });
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
+        if (e.target === modal && pressedOnBackdrop) closeModal();
+        pressedOnBackdrop = false;
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
@@ -247,8 +282,15 @@ function setupEventListeners() {
     wagerTypeSelect.addEventListener('change', syncWagerTypeFields);
     wagerAmtInput.addEventListener('input', updateOddsPreview);
     wagerOddsInput.addEventListener('input', updateOddsPreview);
-    wagerTargetSelect.addEventListener('change', updateOddsPreview);
+    wagerTargetSelect.addEventListener('change', syncWagerTypeFields);
+    createWagerForm.querySelectorAll('input[name="odds-side"]').forEach(r => r.addEventListener('change', syncWagerTypeFields));
+    createWagerForm.addEventListener('input', () => showCreateError(''));
     createWagerForm.addEventListener('submit', handleCreateWager);
+
+    const refreshBtn = document.getElementById('refresh-board-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => refreshNow(refreshBtn));
+    const ledgerNavBtn = document.getElementById('ledger-nav-btn');
+    if (ledgerNavBtn) ledgerNavBtn.addEventListener('click', () => document.getElementById('ledger-panel').scrollIntoView({ behavior: 'smooth' }));
 
     // Settle
     settleWagerForm.addEventListener('submit', handleSettleSubmit);
@@ -289,19 +331,19 @@ function setupMobileGestures() {
     let currentY = 0;
     let isRefreshing = false;
 
-    // Pull-to-refresh indicator
+    // Pull-to-refresh indicator, at the top of the board where the pull happens.
+    // iPhone rubber-banding makes scrollY negative mid-pull, hence <= 0.
     const ptrIndicator = document.createElement('div');
     ptrIndicator.className = 'ptr-indicator';
-    ptrIndicator.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Fetching latest...';
-    const dashboardGrid = document.querySelector('.bookie-grid > div:first-child');
-    if (dashboardGrid) dashboardGrid.insertBefore(ptrIndicator, wagersContainer);
+    ptrIndicator.innerHTML = '<i class="fas fa-sync-alt fa-spin" aria-hidden="true"></i> Fetching latest...';
+    dashboard.insertBefore(ptrIndicator, dashboard.firstElementChild);
 
     dashboard.addEventListener('touchstart', (e) => {
-        if (window.scrollY === 0) startY = e.touches[0].clientY;
+        if (window.scrollY <= 0) startY = e.touches[0].clientY;
     }, { passive: true });
 
     dashboard.addEventListener('touchmove', (e) => {
-        if (window.scrollY === 0 && startY > 0 && !isRefreshing) {
+        if (window.scrollY <= 0 && startY > 0 && !isRefreshing) {
             currentY = e.touches[0].clientY;
             if (currentY - startY > 80) ptrIndicator.classList.add('active');
         }
@@ -312,6 +354,7 @@ function setupMobileGestures() {
             isRefreshing = true;
             if (navigator.vibrate) navigator.vibrate(50);
             await refreshBoard();
+            if (loadError) showToast('Couldn’t refresh. Check your signal and try again.', 'error');
             setTimeout(() => {
                 ptrIndicator.classList.remove('active');
                 isRefreshing = false;
@@ -323,7 +366,8 @@ function setupMobileGestures() {
         }
     });
 
-    // Swipe a card: left = join / accept, right = delete. Every action still asks to confirm.
+    // Swipe a card: left = join / accept, right = take back your own bet nobody's in yet.
+    // Every action still asks to confirm.
     let touchStart = null;
     wagersContainer.addEventListener('touchstart', (e) => {
         const onControl = e.target.closest('input, textarea, select, button, a');
@@ -338,8 +382,8 @@ function setupMobileGestures() {
         const card = touchStart.card;
         touchStart = null;
         if (Math.abs(dx) < 100 || Math.abs(dy) > 40) return; // a scroll, not a swipe
-        const btn = card.querySelector(dx < 0 ? '.accept-btn, .join-btn' : '.delete-btn');
-        if (btn) btn.click();
+        const btn = card.querySelector(dx < 0 ? '.accept-btn, .join-btn' : '.delete-ok');
+        if (btn && !btn.disabled) btn.click();
     }, { passive: true });
 }
 
@@ -659,8 +703,14 @@ async function loadSession() {
     }
 
     currentUser = player;
+    // Admin buttons follow the database's own rule (an is_admin roster row with this login's email),
+    // so the page never offers an admin action the database will refuse
+    try {
+        const { data: isAdmin, error: adminError } = await supabaseClient.rpc('is_trip_admin');
+        if (!adminError) currentUser.is_admin = !!isAdmin;
+    } catch (e) { /* keep the roster flag */ }
     showDashboard();
-    wagersContainer.innerHTML = getSkeletonHtml();
+    showBoardSkeleton();
     await refreshBoard();
     return true;
 }
@@ -673,6 +723,15 @@ function showWall(note, signedIn, opts) {
     if (authWallNote) {
         authWallNote.textContent = text;
         authWallNote.hidden = !text;
+    }
+    // Logged in but not able to bet yet (unlinked or awaiting the commissioner): don't say "log in"
+    const wallTitle = document.getElementById('auth-wall-title');
+    const wallText = document.getElementById('auth-wall-text');
+    if (wallTitle) wallTitle.textContent = signedIn ? 'Almost there' : 'Members Only';
+    if (wallText) {
+        wallText.textContent = signedIn
+            ? 'Betting opens once your login is linked to a confirmed name on the trip roster.'
+            : 'You must be logged in to access the sportsbook, place wagers, and view the ledger.';
     }
     // Signed in but unlinked: offer the name picker instead of log in / sign up
     const wallButtons = document.getElementById('wall-buttons');
@@ -852,7 +911,8 @@ async function handleAuthSubmit(e) {
             const newName = document.getElementById('auth-new-name').value;
             const result = await registerAccount(playerId, email, password, newName);
             if (result === 'confirm') {
-                setAuthMessage(`Almost done: we sent a confirmation link to ${email}. Open it, then log in here. No email after a few minutes? Ask the commissioner.`, false);
+                // The email's link logs them in and brings them back here (with ?next= kept)
+                setAuthMessage(`Almost done: check ${email} for “Confirm your email” from Bros before Boges. Tap the link in it and you’ll be logged in${NEXT === 'rsvp' ? ' and taken straight to the RSVP' : ''}. Nothing after a few minutes? Check spam, or ask the commissioner.`, false);
                 return;
             }
             showToast('Account created. You’re in.', 'success');
@@ -958,12 +1018,97 @@ async function fetchBaseData() {
         `);
     if (commentsError) console.warn('Trash talk failed to load:', commentsError);
     else allComments = comments || [];
+
+    // Once per visit: who has said they're out this year (fails open: everyone stays listed)
+    if (rsvpOut === null) {
+        try {
+            const { data: rsvps, error: rsvpError } = await supabaseClient.rpc('rsvp_latest', { p_trip_year: TRIP_YEAR });
+            if (rsvpError) throw rsvpError;
+            rsvpOut = new Set((rsvps || []).filter(r => r.status === 'out' && r.player_id).map(r => r.player_id));
+        } catch (e) {
+            rsvpOut = new Set();
+        }
+    }
 }
 
 async function refreshBoard() {
     await fetchBaseData();
     renderDashboard();
     lastRefresh = Date.now();
+}
+
+// The Refresh button: spins while it works
+async function refreshNow(btn) {
+    if (btn.getAttribute('aria-busy') === 'true') return;
+    btn.setAttribute('aria-busy', 'true'); // not disabled, so keyboard focus stays put
+    const icon = btn.querySelector('i');
+    if (icon) icon.classList.add('fa-spin');
+    try {
+        await refreshBoard();
+        if (loadError) showToast('Couldn’t refresh. Check your signal and try again.', 'error');
+    } finally {
+        btn.removeAttribute('aria-busy');
+        if (icon) icon.classList.remove('fa-spin');
+    }
+}
+window.refreshBoard = refreshBoard;
+
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// A request that never reached the server (no signal) reads "Load failed" on iPhone.
+// Say what it means, and reload the board so it shows what actually saved.
+function isNetworkError(err) {
+    return /Failed to fetch|Load failed|NetworkError|network connection|fetch failed/i.test((err && err.message) || String(err || ''));
+}
+function actionError(prefix, err) {
+    if (isNetworkError(err)) {
+        showToast('No signal. That may not have gone through. Check the board once you have a bar or two.', 'error');
+        refreshBoard().catch(() => {});
+        return;
+    }
+    showToast(`${prefix}: ${(err && err.message) || err}`, 'error');
+}
+
+// Runs one action on a bet. Its buttons stay disabled until the action finishes, so a second
+// tap on a slow signal can't send it twice (and show a false "someone changed it" error).
+async function withBusyWager(id, work) {
+    if (busyWagers.has(id)) return;
+    busyWagers.add(id);
+    const card = document.getElementById(`wager-card-${id}`);
+    const hadFocus = !!card && card.contains(document.activeElement);
+    const buttons = card ? [...card.querySelectorAll('button')] : [];
+    buttons.forEach(b => { b.disabled = true; });
+    try {
+        await work();
+    } finally {
+        busyWagers.delete(id);
+        buttons.forEach(b => { if (b.isConnected) b.disabled = false; });
+        if (hadFocus) focusCard(id);
+    }
+}
+
+// After a card re-renders, put keyboard focus back on it (its first button, or the card)
+function focusCard(id) {
+    if (document.activeElement && document.activeElement !== document.body && !wagersContainer.contains(document.activeElement)) return;
+    const card = document.getElementById(`wager-card-${id}`);
+    if (!card) {
+        const next = wagersContainer.querySelector('[id^="wager-card-"] button:not([disabled])') || document.querySelector('.bookie-nav button.active');
+        if (next) next.focus({ preventScroll: true });
+        return;
+    }
+    const btn = card.querySelector('button:not([disabled])');
+    if (btn) btn.focus({ preventScroll: true });
+    else { card.tabIndex = -1; card.focus({ preventScroll: true }); }
+}
+
+// Scroll a card into view and flash it (after creating a bet, for example)
+function revealCard(id) {
+    const card = document.getElementById(`wager-card-${id}`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('success-pop');
+    void card.offsetWidth;
+    card.classList.add('success-pop');
 }
 
 // Update one wager only while it is still in an expected state, so a stale screen can't
@@ -973,12 +1118,17 @@ async function updateWager(id, values, expectedStatuses, extraFilter) {
     if (extraFilter) q = extraFilter(q);
     const { data, error } = await q.select('id');
     if (error) throw error;
-    return !!data && data.length > 0;
+    if (data && data.length > 0) return true;
+    // Nothing changed. If the bet already looks exactly like this, an earlier try went through
+    // and only its reply was lost (a retry on bad signal): that's a success, not a conflict.
+    const { data: now } = await supabaseClient.from('wagers').select('*').eq('id', id).maybeSingle();
+    return !!now && Object.keys(values).every(k => JSON.stringify(now[k] === undefined ? null : now[k]) === JSON.stringify(values[k]));
 }
 
 async function betChangedUnderYou(message) {
     showToast(message || 'That bet just changed on someone else’s phone. Here’s the latest.', 'error');
-    closeModal();
+    // Close the Settle sheet it came from, but never a Create sheet someone is typing in
+    if (settleWagerForm.style.display === 'block') closeModal();
     await refreshBoard();
 }
 
@@ -1009,20 +1159,44 @@ function setFilter(filter) {
         b.classList.toggle('active', on);
         b.setAttribute('aria-pressed', String(on));
     });
+    // The Cup card belongs on the main board only
+    const cupCard = document.getElementById('cup-card');
+    if (cupCard) cupCard.hidden = filter !== 'all';
     renderWagers();
+    // Scrolled down the list (or at the ledger)? Jump back to the top of the new list.
+    const nav = document.querySelector('.bookie-nav');
+    if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' });
+}
+
+// Bets waiting on you: a challenge to answer, or your pool or prop to settle after betting closed.
+// (Either player can settle a head-to-head, so those aren't flagged.)
+function needsMe(w) {
+    if (!currentUser || !isCurrentSeason(w)) return false;
+    const me = currentUser.id;
+    return (w.status === 'proposed' && w.target_id === me) ||
+        (w.type !== 'h2h' && w.status === 'active' && w.creator_id === me);
 }
 
 function updateNotificationBadges() {
     if (!currentUser) return;
 
-    const hasPending = allWagers.some(w => isCurrentSeason(w) && w.status === 'proposed' && w.target_id === currentUser.id);
-    document.querySelectorAll('button[data-filter="h2h"], button[data-filter="me"]').forEach(btn => {
-        const dot = btn.querySelector('.notif-dot');
-        if (hasPending && !dot) {
-            btn.insertAdjacentHTML('beforeend', '<span class="notif-dot" aria-label="You have a challenge waiting" style="display:inline-block; width:8px; height:8px; background:#ef4444; border-radius:50%; margin-left:6px; vertical-align:middle; box-shadow: 0 0 5px rgba(239, 68, 68, 0.8);"></span>');
-        } else if (!hasPending && dot) {
-            dot.remove();
+    const mine = allWagers.filter(needsMe);
+    const counts = { h2h: mine.filter(w => w.type === 'h2h').length, pools: mine.filter(w => w.type !== 'h2h').length, me: mine.length };
+    document.querySelectorAll('button[data-filter="h2h"], button[data-filter="pools"], button[data-filter="me"]').forEach(btn => {
+        const waiting = counts[btn.dataset.filter] || 0;
+        const label = waiting === 1 ? '1 bet needs you' : `${waiting} bets need you`;
+        let badge = btn.querySelector('.count-badge');
+        if (!waiting) {
+            if (badge) badge.remove();
+            return;
         }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'count-badge';
+            btn.appendChild(badge);
+        }
+        if (badge.textContent !== String(waiting)) badge.textContent = String(waiting);
+        badge.setAttribute('aria-label', label);
     });
 }
 
@@ -1060,20 +1234,39 @@ function wagersForFilter(filter) {
         case 'h2h': return current.filter(w => w.type === 'h2h');
         case 'me': return current.filter(involvesMe);
         case 'past': return allWagers.filter(w => !isCurrentSeason(w));
-        default: return current;
+        // The main board skips called-off bets; they're still under My Wagers and the type tabs
+        default: return current.filter(w => w.status !== 'canceled');
     }
 }
 
+// Board order: challenges waiting on you, then live bets, then finished ones (newest first within each)
+function boardRank(w) {
+    if (needsMe(w)) return 0;
+    if (['proposed', 'open', 'active'].includes(w.status)) return 1;
+    return 2;
+}
+
+const RETRY_BUTTON = '<button type="button" class="refresh-btn" onclick="refreshBoard()"><i class="fas fa-sync-alt" aria-hidden="true"></i>Retry</button>';
+
 function renderWagers() {
+    // The Cup card may have been moved in among the cards last time: put it back first
+    const cupCard = document.getElementById('cup-card');
+    if (cupCard && wagersContainer.contains(cupCard)) wagersContainer.parentNode.insertBefore(cupCard, wagersContainer);
+
     if (loadError && !allWagers.length) {
         wagersContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; background: rgba(239,68,68,0.06); border-radius: 12px; border: 1px dashed rgba(239,68,68,0.35);">
-                <p style="color: var(--text-muted); margin-bottom: 15px;">Couldn’t load the betting board. Check your signal and pull down to refresh.</p>
+                <p style="color: var(--text-muted); margin-bottom: 15px;">Couldn’t load the betting board. Check your signal and try again.</p>
+                ${RETRY_BUTTON}
             </div>`;
         return;
     }
 
-    const displayWagers = wagersForFilter(currentFilter);
+    const displayWagers = wagersForFilter(currentFilter).sort((a, b) => boardRank(a) - boardRank(b));
+    // A refresh that failed while older bets are on screen: say so, instead of silently showing stale data
+    const staleBanner = loadError
+        ? `<div class="stale-banner" role="status"><span>Couldn’t refresh. This is the last board that loaded.</span>${RETRY_BUTTON}</div>`
+        : '';
 
     if (displayWagers.length === 0) {
         const empty = {
@@ -1082,7 +1275,7 @@ function renderWagers() {
             h2h: 'No head-to-head challenges yet.',
             pools: 'No pools or props yet.'
         }[currentFilter] || 'No action on the board yet.';
-        wagersContainer.innerHTML = `
+        wagersContainer.innerHTML = staleBanner + `
             <div style="text-align: center; padding: 40px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
                 <p style="color: var(--text-muted); margin-bottom: 15px;">${empty}</p>
                 ${currentFilter === 'past' ? '' : '<button class="btn" style="border: 1px solid var(--accent-emerald); color: var(--accent-emerald);" onclick="openWagerModal()">Be the first to bet</button>'}
@@ -1091,16 +1284,38 @@ function renderWagers() {
         return;
     }
 
-    // Keep open trash-talk threads open across re-renders
+    // Keep open trash-talk threads open, and half-typed comments in their boxes, across re-renders
     const openThreads = new Set([...wagersContainer.querySelectorAll('[id^="comments-"]')]
         .filter(el => el.style.display === 'block').map(el => el.id));
+    const drafts = [...wagersContainer.querySelectorAll('input[id^="comment-input-"]')]
+        .filter(i => i.value && !i.dataset.posting).map(i => [i.id, i.value]);
+    const focusedId = wagersContainer.contains(document.activeElement) && document.activeElement.matches('input[id^="comment-input-"]')
+        ? document.activeElement.id : '';
 
-    wagersContainer.innerHTML = displayWagers.map(wagerCardHTML).join('');
+    wagersContainer.innerHTML = staleBanner + displayWagers.map(wagerCardHTML).join('');
 
     openThreads.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = 'block';
+        if (!el) return;
+        el.style.display = 'block';
+        const toggle = el.previousElementSibling;
+        if (toggle) toggle.setAttribute('aria-expanded', 'true');
+        const thread = el.firstElementChild;
+        if (thread) thread.scrollTop = thread.scrollHeight; // newest comment in view
     });
+    drafts.forEach(([inputId, value]) => {
+        const el = document.getElementById(inputId);
+        if (el) el.value = value;
+    });
+    const focused = focusedId && document.getElementById(focusedId);
+    if (focused) focused.focus({ preventScroll: true });
+
+    // Bets that need you sit above the Cup card on the main board
+    const firstOther = displayWagers.find(w => boardRank(w) !== 0);
+    if (cupCard && currentFilter === 'all' && displayWagers.some(w => boardRank(w) === 0)) {
+        const anchor = firstOther ? document.getElementById(`wager-card-${firstOther.id}`) : null;
+        wagersContainer.insertBefore(cupCard, anchor);
+    }
 }
 
 const STATUS_BADGES = {
@@ -1132,24 +1347,24 @@ function stakesHTML(wager) {
         const odds = normOdds(wager.odds);
         return statPill(`${escHtml(firstName(wager.creator_id))} wins`, fmtMoney(creatorWins)) +
             statPill(`${escHtml(firstName(wager.target_id))} wins`, fmtMoney(targetWins)) +
-            (odds !== 100 && odds !== -100 ? statPill('', `<i class="fas fa-chart-line"></i> ${escHtml(firstName(wager.target_id))} ${fmtOdds(odds)}`, 'var(--accent-gold)') : '');
+            (odds !== 100 && odds !== -100 ? statPill('', `<i class="fas fa-chart-line" aria-hidden="true"></i> ${escHtml(firstName(wager.target_id))} ${fmtOdds(odds)}`, 'var(--accent-gold)') : '');
     }
     if (wager.type === 'prop') {
         const takers = parts.filter(id => id !== wager.creator_id).length;
         return statPill('Per taker', fmtMoney(wager.amount)) +
             statPill(`${escHtml(firstName(wager.creator_id))} covers`, fmtMoney(wager.amount * takers), 'var(--accent-emerald)') +
-            statPill('', `${takers} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)"></i>`);
+            statPill('', `${takers} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)" aria-label="players"></i>`);
     }
     return statPill('Buy-In', fmtMoney(wager.amount)) +
         statPill('Pot', fmtMoney(wager.amount * parts.length), 'var(--accent-emerald)') +
-        statPill('', `${parts.length} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)"></i>`);
+        statPill('', `${parts.length} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)" aria-label="players"></i>`);
 }
 
 // Who won and who owes whom, in dollars
 function resultsHTML(wager) {
     const box = (color, icon, title, detail) => `
         <div style="margin-top: 15px; padding: 15px; background: ${color}1a; border-radius: 8px; border: 1px solid ${color}33;">
-            <div style="color: ${color}; font-weight: 700; margin-bottom: 5px;"><i class="fas ${icon}"></i> ${title}</div>
+            <div style="color: ${color}; font-weight: 700; margin-bottom: 5px;"><i class="fas ${icon}" aria-hidden="true"></i> ${title}</div>
             <div style="font-size: 0.85rem; color: var(--text-muted);">${detail}</div>
         </div>`;
     const GREEN = '#10b981', GOLD = '#fbbf24', RED = '#ef4444';
@@ -1177,9 +1392,17 @@ function resultsHTML(wager) {
     }
     const winners = parts.filter(id => winnerIds.includes(id));
     const losers = parts.filter(id => !winnerIds.includes(id));
-    const share = winners.length ? (wager.amount * parts.length) / winners.length : 0;
     return box(GREEN, 'fa-trophy', `Won by ${winners.map(name).join(' & ') || 'nobody'}`,
-        `${fmtMoney(share)} each. ${losers.length ? `${losers.map(name).join(', ')} paid ${fmtMoney(wager.amount)} into the pot.` : ''}`);
+        `${potSplitText(wager.amount, parts.length, winners, name)} ${losers.length ? `${losers.map(name).join(', ')} paid ${fmtMoney(wager.amount)} into the pot.` : ''}`);
+}
+
+// "Takes the $30 pot." / "$15 each." / "Jeff $13.34, Kelly $13.33, Zac $13.33." (pennies don't split evenly)
+function potSplitText(amount, players, winners, name) {
+    const shares = potShares(amount, players, winners.length);
+    if (!shares.length) return '';
+    if (shares.length === 1) return `Takes the ${fmtMoney(shares[0])} pot.`;
+    if (shares.every(s => s === shares[0])) return `${fmtMoney(shares[0])} each.`;
+    return winners.map((id, i) => `${name(id)} ${fmtMoney(shares[i])}`).join(', ') + '.';
 }
 
 // Who's in: everyone for pools and head-to-heads, just the takers for a prop
@@ -1191,7 +1414,15 @@ function peopleLineHTML(wager) {
 }
 
 function actionButton(label, icon, onclick, style, extraClass) {
-    return `<button class="btn ${extraClass || ''}" style="flex: 1; padding: 10px; ${style || ''}" onclick="${onclick}"><i class="fas ${icon}" style="margin-right: 6px;"></i>${label}</button>`;
+    return `<button class="btn ${extraClass || ''}" style="flex: 1; padding: 10px; min-height: 44px; ${style || ''}" onclick="${onclick}"><i class="fas ${icon}" style="margin-right: 6px;" aria-hidden="true"></i>${label}</button>`;
+}
+
+// A bet still only its creator's: an unaccepted challenge, or a pool or prop nobody has joined.
+// Cancel Bet takes it off the board entirely.
+function isJustMine(wager) {
+    return !!currentUser && wager.creator_id === currentUser.id && (
+        (wager.type === 'h2h' && wager.status === 'proposed') ||
+        (wager.type !== 'h2h' && wager.status === 'open' && (wager.participants || []).length <= 1));
 }
 
 function actionsHTML(wager) {
@@ -1207,6 +1438,23 @@ function actionsHTML(wager) {
     const GREEN = 'background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border: 1px solid var(--accent-emerald);';
     const row = buttons => `<div style="display: flex; gap: 10px; margin-top: 15px;">${buttons}</div>`;
     const note = text => `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">${text}</div>`;
+    const cancelBtn = isJustMine(wager)
+        ? actionButton('Cancel Bet', 'fa-ban', `window.deleteWager('${id}')`, RED, 'cancel-btn delete-ok')
+        : actionButton('Cancel Bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn');
+
+    // Last trip's leftovers don't count toward this year's ledger: no joining or settling them,
+    // but their creator (or an admin) can still clear them off.
+    if (!isCurrentSeason(wager)) {
+        const unfinished = ['proposed', 'open', 'active'].includes(wager.status);
+        if (unfinished && (isCreator || isAdmin)) return row(cancelBtn) + note(`From the ${new Date(wager.created_at).getFullYear()} trip. It doesn’t count toward this year’s ledger.`);
+        return '';
+    }
+
+    // An admin can reopen a finished bet that was settled wrong
+    const voidedLive = wager.status === 'canceled' && wager.type === 'h2h' && parts.length === 2;
+    if (wager.status === 'settled' || wager.status === 'push' || voidedLive) {
+        return isAdmin ? row(actionButton('Reopen (admin)', 'fa-undo', `window.reopenWager('${id}')`, RED, 'reopen-btn')) : '';
+    }
 
     if (wager.type === 'h2h') {
         if (wager.status === 'proposed') {
@@ -1215,8 +1463,8 @@ function actionsHTML(wager) {
                     actionButton('Decline', 'fa-times', `window.declineWager('${id}')`, RED, 'decline-btn'));
             }
             if (isCreator || isAdmin) {
-                return (isCreator ? note(`<i class="fas fa-clock" style="margin-right: 5px;"></i>Waiting for ${wager.target ? escHtml(wager.target.name) : 'your opponent'} to accept…`) : '') +
-                    row(actionButton('Cancel Bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn'));
+                return (isCreator ? note(`<i class="fas fa-clock" style="margin-right: 5px;" aria-hidden="true"></i>Waiting for ${wager.target ? escHtml(wager.target.name) : 'your opponent'} to accept…`) : '') +
+                    row(cancelBtn);
             }
             return '';
         }
@@ -1231,14 +1479,14 @@ function actionsHTML(wager) {
     if (wager.status === 'open') {
         let html = '';
         if (!isParticipant) {
-            html += row(`<button class="btn join-btn" style="width: 100%; padding: 10px;" onclick="window.joinWager('${id}')">${wager.type === 'prop' ? 'Take the Action' : 'Join Pool'} (${fmtMoney(wager.amount)})</button>`);
+            html += row(`<button class="btn join-btn" style="width: 100%; padding: 10px; min-height: 44px;" onclick="window.joinWager('${id}')">${wager.type === 'prop' ? 'Take the Action' : 'Join Pool'} (${fmtMoney(wager.amount)})</button>`);
         } else if (!isCreator) {
-            html += note('You’re in this bet');
+            html += note('You’re in this bet') +
+                row(actionButton('Leave', 'fa-sign-out-alt', `window.leaveWager('${id}')`, RED, 'leave-btn'));
         }
         if (canManage) {
             const enough = wager.type === 'prop' ? takers.length >= 1 : parts.length >= 2;
-            html += row((enough ? actionButton('Close Betting', 'fa-lock', `window.closeBetting('${id}')`, GREEN) : '') +
-                actionButton('Cancel Bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn'));
+            html += row((enough ? actionButton('Close Betting', 'fa-lock', `window.closeBetting('${id}')`, GREEN) : '') + cancelBtn);
             if (!enough && isCreator) html += note(wager.type === 'prop' ? 'Waiting for someone to take the action.' : 'Waiting for others to join.');
         }
         return html;
@@ -1256,14 +1504,6 @@ function wagerCardHTML(wager) {
     const isCreator = wager.creator_id === me;
     const isTarget = wager.target_id === me;
     const id = escHtml(wager.id);
-
-    const canDelete = isCreator && (
-        (wager.type === 'h2h' && wager.status === 'proposed') ||
-        (wager.type !== 'h2h' && wager.status === 'open' && parts.length <= 1)
-    );
-    const deleteBtnHtml = canDelete
-        ? `<div style="margin-top: 8px;"><button class="delete-btn" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;" onclick="window.deleteWager('${id}')"><i class="fas fa-trash" style="margin-right: 4px;"></i>Delete</button></div>`
-        : '';
 
     const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop Bet' : 'Pool');
     const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${escHtml(wager.target.name)}</div>` : '';
@@ -1284,8 +1524,8 @@ function wagerCardHTML(wager) {
 
     const trashTalkHtml = `
         <div class="trash-talk-section" style="margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 15px;">
-            <button class="btn" style="width: 100%; padding: 8px; background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.85rem; border: 1px dashed rgba(255,255,255,0.1);" aria-expanded="false" onclick="const el = document.getElementById('comments-${id}'); const open = el.style.display === 'none'; el.style.display = open ? 'block' : 'none'; this.setAttribute('aria-expanded', open);">
-               <i class="fas fa-comments" style="margin-right: 6px;"></i>Trash Talk (${comments.length})
+            <button class="btn" style="width: 100%; padding: 8px; min-height: 44px; background: rgba(255,255,255,0.02); color: var(--text-muted); font-size: 0.85rem; border: 1px dashed rgba(255,255,255,0.1);" aria-expanded="false" aria-controls="comments-${id}" onclick="const el = document.getElementById('comments-${id}'); const open = el.style.display === 'none'; el.style.display = open ? 'block' : 'none'; this.setAttribute('aria-expanded', open); if (open) { const t = el.firstElementChild; t.scrollTop = t.scrollHeight; }">
+               <i class="fas fa-comments" style="margin-right: 6px;" aria-hidden="true"></i>Trash Talk (${comments.length})
             </button>
             <div id="comments-${id}" style="display: none; margin-top: 15px;">
                 <div style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding-right: 5px;">
@@ -1294,7 +1534,7 @@ function wagerCardHTML(wager) {
                 ${currentUser ? `
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="comment-input-${id}" maxlength="280" aria-label="Add trash talk" placeholder="Talk smack..." style="flex: 1; min-width: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white;">
-                    <button class="btn" style="padding: 8px 15px; min-height: 44px; background: var(--accent-gold); color: #000; font-weight: bold; border: none; border-radius: 8px;" onclick="window.postComment('${id}')">Post</button>
+                    <button class="btn" style="padding: 8px 15px; min-height: 44px; background: var(--accent-gold); color: #000; font-weight: bold; border: none; border-radius: 8px;" onmousedown="event.preventDefault()" onclick="window.postComment('${id}')">Post</button>
                 </div>` : ''}
             </div>
         </div>
@@ -1302,7 +1542,7 @@ function wagerCardHTML(wager) {
 
     return `
         <div class="glass-panel" id="wager-card-${id}" style="${cardStyle}">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
+            <div class="wager-head" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
                 <div style="min-width: 0;">
                     <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? escHtml(wager.creator.name) : 'Unknown'} • <span style="white-space: nowrap;">${typeLabel}${pastLabel}</span></div>
                     <h4 style="font-size: 1.1rem; margin-bottom: 5px; overflow-wrap: anywhere;">${escHtml(wager.description)}</h4>
@@ -1310,7 +1550,6 @@ function wagerCardHTML(wager) {
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
                     ${statusBadgeHTML(wager)}
-                    ${deleteBtnHtml}
                 </div>
             </div>
 
@@ -1327,9 +1566,9 @@ function wagerCardHTML(wager) {
 // Bet actions
 // ==========================================
 window.joinWager = async function (id) {
-    if (!currentUser) return;
+    if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
-    if (!wager) return;
+    if (!wager || !isCurrentSeason(wager)) return;
     const me = currentUser.id;
     const creator = getPlayerName(wager.creator_id);
     const question = wager.type === 'prop'
@@ -1337,58 +1576,103 @@ window.joinWager = async function (id) {
         : `Join “${wager.description}” for a ${fmtMoney(wager.amount)} buy-in?`;
     if (!confirm(question)) return;
 
-    try {
-        // Add yourself to the latest list, and only if nobody else changed it in between
-        for (let attempt = 0; attempt < 4; attempt++) {
-            const { data: fresh, error } = await supabaseClient
-                .from('wagers')
-                .select('participants, status')
-                .eq('id', id)
-                .single();
-            if (error) throw error;
-            if (fresh.status !== 'open') return betChangedUnderYou('Betting on that one just closed.');
+    await withBusyWager(id, async () => {
+        try {
+            // Add yourself to the latest list, and only if nobody else changed it in between
+            for (let attempt = 0; attempt < 4; attempt++) {
+                const { data: fresh, error } = await supabaseClient
+                    .from('wagers')
+                    .select('participants, status')
+                    .eq('id', id)
+                    .maybeSingle();
+                if (error) throw error;
+                if (!fresh) return betChangedUnderYou('That bet was deleted.');
+                if (fresh.status !== 'open') return betChangedUnderYou('Betting on that one just closed.');
 
-            const current = fresh.participants || [];
-            if (current.includes(me)) break;
+                const current = fresh.participants || [];
+                if (current.includes(me)) break;
 
-            let q = supabaseClient.from('wagers').update({ participants: current.concat(me) }).eq('id', id).eq('status', 'open');
-            q = fresh.participants ? q.eq('participants', JSON.stringify(current)) : q.is('participants', null);
-            const { data, error: updateError } = await q.select('id');
-            if (updateError) throw updateError;
-            if (data && data.length) {
-                await refreshBoard();
-                showToast(wager.type === 'prop' ? 'You’re on the other side of that prop.' : 'You’re in the pool.', 'success');
-                return;
+                let q = supabaseClient.from('wagers').update({ participants: current.concat(me) }).eq('id', id).eq('status', 'open');
+                q = fresh.participants ? q.eq('participants', JSON.stringify(current)) : q.is('participants', null);
+                const { data, error: updateError } = await q.select('id');
+                if (updateError) throw updateError;
+                if (data && data.length) {
+                    await refreshBoard();
+                    showToast(wager.type === 'prop' ? 'You’re on the other side of that prop.' : 'You’re in the pool.', 'success');
+                    return;
+                }
             }
+            await refreshBoard();
+        } catch (err) {
+            actionError('Error joining', err);
         }
-        await refreshBoard();
-    } catch (err) {
-        showToast('Error joining: ' + err.message, 'error');
-    }
+    });
+};
+
+// Back out of a pool or prop you joined, while betting is still open
+window.leaveWager = async function (id) {
+    if (!currentUser || busyWagers.has(id)) return;
+    const wager = findWager(id);
+    if (!wager) return;
+    const me = currentUser.id;
+    if (!confirm(`Leave “${wager.description}”? You’re out and owe nothing on it.`)) return;
+
+    await withBusyWager(id, async () => {
+        try {
+            for (let attempt = 0; attempt < 4; attempt++) {
+                const { data: fresh, error } = await supabaseClient
+                    .from('wagers')
+                    .select('participants, status')
+                    .eq('id', id)
+                    .maybeSingle();
+                if (error) throw error;
+                if (!fresh) return betChangedUnderYou('That bet was deleted.');
+                if (fresh.status !== 'open') return betChangedUnderYou('Betting on that one just closed, so you’re in. Ask the creator if you need out.');
+
+                const current = fresh.participants || [];
+                if (!current.includes(me)) break;
+
+                const { data, error: updateError } = await supabaseClient.from('wagers')
+                    .update({ participants: current.filter(pid => pid !== me) })
+                    .eq('id', id).eq('status', 'open').eq('participants', JSON.stringify(current))
+                    .select('id');
+                if (updateError) throw updateError;
+                if (data && data.length) {
+                    await refreshBoard();
+                    showToast('You’re out of that one.', 'success');
+                    return;
+                }
+            }
+            await refreshBoard();
+        } catch (err) {
+            actionError('Error leaving the bet', err);
+        }
+    });
 };
 
 window.acceptWager = async function (id) {
-    if (!currentUser) return;
+    if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
     const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
     const creator = getPlayerName(wager.creator_id);
     if (!confirm(`Accept ${creator}’s challenge: “${wager.description}”?\n\nIf you win, ${creator} pays you ${fmtMoney(targetWins)}. If ${creator} wins, you pay ${fmtMoney(creatorWins)}.`)) return;
 
-    try {
-        const ok = await updateWager(id, { status: 'active', participants: [wager.creator_id, currentUser.id] }, ['proposed'],
-            q => q.eq('target_id', currentUser.id));
-        if (!ok) return betChangedUnderYou('That challenge was canceled before you accepted.');
+    await withBusyWager(id, async () => {
+        try {
+            const ok = await updateWager(id, { status: 'active', participants: [wager.creator_id, currentUser.id] }, ['proposed'],
+                q => q.eq('target_id', currentUser.id));
+            if (!ok) return betChangedUnderYou('That challenge was canceled before you accepted.');
 
-        const card = document.getElementById(`wager-card-${id}`);
-        if (card) card.classList.add('success-pop');
-        setTimeout(async () => {
+            const card = document.getElementById(`wager-card-${id}`);
+            if (card) card.classList.add('success-pop');
+            await pause(card ? 500 : 0);
             await refreshBoard();
             showToast('Challenge accepted. The bet is live.', 'success');
-        }, card ? 500 : 0);
-    } catch (err) {
-        showToast('Error accepting challenge: ' + err.message, 'error');
-    }
+        } catch (err) {
+            actionError('Error accepting challenge', err);
+        }
+    });
 };
 
 function fadeCard(id) {
@@ -1401,103 +1685,152 @@ function fadeCard(id) {
 }
 
 window.declineWager = async function (id) {
-    if (!currentUser) return;
+    if (!currentUser || busyWagers.has(id)) return;
     if (!confirm('Decline this challenge? The bet will be canceled.')) return;
 
-    try {
-        const ok = await updateWager(id, { status: 'canceled' }, ['proposed'], q => q.eq('target_id', currentUser.id));
-        if (!ok) return betChangedUnderYou();
-        fadeCard(id);
-        setTimeout(async () => {
+    await withBusyWager(id, async () => {
+        try {
+            const ok = await updateWager(id, { status: 'canceled' }, ['proposed'], q => q.eq('target_id', currentUser.id));
+            if (!ok) return betChangedUnderYou();
+            await logBetNote(id, 'Declined the challenge.');
+            fadeCard(id);
+            await pause(400);
             await refreshBoard();
             showToast('Challenge declined.', 'success');
-        }, 400);
-    } catch (err) {
-        showToast('Error declining challenge: ' + err.message, 'error');
-    }
+        } catch (err) {
+            actionError('Error declining challenge', err);
+        }
+    });
 };
 
 // Cancel a bet that hasn't been decided: an unaccepted challenge, or an open pool or prop.
 window.cancelWager = async function (id) {
-    if (!currentUser) return;
+    if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
     const others = (wager.participants || []).filter(pid => pid !== wager.creator_id).length;
     const question = wager.status === 'proposed'
-        ? 'Cancel this challenge before it’s accepted?'
-        : `Cancel this ${wager.type === 'prop' ? 'prop' : 'pool'}?${others ? ' Everyone who joined is out and no money changes hands.' : ''}`;
+        ? `Cancel the challenge “${wager.description}” before it’s accepted?`
+        : `Cancel “${wager.description}”?${others ? ' Everyone who joined is out and no money changes hands.' : ''}`;
     if (!confirm(question)) return;
 
-    try {
-        const ok = await updateWager(id, { status: 'canceled' }, [wager.status]);
-        if (!ok) return betChangedUnderYou();
-        if (others && wager.status !== 'proposed') await logBetNote(id, 'Canceled the bet. No money changes hands.');
-        fadeCard(id);
-        setTimeout(async () => {
+    await withBusyWager(id, async () => {
+        try {
+            const ok = await updateWager(id, { status: 'canceled' }, [wager.status]);
+            if (!ok) return betChangedUnderYou();
+            // A note says who called it off: always when it wasn't the creator
+            if (wager.creator_id !== currentUser.id || (others && wager.status !== 'proposed')) {
+                await logBetNote(id, 'Canceled the bet. No money changes hands.');
+            }
+            fadeCard(id);
+            await pause(400);
             await refreshBoard();
             showToast('Bet canceled.', 'success');
-        }, 400);
-    } catch (err) {
-        showToast('Error canceling bet: ' + err.message, 'error');
-    }
+        } catch (err) {
+            actionError('Error canceling bet', err);
+        }
+    });
 };
 
 // Pools and props: stop new joins (e.g. once the round starts) before settling.
 window.closeBetting = async function (id) {
-    if (!currentUser) return;
+    if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
     if (!confirm(`Close betting on “${wager.description}”? Nobody else can join after this. You’ll settle it once the result is in.`)) return;
 
-    try {
-        const ok = await updateWager(id, { status: 'active' }, ['open']);
-        if (!ok) return betChangedUnderYou();
-        await refreshBoard();
-        showToast('Betting closed. Settle it when the result is in.', 'success');
-    } catch (err) {
-        showToast('Error closing betting: ' + err.message, 'error');
-    }
-};
-
-window.deleteWager = async function (id) {
-    if (!confirm('Delete this wager? It disappears from the board.')) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('wagers')
-            .delete()
-            .eq('id', id)
-            .select('id');
-        if (error) throw error;
-
-        if (!data || !data.length) {
-            // Not deleted: either someone just joined, or the database doesn't allow deleting
-            // this type yet (props before bookie_2027.sql). Only cancel it if it's still just yours.
-            const { data: fresh } = await supabaseClient.from('wagers').select('status, participants').eq('id', id).maybeSingle();
-            const stillEmpty = fresh && Array.isArray(fresh.participants) && fresh.participants.length <= 1;
-            if (!stillEmpty) return betChangedUnderYou('Someone just joined, so it can’t be deleted. Cancel it from the card if you need to.');
-            const ok = await updateWager(id, { status: 'canceled' }, [fresh.status], q => q.eq('participants', JSON.stringify(fresh.participants)));
+    await withBusyWager(id, async () => {
+        try {
+            const ok = await updateWager(id, { status: 'active' }, ['open']);
             if (!ok) return betChangedUnderYou();
             await refreshBoard();
-            showToast('Couldn’t delete it, so it’s been canceled instead.', 'success');
-            return;
+            showToast('Betting closed. Settle it when the result is in.', 'success');
+        } catch (err) {
+            actionError('Error closing betting', err);
         }
+    });
+};
 
-        await refreshBoard();
-        showToast('Wager deleted.', 'success');
-    } catch (err) {
-        showToast('Error deleting wager: ' + err.message, 'error');
-    }
+// Cancel Bet on a bet that's still just yours: it comes off the board.
+window.deleteWager = async function (id) {
+    if (!currentUser || busyWagers.has(id)) return;
+    const wager = findWager(id);
+    const question = wager && wager.type === 'h2h'
+        ? `Cancel the challenge “${wager.description}”? It comes off the board.`
+        : `Cancel “${wager ? wager.description : 'this bet'}”? Nobody’s in it yet, so it comes off the board.`;
+    if (!confirm(question)) return;
+
+    await withBusyWager(id, async () => {
+        try {
+            const { data, error } = await supabaseClient
+                .from('wagers')
+                .delete()
+                .eq('id', id)
+                .select('id');
+            if (error) throw error;
+
+            if (!data || !data.length) {
+                // Not deleted: already gone, someone joined or accepted, or the database doesn't
+                // allow deleting this type yet (props before bookie_2027.sql).
+                const { data: fresh, error: freshError } = await supabaseClient.from('wagers').select('status, participants').eq('id', id).maybeSingle();
+                if (freshError) throw freshError;
+                if (!fresh) {
+                    await refreshBoard();
+                    return showToast('Bet canceled.', 'success');
+                }
+                if (wager && wager.type === 'h2h' && fresh.status !== 'proposed') {
+                    return betChangedUnderYou(fresh.status === 'active'
+                        ? `${firstName(wager.target_id)} already accepted, so it’s on. To call it off, use Void Bet in the Settle sheet.`
+                        : 'That challenge was already called off.');
+                }
+                const stillEmpty = Array.isArray(fresh.participants) && fresh.participants.length <= 1 && ['open', 'proposed'].includes(fresh.status);
+                if (!stillEmpty) return betChangedUnderYou('Someone just joined, so it’s still on. Cancel it from the card if you need to.');
+                const ok = await updateWager(id, { status: 'canceled' }, [fresh.status], q => q.eq('participants', JSON.stringify(fresh.participants)));
+                if (!ok) return betChangedUnderYou();
+                await refreshBoard();
+                showToast('Bet canceled.', 'success');
+                return;
+            }
+
+            await refreshBoard();
+            showToast('Bet canceled.', 'success');
+        } catch (err) {
+            actionError('Error canceling bet', err);
+        }
+    });
+};
+
+// An admin fixes a bet that was settled wrong: it goes back to unsettled (and out of the ledger)
+window.reopenWager = async function (id) {
+    if (!currentUser || !currentUser.is_admin || busyWagers.has(id)) return;
+    const wager = findWager(id);
+    if (!wager) return;
+    if (!confirm(`Reopen “${wager.description}”? It goes back to unsettled and drops out of the ledger until someone settles it again.`)) return;
+
+    await withBusyWager(id, async () => {
+        try {
+            const ok = await updateWager(id, { status: 'active', winner_id: null, winner_ids: [] }, [wager.status]);
+            if (!ok) return betChangedUnderYou();
+            await logBetNote(id, 'Reopened the bet (admin). It needs settling again.');
+            await refreshBoard();
+            showToast('Bet reopened. Settle it again from the card.', 'success');
+        } catch (err) {
+            actionError('Error reopening the bet', err);
+        }
+    });
 };
 
 window.postComment = async function (wagerId) {
     if (!currentUser) return;
     const inputField = document.getElementById(`comment-input-${wagerId}`);
-    if (!inputField) return;
+    if (!inputField || inputField.dataset.posting) return;
     const message = inputField.value.trim().slice(0, 280);
     if (!message) return;
 
-    inputField.disabled = true;
+    // Only the Post button locks while it saves: the keyboard stays up for the next message
+    const postBtn = inputField.nextElementSibling;
+    inputField.dataset.posting = '1';
+    if (postBtn) postBtn.disabled = true;
     try {
         const { error } = await supabaseClient
             .from('wager_comments')
@@ -1508,15 +1841,27 @@ window.postComment = async function (wagerId) {
             });
 
         if (error) throw error;
+        // Clear only what was sent: anything typed since then stays
+        if (inputField.value.trim().slice(0, 280) === message) inputField.value = '';
+        delete inputField.dataset.posting;
 
         await refreshBoard();
 
-        // Keep the thread open after the reload
+        // Keep the thread open after the reload, scrolled to the new comment
         const el = document.getElementById(`comments-${wagerId}`);
-        if (el) el.style.display = 'block';
+        if (el) {
+            el.style.display = 'block';
+            if (el.previousElementSibling) el.previousElementSibling.setAttribute('aria-expanded', 'true');
+            const thread = el.firstElementChild;
+            if (thread) thread.scrollTop = thread.scrollHeight;
+        }
+        const next = document.getElementById(`comment-input-${wagerId}`);
+        if (next) next.focus({ preventScroll: true });
     } catch (err) {
-        showToast('Error posting comment: ' + err.message, 'error');
-        inputField.disabled = false;
+        actionError('Error posting comment', err);
+    } finally {
+        delete inputField.dataset.posting;
+        if (postBtn && postBtn.isConnected) postBtn.disabled = false;
     }
 };
 
@@ -1534,10 +1879,19 @@ function settleOptionHTML(type, value, label, detail) {
 window.openSettleModal = function (id) {
     const wager = findWager(id);
     if (!wager) return;
+    if (settling || busyWagers.has(id)) {
+        showToast('Still saving the last change. Give it a second.', 'error');
+        return;
+    }
 
+    // Earlier toasts would sit over the sheet's close button
+    document.querySelectorAll('.toast').forEach(t => t.remove());
     showModalForm('settle');
-    modalTitle.textContent = 'Settle Wager';
+    // Name the bet, so two look-alike bets (front nine / back nine) can't be mixed up
+    modalTitle.textContent = 'Settle Bet';
+    document.getElementById('settle-wager-summary').textContent = `“${wager.description}”. Pick the winner. The ledger updates right away, and a note in the trash talk shows who settled it.`;
     document.getElementById('settle-wager-id').value = id;
+    setSettleBusy(false);
 
     const autoBtn = document.getElementById('settle-auto-btn');
     if (autoBtn) {
@@ -1582,12 +1936,26 @@ function describeResult(wager, winnerIds) {
             ? `Settled: ${name(wager.creator_id)} wins the prop. Each taker owes ${fmtMoney(wager.amount)}.`
             : `Settled: the takers win. ${name(wager.creator_id)} owes each taker ${fmtMoney(wager.amount)}.`;
     }
-    const share = (wager.amount * parts.length) / winnerIds.length;
-    return `Settled: ${winnerIds.map(name).join(' & ')} win${winnerIds.length === 1 ? 's' : ''} ${fmtMoney(share)}${winnerIds.length > 1 ? ' each' : ''}.`;
+    const winners = parts.filter(id => winnerIds.includes(id));
+    return `Settled: ${winners.map(name).join(' & ')} win${winners.length === 1 ? 's' : ''}. ${potSplitText(wager.amount, parts.length, winners, name)}`;
+}
+
+// Is the Settle sheet for this bet the one that's open?
+const settleSheetFor = id => modal.classList.contains('active') && settleWagerForm.style.display === 'block' &&
+    document.getElementById('settle-wager-id').value === id;
+
+// One settle at a time: its buttons lock while it saves, so a second tap can't send it twice
+function setSettleBusy(on) {
+    settling = on;
+    settleWagerForm.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    const submit = document.getElementById('settle-submit-btn');
+    if (submit) submit.textContent = on ? 'Settling…' : 'Confirm Winner & Settle';
 }
 
 async function handleSettleSubmit(e) {
     e.preventDefault();
+    if (settling) return;
+    if (!currentUser) return showToast('You were logged out. Log in again to settle bets.', 'error');
     const wagerId = document.getElementById('settle-wager-id').value;
     const wager = findWager(wagerId);
     if (!wager) return;
@@ -1609,42 +1977,66 @@ async function handleSettleSubmit(e) {
         }
     }
 
-    try {
-        const ok = await updateWager(wagerId, { status: 'settled', winner_id: winnerIds[0], winner_ids: winnerIds }, ['active']);
-        if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
-        await logBetNote(wagerId, describeResult(wager, winnerIds));
+    // Settling moves money, so say exactly what will happen first
+    if (!confirm(`${describeResult(wager, winnerIds).replace(/^Settled: /, '')}\n\nSettle “${wager.description}” now? The ledger updates right away.`)) return;
 
-        closeModal();
-        await refreshBoard();
-        showToast('Settled. The ledger is updated.', 'success');
+    setSettleBusy(true);
+    try {
+        await withBusyWager(wagerId, async () => {
+            const ok = await updateWager(wagerId, { status: 'settled', winner_id: winnerIds[0], winner_ids: winnerIds }, ['active']);
+            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (settleSheetFor(wagerId)) closeModal();
+            await logBetNote(wagerId, describeResult(wager, winnerIds));
+            await refreshBoard();
+            focusCard(wagerId);
+            showToast('Settled. The ledger is updated.', 'success');
+        });
     } catch (err) {
-        showToast('Error settling wager: ' + err.message, 'error');
+        actionError('Error settling wager', err);
+    } finally {
+        setSettleBusy(false);
     }
 }
 
 async function handleAlternativeSettle(statusType) {
+    if (settling) return;
+    if (!currentUser) return showToast('You were logged out. Log in again to settle bets.', 'error');
     const wagerId = document.getElementById('settle-wager-id').value;
-    if (!confirm(`Are you sure you want to ${statusType === 'push' ? 'declare a Push (Tie)' : 'Cancel'} this bet? No money will change hands.`)) return;
+    const wager = findWager(wagerId);
+    const what = wager ? `“${wager.description}”` : 'this bet';
+    if (!confirm(statusType === 'push'
+        ? `Declare a push (tie) on ${what}? No money changes hands.`
+        : `Void ${what}? It's called off and no money changes hands.`)) return;
 
+    setSettleBusy(true);
     try {
-        const ok = await updateWager(wagerId, { status: statusType }, ['active']);
-        if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
-        await logBetNote(wagerId, statusType === 'push' ? 'Declared a push. No money changes hands.' : 'Canceled the bet. No money changes hands.');
-
-        closeModal();
-        await refreshBoard();
-        showToast(`Wager ${statusType === 'push' ? 'pushed' : 'canceled'}.`, 'success');
+        await withBusyWager(wagerId, async () => {
+            const ok = await updateWager(wagerId, { status: statusType }, ['active']);
+            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (settleSheetFor(wagerId)) closeModal();
+            await logBetNote(wagerId, statusType === 'push' ? 'Declared a push. No money changes hands.' : 'Voided the bet. No money changes hands.');
+            await refreshBoard();
+            focusCard(wagerId);
+            showToast(statusType === 'push' ? 'Pushed. No money changes hands.' : 'Bet voided.', 'success');
+        });
     } catch (err) {
-        showToast('Error updating wager: ' + err.message, 'error');
+        actionError('Error updating wager', err);
+    } finally {
+        setSettleBusy(false);
     }
 }
 
 // Auto-settle a head-to-head from the Live Tracker: the latest round both players finished
-// (all 18 holes entered), lower gross score to par wins. Each group scores its own session, so
+// (all 18 holes entered), lower gross score wins. Each group scores its own session, so
 // the two cards are matched by round number and date. The player confirms before it saves.
 const HOLE_COLUMNS = Array.from({ length: 18 }, (_, i) => `h${i + 1}`);
 
 async function handleAutoSettle(wager) {
+    if (settling) return;
+    setSettleBusy(true);
+    const autoBtn = document.getElementById('settle-auto-btn');
+    const autoLabel = autoBtn ? autoBtn.innerHTML : '';
+    if (autoBtn) autoBtn.textContent = 'Checking scores…';
     try {
         const ids = [wager.creator_id, wager.target_id];
         const { data: cards, error: cardsError } = await supabaseClient
@@ -1654,8 +2046,10 @@ async function handleAutoSettle(wager) {
         if (cardsError) throw cardsError;
 
         const complete = (cards || []).filter(c => HOLE_COLUMNS.every(h => c[h] !== null && c[h] !== undefined));
-        const roundIds = [...new Set(complete.map(c => c.round_id))];
+        const roundIds = [...new Set((cards || []).map(c => c.round_id))];
 
+        // Only rounds played on or after the day the bet was made (the bet's local date)
+        const betDay = new Date(wager.created_at).toLocaleDateString('en-CA');
         let rounds = [];
         if (roundIds.length) {
             const { data, error } = await supabaseClient
@@ -1663,7 +2057,8 @@ async function handleAutoSettle(wager) {
                 .select('id, round_number, date')
                 .in('id', roundIds);
             if (error) throw error;
-            rounds = (data || []).filter(r => !SEASON_START || !r.date || new Date(r.date) >= SEASON_START);
+            rounds = (data || []).filter(r => (!SEASON_START || !r.date || new Date(r.date) >= SEASON_START) &&
+                (!r.date || r.date >= betDay));
         }
 
         // Pair up the two players' finished cards by (date, round number)
@@ -1683,26 +2078,40 @@ async function handleAutoSettle(wager) {
         }
 
         const { round, cards: pair } = byRound[shared[0]];
-        const cScore = pair[wager.creator_id].total_to_par;
-        const tScore = pair[wager.target_id].total_to_par;
-        const toPar = n => (n === 0 ? 'E' : n > 0 ? `+${n}` : String(n));
-        const summary = `Round ${round.round_number || '?'}${round.date ? ` (${round.date})` : ''}, gross score to par:\n` +
-            `${getPlayerName(wager.creator_id)} ${toPar(cScore)}\n${getPlayerName(wager.target_id)} ${toPar(tScore)}`;
+        // A later round one of them is still playing may be the one the bet is about
+        const newer = (cards || []).filter(c => !complete.includes(c))
+            .map(c => roundById.get(c.round_id))
+            .find(r => r && r.id !== round.id && (r.date || '') >= (round.date || ''));
+        if (newer) {
+            showToast(`Round ${newer.round_number || ''} isn’t finished yet, so auto-settle can’t tell which round this bet is about. Settle it by hand, or wait until all 18 are in.`, 'error');
+            return;
+        }
+        // Add up the 18 holes (a stored total can be stale if two phones scored the card).
+        // Same round, same course, so gross strokes decide it.
+        const strokes = c => HOLE_COLUMNS.reduce((sum, h) => sum + Number(c[h]), 0);
+        const cScore = strokes(pair[wager.creator_id]);
+        const tScore = strokes(pair[wager.target_id]);
+        const summary = `Round ${round.round_number || '?'}${round.date ? ` (${round.date})` : ''}, gross strokes:\n` +
+            `${getPlayerName(wager.creator_id)} ${cScore}\n${getPlayerName(wager.target_id)} ${tScore}`;
 
         const isPush = cScore === tScore;
         const winnerId = cScore < tScore ? wager.creator_id : wager.target_id;
         if (!confirm(`${summary}\n\n${isPush ? 'All square. Declare a push?' : `Settle this bet for ${getPlayerName(winnerId)}?`}\n\nOnly OK this if the bet was about this round's score.`)) return;
 
         const values = isPush ? { status: 'push' } : { status: 'settled', winner_id: winnerId, winner_ids: [winnerId] };
-        const ok = await updateWager(wager.id, values, ['active']);
-        if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
-        await logBetNote(wager.id, isPush ? `Auto-settled from Round ${round.round_number}: all square, push.` : `Auto-settled from Round ${round.round_number}: ${describeResult(wager, [winnerId])}`);
-
-        closeModal();
-        await refreshBoard();
-        showToast(isPush ? 'All square. Wager pushed.' : `Settled. ${getPlayerName(winnerId)} wins.`, 'success');
+        await withBusyWager(wager.id, async () => {
+            const ok = await updateWager(wager.id, values, ['active']);
+            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (settleSheetFor(wager.id)) closeModal();
+            await logBetNote(wager.id, isPush ? `Auto-settled from Round ${round.round_number}: all square, push.` : `Auto-settled from Round ${round.round_number}: ${describeResult(wager, [winnerId]).replace(/^Settled: /, '')}`);
+            await refreshBoard();
+            showToast(isPush ? 'All square. Wager pushed.' : `Settled. ${getPlayerName(winnerId)} wins.`, 'success');
+        });
     } catch (e) {
-        showToast('Error auto-settling: ' + e.message, 'error');
+        actionError('Error auto-settling', e);
+    } finally {
+        setSettleBusy(false);
+        if (autoBtn) autoBtn.innerHTML = autoLabel;
     }
 }
 
@@ -1737,12 +2146,36 @@ function computeBalances(wagers) {
         } else {
             const winners = parts.filter(pid => winnerIds.includes(pid));
             if (!winners.length) return;
-            const share = (amount * parts.length) / winners.length;
+            const shares = potShares(amount, parts.length, winners.length);
             parts.forEach(pid => add(pid, -amount));
-            winners.forEach(pid => add(pid, share));
+            winners.forEach((pid, i) => add(pid, shares[i]));
         }
     });
     return balances;
+}
+
+// Who pays whom to square up: the biggest loser pays the biggest winner, and so on.
+// Works in cents; never more than one payment fewer than the number of people with a balance.
+function settleUpPayments(balances) {
+    const debtors = [], creditors = [];
+    Object.keys(balances).forEach(id => {
+        const cents = Math.round(balances[id] * 100);
+        if (cents < 0) debtors.push({ id, cents: -cents });
+        else if (cents > 0) creditors.push({ id, cents });
+    });
+    debtors.sort((a, b) => b.cents - a.cents);
+    creditors.sort((a, b) => b.cents - a.cents);
+    const payments = [];
+    let d = 0, c = 0;
+    while (d < debtors.length && c < creditors.length) {
+        const pay = Math.min(debtors[d].cents, creditors[c].cents);
+        payments.push({ from: debtors[d].id, to: creditors[c].id, amount: pay / 100 });
+        debtors[d].cents -= pay;
+        creditors[c].cents -= pay;
+        if (!debtors[d].cents) d++;
+        if (!creditors[c].cents) c++;
+    }
+    return payments;
 }
 
 function renderLedger() {
@@ -1797,16 +2230,73 @@ function renderLedger() {
         ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">No settled bets yet</div>`;
     }
 
+    // Settle up: the fewest payments that square everyone, yours first
+    const payments = settleUpPayments(balances);
+    if (payments.length) {
+        const me = currentUser.id;
+        const mine = p => p.from === me || p.to === me;
+        payments.sort((a, b) => mine(b) - mine(a));
+        ledgerHtml += `
+            <div class="settle-up">
+                <h4>Settle up</h4>
+                <p>Who pays whom to square everyone for the trip so far.</p>
+                ${payments.map(p => `
+                    <div class="settle-up-row${mine(p) ? ' mine' : ''}">
+                        <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
+                        <span style="white-space: nowrap;">${fmtMoney(p.amount)}</span>
+                    </div>`).join('')}
+            </div>`;
+    }
+
     ledgerContainer.innerHTML = ledgerHtml;
 }
 
 // ==========================================
 // Creating Wagers
 // ==========================================
+const TYPE_HINTS = {
+    pool: 'Everyone puts in the same buy-in. The winners split the pot.',
+    h2h: 'You against one player. Set the line and the stake.',
+    prop: 'You’re betting it happens. Anyone who takes the action bets it doesn’t. You win or pay the amount to each taker.'
+};
+const AMOUNT_LABELS = { pool: 'Buy-in ($)', h2h: 'Wager Amount ($)', prop: 'Amount per Taker ($)' };
+const ODDS_HELP = 'Odds start at 100. For 3 to 2, type 150.';
+
+function oddsSide() {
+    const picked = createWagerForm.querySelector('input[name="odds-side"]:checked');
+    return picked ? picked.value : 'even';
+}
+
+// The line is quoted for the opponent: +150 when they're the underdog, -150 when they're favored
+function readOdds() {
+    const side = oddsSide();
+    if (side === 'even') return 100;
+    const n = parseDollars(wagerOddsInput.value.replace(/^\s*[+\-−–]\s*/, ''));
+    if (!Number.isInteger(n)) return NaN;
+    return side === 'dog' ? n : -n;
+}
+
 function syncWagerTypeFields() {
-    const isH2H = wagerTypeSelect.value === 'h2h';
+    const type = wagerTypeSelect.value;
+    const isH2H = type === 'h2h';
     h2hTargetContainer.style.display = isH2H ? 'block' : 'none';
     wagerTargetSelect.required = isH2H;
+
+    const hint = document.getElementById('wager-type-hint');
+    if (hint) hint.textContent = TYPE_HINTS[type] || '';
+    const amtLabel = document.getElementById('wager-amt-label');
+    if (amtLabel) amtLabel.textContent = AMOUNT_LABELS[type] || 'Wager Amount ($)';
+
+    // "Kelly's the underdog" reads better than "They're the underdog" once someone is picked
+    const opp = wagerTargetSelect.value ? getPlayerName(wagerTargetSelect.value).split(' ')[0] : '';
+    const dogLabel = document.getElementById('odds-dog-label');
+    const favLabel = document.getElementById('odds-fav-label');
+    const legend = document.getElementById('odds-side-legend');
+    if (dogLabel) dogLabel.textContent = opp ? `${opp}’s the underdog` : 'They’re the underdog';
+    if (favLabel) favLabel.textContent = opp ? `${opp}’s the favorite` : 'They’re the favorite';
+    if (legend) legend.textContent = opp ? `The line on ${opp}` : 'The line';
+    if (oddsNumberWrap) oddsNumberWrap.hidden = oddsSide() === 'even';
+
     updateOddsPreview();
 }
 
@@ -1814,38 +2304,80 @@ function updateOddsPreview() {
     const previewEl = document.getElementById('odds-preview-text');
     if (!previewEl) return;
 
-    const amount = parseFloat(wagerAmtInput.value);
-    const odds = parseInt(wagerOddsInput.value, 10);
-    if (wagerTypeSelect.value !== 'h2h' || isNaN(amount) || amount <= 0) {
+    const amount = parseDollars(wagerAmtInput.value);
+    if (wagerTypeSelect.value !== 'h2h' || !(amount > 0)) {
         previewEl.style.display = 'none';
         return;
     }
 
     previewEl.style.display = 'block';
+    if (!Number.isInteger(amount)) {
+        previewEl.textContent = 'Whole dollars only.';
+        return;
+    }
+    const odds = readOdds();
     if (!isValidOdds(odds)) {
-        previewEl.textContent = 'Odds need to be 100 or more either way, like +150 or -120. Use 100 for even money.';
+        previewEl.textContent = ODDS_HELP;
         return;
     }
 
-    const opp = wagerTargetSelect.value ? escHtml(getPlayerName(wagerTargetSelect.value)) : 'your opponent';
+    const name = wagerTargetSelect.value ? escHtml(getPlayerName(wagerTargetSelect.value)) : '';
+    const opp = name || 'your opponent';
+    const Opp = name || 'Your opponent';
     const { creatorWins, targetWins } = h2hPayouts(amount, odds);
-    const line = Math.abs(odds) === 100 ? 'Even money.' : `${opp} is the ${odds > 0 ? 'underdog' : 'favorite'} at ${fmtOdds(odds)}.`;
-    previewEl.innerHTML = `${line}<br><strong>You win:</strong> ${opp} pays you ${fmtMoney(creatorWins)}.<br><strong>${opp} wins:</strong> you pay ${fmtMoney(targetWins)}.`;
+    const line = Math.abs(odds) === 100 ? 'Even money.' : `${Opp} is the ${odds > 0 ? 'underdog' : 'favorite'} at ${fmtOdds(odds)}.`;
+    previewEl.innerHTML = `${line}<br><strong>You win:</strong> ${opp} pays you ${fmtMoney(creatorWins)}.<br><strong>${Opp} wins:</strong> you pay ${fmtMoney(targetWins)}.`;
 }
 
+// Errors show right above the button, and the field that needs fixing gets focus
+function showCreateError(message, field) {
+    if (!wagerErrorEl) return;
+    wagerErrorEl.textContent = message;
+    wagerErrorEl.style.display = message ? 'block' : 'none';
+    if (message && field) {
+        (field.closest('#odds-number-wrap') || field).after(wagerErrorEl);
+        field.focus();
+        wagerErrorEl.scrollIntoView({ block: 'nearest' });
+    } else if (message) {
+        wagerSubmitBtn.before(wagerErrorEl);
+        const sheet = wagerErrorEl.closest('.modal-content');
+        if (sheet) sheet.scrollTop = sheet.scrollHeight;
+    }
+}
+
+function resetCreateForm() {
+    createWagerForm.reset();
+    wagerOddsInput.value = '';
+    pendingWagerId = null;
+    pendingWagerTerms = null;
+    showCreateError('');
+}
+
+function newWagerId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// The sheet keeps whatever you typed if you close it by accident; it clears after a bet is made
 function openWagerModal() {
     if (!currentUser) return;
 
     showModalForm('create');
-    createWagerForm.reset();
-    if (wagerOddsInput) wagerOddsInput.value = '100'; // Default even odds
     modalTitle.textContent = 'Propose a Wager';
+    showCreateError('');
 
-    // Anyone confirmed for the trip (not just drafted players) can be challenged
+    // Anyone confirmed for the trip can be challenged, except players who RSVP'd out
+    const keep = wagerTargetSelect.value;
+    const out = rsvpOut || new Set();
     wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>' + dbPlayers
-        .filter(p => p.id !== currentUser.id && p.status !== 'potential')
+        .filter(p => p.id !== currentUser.id && p.status !== 'potential' && !out.has(p.id))
         .map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}${p.user_id ? '' : ' (no Bookie account yet)'}</option>`)
         .join('');
+    if (keep && [...wagerTargetSelect.options].some(o => o.value === keep)) wagerTargetSelect.value = keep;
 
     syncWagerTypeFields();
     openModal(wagerTypeSelect);
@@ -1854,20 +2386,39 @@ window.openWagerModal = openWagerModal;
 
 async function handleCreateWager(e) {
     e.preventDefault();
-    if (!currentUser || creatingWager) return;
+    if (creatingWager) return;
+    if (!currentUser) return showToast('You were logged out. Log in again to keep betting.', 'error');
 
     const type = wagerTypeSelect.value;
-    const amount = parseInt(wagerAmtInput.value, 10);
+    const amount = parseDollars(wagerAmtInput.value);
     const desc = wagerDescInput.value.trim();
     const targetId = type === 'h2h' ? wagerTargetSelect.value : null;
-    const odds = type === 'h2h' ? parseInt(wagerOddsInput.value, 10) : 100;
+    const odds = type === 'h2h' ? readOdds() : 100;
 
-    if (!desc) return showToast('Spell out the terms of the bet.', 'error');
-    if (!(amount >= 1)) return showToast('Enter a wager of at least $1.', 'error');
-    if (type === 'h2h' && !targetId) return showToast('Pick who you’re challenging.', 'error');
-    if (!isValidOdds(odds)) return showToast('Odds need to be 100 or more either way, like +150 or -120.', 'error');
+    if (type === 'h2h' && !targetId) return showCreateError('Pick who you’re challenging.', wagerTargetSelect);
+    if (type === 'h2h' && !isValidOdds(odds)) return showCreateError(ODDS_HELP, wagerOddsInput);
+    if (!desc) return showCreateError('Spell out the terms of the bet.', wagerDescInput);
+    if (!Number.isInteger(amount) || amount < 1) return showCreateError('Enter whole dollars, $1 or more.', wagerAmtInput);
+    if (amount > 100000) return showCreateError('That’s more than $100,000. Check the amount.', wagerAmtInput);
+    if (amount >= 1000 && !confirm(`${fmtMoney(amount)}? Just checking that’s not a typo.`)) return;
 
+    // The same id on every try: if the first try saved but the reply got lost, the retry
+    // is rejected as a duplicate instead of posting the bet twice.
+    const terms = JSON.stringify([currentUser.id, type, amount, desc, targetId, odds]);
+    let firstVersionLive = false;
+    if (!pendingWagerId || pendingWagerTerms !== terms) {
+        // Changed after a try whose reply was lost: that first version may be live already
+        if (pendingWagerId) {
+            try {
+                const { data: prev } = await supabaseClient.from('wagers').select('id').eq('id', pendingWagerId).maybeSingle();
+                firstVersionLive = !!prev;
+            } catch (e) { /* no signal: the new one still posts */ }
+        }
+        pendingWagerId = newWagerId();
+        pendingWagerTerms = terms;
+    }
     const newWager = {
+        id: pendingWagerId,
         creator_id: currentUser.id,
         target_id: targetId,
         type: type,
@@ -1883,17 +2434,36 @@ async function handleCreateWager(e) {
     wagerSubmitBtn.textContent = 'Proposing…';
     try {
         const { error } = await supabaseClient.from('wagers').insert([newWager]);
-        if (error) throw error;
+        if (error && error.code !== '23505') throw error; // 23505: an earlier try already saved it
 
-        closeModal();
-        wagersContainer.innerHTML = getSkeletonHtml();
+        if (modal.classList.contains('active') && createWagerForm.style.display === 'block') closeModal();
+        resetCreateForm();
+        showBoardSkeleton();
         await refreshBoard();
-        showToast(type === 'h2h' ? `Challenge sent to ${getPlayerName(targetId)}.` : (type === 'prop' ? 'Your prop is live.' : 'Your pool is open.'), 'success');
+        // Show the new bet: switch to a tab that has it, then scroll to it
+        if (!wagersForFilter(currentFilter).some(w => w.id === newWager.id)) setFilter('all');
+        revealCard(newWager.id);
+        if (!modal.classList.contains('active')) {
+            const first = document.querySelector(`#wager-card-${newWager.id} button:not([disabled])`);
+            if (first) first.focus({ preventScroll: true });
+        }
+        showToast(type === 'h2h'
+            ? `Challenge posted. ${getPlayerName(targetId).split(' ')[0]} sees it next time they open The Bookie, so give them a heads-up.`
+            : (type === 'prop' ? 'Your prop is live.' : 'Your pool is open.'), 'success');
+        if (firstVersionLive) showToast('Heads up: your first version posted too. Cancel it from its card if you only want this one.', 'error');
     } catch (err) {
-        const msg = /wagers_type_check/.test(err.message || '')
-            ? 'Prop bets need a one-time database update (bookie_2027.sql). Ask the commissioner.'
-            : 'Error proposing bet: ' + err.message;
-        showToast(msg, 'error');
+        // Closed the sheet while it was saving? Then say it in a toast instead.
+        const sheetUp = modal.classList.contains('active') && createWagerForm.style.display === 'block';
+        const say = message => (sheetUp ? showCreateError(message) : showToast(message, 'error'));
+        if (/wagers_type_check/.test(err.message || '')) {
+            console.warn('Prop bets need bookie_2027.sql run in Supabase.');
+            say('Prop bets aren’t switched on yet. Text the commissioner, or make it a pool for now.');
+        } else if (isNetworkError(err)) {
+            say(sheetUp ? 'No signal. Tap Propose again once you have a bar or two (without changing it) and it won’t post twice.'
+                : 'No signal, so that bet may not have posted. Open + and tap Propose again. It won’t post twice.');
+        } else {
+            say('Couldn’t propose the bet: ' + (err.message || err));
+        }
     } finally {
         creatingWager = false;
         wagerSubmitBtn.disabled = false;
@@ -1904,6 +2474,13 @@ async function handleCreateWager(e) {
 // ==========================================
 // Native App Helpers (Skeletons & Toasts)
 // ==========================================
+// Loading placeholders for the board. The Cup card can sit among the cards: put it back first.
+function showBoardSkeleton() {
+    const cup = document.getElementById('cup-card');
+    if (cup && wagersContainer.contains(cup)) wagersContainer.parentNode.insertBefore(cup, wagersContainer);
+    wagersContainer.innerHTML = getSkeletonHtml();
+}
+
 function getSkeletonHtml() {
     return Array(3).fill(`
         <div class="glass-panel" style="margin-bottom: 20px; padding: 20px;">

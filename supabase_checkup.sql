@@ -9,6 +9,8 @@
 --    want: rsvp_table_ready = true   (rsvp_schema.sql)
 --          courses_2027     = 3      (courses_2027_seed.sql)
 --          wager_types includes 'prop' (bookie_2027.sql)
+--          bet_rules_guarded = true   (bookie_2027.sql)
+--          tracker_ready    = true    (tracker_2027.sql)
 --          rsvp_accounts_ready = true (rsvp_accounts.sql)
 --          emails_public    = false  (players_privacy.sql)
 SELECT
@@ -19,10 +21,12 @@ SELECT
    WHERE name IN ('Talking Stick - O''odham', 'We-Ko-Pa - Cholla', 'We-Ko-Pa - Saguaro')) AS courses_2027,
   (SELECT pg_get_constraintdef(oid) FROM pg_constraint
    WHERE conname = 'wagers_type_check')                                        AS wager_types,
+  EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'wagers_guard' AND NOT tgisinternal) AS bet_rules_guarded,
+  EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'is_confirmed_player')         AS tracker_ready,
   has_column_privilege('anon', 'public.players', 'email', 'SELECT')             AS emails_public;
 
--- 2. Rounds still marked active. Anything from 2026 (or an abandoned session)
---    shows up as "Active Round Detected" in the Round Tracker.
+-- 2. Rounds still marked active. The Round Tracker now groups rounds by round number and
+--    day, so old ones no longer get in the way; this is just housekeeping.
 SELECT id, date, round_number, status
 FROM public.rounds
 WHERE status = 'active'

@@ -163,6 +163,15 @@ window.BBB = {
     // Round 1 stays Stableford to match the Admin score-entry math.
     roundScoring: { 1: 'stableford' },
     roundFormats: {},
+    // How the Round Tracker scores each round and works out the matches (Admin > Matchups sets who
+    // plays whom). These are the 2026 formats; update them once the 2027 formats are set.
+    //   'points'   two-man teams, own ball: eagle+ 5, birdie 3, par 2, bogey 1; more points wins
+    //   'split'    two-man teams, one ball: front 9 and back 9 are separate stroke contests, triple bogey max
+    //   'shared'   two-man teams, one ball (scramble or alternate shot), 18-hole match play
+    //   'bestball' two-man teams, own ball, better score counts, match play
+    //   'singles'  one-on-one match play
+    //   'stroke'   everyone for themselves, no matches
+    roundPlay: { 1: 'points', 2: 'split', 3: 'singles', 4: 'stroke' },
 
     courses: [
         {

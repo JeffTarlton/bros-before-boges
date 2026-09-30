@@ -25,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.7">
+    <link rel="stylesheet" href="style.css?v=2027.8">
     <link rel="stylesheet" href="home.css?v=2027.7">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -469,6 +469,10 @@
                 <h2 id="leaderboard-title">Trip <em>Leaderboard</em></h2>
             </div>
             <div class="scoreboard-container">
+                <div id="live-board-cta" hidden style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 14px;">
+                    <span style="color: var(--ink-dim); font-size: 0.9rem; line-height: 1.45;"><strong style="color: var(--ink);">Live match scores</strong><br>Every match, hole by hole, straight from the groups’ scorecards.</span>
+                    <a class="btn btn-copper btn-sm" href="round_tracker.html#board">Open the live leaderboard</a>
+                </div>
                 <div class="modern-scoreboard" id="dynamic-leaderboard">
                     <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading leaderboard…</div>
                 </div>
@@ -509,8 +513,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.7"></script>
-    <script src="script.js?v=2027.7"></script>
+    <script src="trip-config.js?v=2027.8"></script>
+    <script src="script.js?v=2027.8"></script>
 </body>
 
 </html>

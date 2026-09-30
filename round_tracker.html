@@ -3,287 +3,511 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Round Tracker | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.7">
+    <link rel="stylesheet" href="style.css?v=2027.8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
     <style>
-        .tracker-container {
-            max-width: 1000px;
-            margin: 120px auto 40px;
-            padding: 20px;
+        html { scroll-padding-top: calc(var(--hdr, 72px) + var(--holehead, 100px) + 12px); }
+
+        /* A slim header so the hole and the players get the room (home-screen mode draws under the status bar) */
+        .site-header { padding: calc(12px + env(safe-area-inset-top)) 0 12px; background: rgba(14, 11, 9, 0.97); }
+        .site-header .logo { font-size: 1.4rem; white-space: nowrap; }
+
+        .tracker {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: calc(var(--hdr, 72px) + 14px) 16px calc(110px + env(safe-area-inset-bottom));
         }
 
-        .course-selector,
-        .player-selector {
-            margin-bottom: 30px;
-            padding: 20px;
-        }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+        .nowrap { white-space: nowrap; }
 
-        .tracker-grid {
-            width: 100%;
-            overflow-x: auto;
-            margin-top: 30px;
-        }
+        .view[hidden] { display: none !important; }
 
-        .score-input {
-            width: 50px;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.05);
+        .panel {
+            background: rgba(28, 22, 18, 0.85);
             border: 1px solid var(--glass-border);
-            border-radius: 6px;
-            color: white;
-            text-align: center;
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 14px;
         }
 
-        .score-input:focus {
-            outline: none;
-            border-color: var(--accent-emerald);
+        .view h2 {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            margin: 0 0 4px;
         }
 
-        .tracker-table {
-            width: 100%;
-            border-collapse: collapse;
-            color: white;
+        .muted { color: var(--text-muted); }
+        .small { font-size: 0.85rem; }
+        .eyebrow {
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent-gold);
         }
 
-        .tracker-table th,
-        .tracker-table td {
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-        }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
-        .par-row {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--accent-emerald);
-            font-weight: 700;
-        }
-
-        .player-row {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .btn-save {
-            margin-top: 30px;
-            width: 100%;
-        }
-
-        .setup-screen {
-            display: block;
-        }
-
-        .scoring-screen {
-            display: none;
-        }
-
-        select,
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            background: rgba(14, 11, 9, 0.6);
-            border: 1px solid var(--glass-border);
-            border-radius: 8px;
-            color: white;
-            margin-top: 10px;
-        }
-
-        /* Mobile Hole-by-Hole Styles */
-        .hole-nav-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .hole-nav-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .hole-nav-btn:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .hole-nav-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        .current-hole-info h3 {
-            margin: 0;
-            font-size: 1.5rem;
-            color: var(--accent-emerald);
-        }
-
-        .current-hole-info p {
-            margin: 5px 0 0 0;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-
-        .player-score-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            margin-bottom: 10px;
-            background: rgba(14, 11, 9, 0.6);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-        }
-
-        .player-score-info h4 {
-            margin: 0 0 5px 0;
-            font-size: 1.1rem;
-        }
-
-        .player-score-info p {
-            margin: 0;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .score-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .score-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 24px;
-            border: none;
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--accent-emerald);
-            font-size: 1.8rem;
-            display: flex;
+        .t-btn {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            /* Touch target optimization */
-            touch-action: manipulation; 
-        }
-        
-        .score-btn.minus {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-        }
-
-        .score-btn:hover, .score-btn:active {
-            transform: scale(1.05);
-            background: rgba(16, 185, 129, 0.4);
-        }
-        .score-btn.minus:hover, .score-btn.minus:active {
-            background: rgba(239, 68, 68, 0.4);
-        }
-
-        .current-score-display {
-            font-size: 2.2rem;
-            font-weight: 900;
-            font-family: monospace;
-            width: 48px;
-            text-align: center;
-        }
-
-        /* Bottom Nav App Bar for Tracker */
-        .tracker-bottom-nav {
-            display: none;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(14, 11, 9, 0.95);
-            backdrop-filter: blur(20px);
-            border-top: 1px solid var(--glass-border);
-            z-index: 1000;
-            padding-bottom: env(safe-area-inset-bottom); /* iOS support */
-        }
-
-        .tracker-bottom-nav ul {
-            display: flex;
-            justify-content: space-around;
-            list-style: none;
-            margin: 0;
-            padding: 10px 0;
-        }
-
-        .tracker-bottom-nav button {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-family: var(--font-body);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 0.75rem;
-            gap: 4px;
-            cursor: pointer;
-        }
-
-        .tracker-bottom-nav button .nav-icon {
-            font-size: 1.4rem;
-            margin-bottom: 4px;
-        }
-
-        .matchup-select-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .matchup-select-card:hover {
-            border-color: rgba(255, 255, 255, 0.3);
+            gap: 8px;
+            min-height: 48px;
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
             background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main, #fff);
+            font: inherit;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            touch-action: manipulation;
         }
 
-        .matchup-select-card.selected {
-            border-color: var(--accent-emerald);
-            background: rgba(16, 185, 129, 0.1);
-            box-shadow: inset 0 0 0 1px var(--accent-emerald);
+        .t-btn:disabled { opacity: 0.55; cursor: wait; }
+        .t-btn.primary { background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; color: #fff; }
+        .t-btn.gold { background: linear-gradient(135deg, var(--accent-gold), #b45309); border: none; color: #1a1208; }
+        .t-btn.ghost { background: transparent; }
+        .t-btn.block { width: 100%; }
+        .t-btn.small { min-height: 40px; padding: 8px 12px; font-size: 0.85rem; border-radius: 12px; }
+
+        .t-btn:focus-visible, .chip:focus-visible, .seg button:focus-visible, .hole-strip button:focus-visible,
+        .step:focus-visible, .score-value:focus-visible, .match-pick:focus-visible, .keypad button:focus-visible {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: 2px;
         }
 
-        .tracker-bottom-nav button.active {
+        /* Setup */
+        .seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+        .seg button {
+            min-height: 56px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font: inherit;
+            font-weight: 700;
+            line-height: 1.15;
+            cursor: pointer;
+        }
+        .seg button small { display: block; font-weight: 600; font-size: 0.72rem; opacity: 0.85; }
+        .seg button[aria-pressed="true"] { border-color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); color: var(--accent-gold); }
+
+        .field-label { display: block; font-weight: 700; margin: 16px 0 8px; }
+        .t-select {
+            width: 100%;
+            min-height: 48px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(14, 11, 9, 0.6);
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .match-list { display: grid; gap: 10px; }
+        .match-pick {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            min-height: 64px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.03);
+            color: #fff;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .match-pick .vs { color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
+        .match-pick .side-b { text-align: right; }
+        .match-pick[aria-pressed="true"] { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); box-shadow: inset 0 0 0 1px var(--accent-emerald); }
+        .match-pick .tag { grid-column: 1 / -1; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+        .match-pick .tag.mine { color: var(--accent-emerald); }
+
+        .team-1 { color: #7fb2ff; }
+        .team-2 { color: #ff8f86; }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip {
+            min-height: 44px;
+            padding: 8px 14px;
+            border-radius: 99px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .chip[aria-pressed="true"] { border-color: var(--accent-emerald); color: #fff; background: rgba(16, 185, 129, 0.14); }
+        .chip-team { width: 100%; margin: 12px 0 4px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+
+        details.more { margin-top: 14px; }
+        details.more summary { cursor: pointer; color: var(--accent-emerald); font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+
+        .start-bar {
+            position: sticky;
+            bottom: calc(76px + env(safe-area-inset-bottom));
+            z-index: 5;
+            padding-top: 10px;
+            background: linear-gradient(to top, rgba(14, 11, 9, 0.98) 70%, rgba(14, 11, 9, 0));
+        }
+
+        .notice {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(251, 191, 36, 0.08);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            line-height: 1.5;
+            margin-bottom: 14px;
+        }
+        .notice.error { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.35); }
+
+        /* Score */
+        .score-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .score-top > div:first-child { min-width: 0; }
+        .sync {
+            white-space: nowrap;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 32px;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.12);
             color: var(--accent-emerald);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .sync.pending { background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border-color: rgba(251, 191, 36, 0.35); }
+        .sync.problem { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+        .sync.wrap { white-space: normal; flex-shrink: 1; }
+        a.sync { text-decoration: none; }
+
+        .hole-head {
+            position: sticky;
+            top: var(--hdr, 72px);
+            z-index: 6;
+            display: grid;
+            grid-template-columns: 56px 1fr 56px;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 18px;
+            background: #14100d;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        }
+        .hole-head .step-hole {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .hole-head .step-hole:disabled { opacity: 0.3; cursor: default; }
+        .hole-title { text-align: center; }
+        .hole-title h2 { display: block; margin: 0; font-family: var(--font-heading); font-size: 1.7rem; line-height: 1.1; color: #fff; }
+        .hole-title h2:focus { outline: none; }
+        .hole-title h2:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+        .hole-title span { color: var(--text-muted); font-size: 0.9rem; }
+        .hole-title .hole-hint { display: block; color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+
+        .hole-strip {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 12px 2px 8px;
+            scrollbar-width: none;
+            scroll-snap-type: x proximity;
+        }
+        .hole-strip::-webkit-scrollbar { display: none; }
+        .hole-strip button {
+            flex: 0 0 40px;
+            height: 44px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            scroll-snap-align: center;
+            position: relative;
+        }
+        .hole-strip button.done { background: rgba(16, 185, 129, 0.16); color: #d1fae5; border-color: rgba(16, 185, 129, 0.35); }
+        .hole-strip button.part::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 5px;
+            width: 5px;
+            height: 5px;
+            margin-left: -2.5px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+        }
+        .hole-strip button[aria-current="true"] { border: 2px solid var(--accent-gold); color: #fff; }
+
+        /* Wide screens: all 18 holes fit, no hidden scrolling */
+        @media (min-width: 700px) {
+            .hole-strip { overflow: visible; }
+            .hole-strip button { flex: 1 1 0; min-width: 0; }
         }
 
-        /* Mobile Adjustments */
-        @media (max-width: 768px) {
-            .tracker-bottom-nav {
-                display: block;
-            }
-            .desktop-controls {
-                display: none !important;
-            }
-            .tracker-container {
-                margin: 80px auto 0;
-                padding: 10px 10px 120px 10px; /* 120px bottom padding protects against Nav occlusion */
-            }
-            .glass-panel {
-                background: rgba(28, 22, 18, 0.85); /* Slightly darker for contrast in sun */
-            }
-            .player-score-card {
-                padding: 15px;
-            }
+        .status-lines { display: grid; gap: 6px; margin: 4px 0 12px; }
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 0.88rem;
+        }
+        .status-line b { white-space: nowrap; }
+
+        .unit {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            gap: 10px;
+            padding: 14px;
+            margin-bottom: 10px;
+            border-radius: 16px;
+            background: rgba(28, 22, 18, 0.85);
+            border: 1px solid var(--glass-border);
+            border-left: 5px solid var(--glass-border);
+        }
+        .unit.t1 { border-left-color: #60a5fa; }
+        .unit.t2 { border-left-color: #f87171; }
+        .unit-name { font-weight: 800; font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
+        .unit-sub { color: var(--text-muted); font-size: 0.82rem; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unit-sub .pend { color: var(--accent-gold); font-weight: 700; }
+
+        .stepper { display: flex; align-items: center; gap: 8px; }
+        .step {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: none;
+            font-size: 1.7rem;
+            line-height: 1;
+            cursor: pointer;
+            touch-action: manipulation;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .step.minus { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+        .step.plus { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+        .step:active { transform: scale(0.94); }
+        .step:disabled { opacity: 0.3; }
+        .score-value {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            border: 1px dashed rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            font-family: var(--font-heading);
+            font-size: 1.9rem;
+            font-weight: 900;
+            cursor: pointer;
+        }
+        .score-value:not(.set) { color: rgba(255, 255, 255, 0.35); font-weight: 600; }
+        .score-value.set { border-style: solid; }
+        .score-value { position: relative; }
+        /* Not sent yet: a gold dot in the corner (no text, so nothing below it moves) */
+        .score-value.pend::after, table.card td button.pend::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            box-shadow: 0 0 0 2px #1c1612;
+        }
+        .legend { margin-top: 10px; }
+        .score-value.birdie { border-color: #34d399; color: #6ee7b7; }
+        .score-value.eagle, .score-value.albatross, .score-value.ace { border-color: #fbbf24; color: #fde68a; }
+        .score-value.bogey { border-color: rgba(248, 113, 113, 0.6); }
+        .score-value.double, .score-value.worse { border-color: #f87171; color: #fca5a5; }
+
+        .next-bar { margin-top: 6px; }
+
+        /* Keypad sheet */
+        .sheet-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .sheet-backdrop[hidden] { display: none; }
+        .sheet {
+            width: 100%;
+            max-width: 520px;
+            padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+            border-radius: 24px 24px 0 0;
+            background: #1c1612;
+            border: 1px solid var(--glass-border);
+        }
+        .sheet h3 { margin: 0 0 12px; font-size: 1.1rem; }
+        .keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .keypad button {
+            height: 56px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font: inherit;
+            font-size: 1.3rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .keypad button.par { border-color: var(--accent-emerald); color: #6ee7b7; }
+        .keypad button:disabled { opacity: 0.25; }
+        .keypad .wide { grid-column: span 5; font-size: 1rem; }
+
+        /* Card */
+        .card-scroll { overflow-x: auto; border-radius: 14px; border: 1px solid var(--glass-border); margin-bottom: 14px; }
+        table.card { border-collapse: collapse; width: 100%; min-width: 300px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+        table.card th, table.card td { padding: 0; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 0.92rem; }
+        table.card th { color: var(--text-muted); font-weight: 700; padding: 8px 4px; }
+        table.card .name {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            width: 84px;
+            padding: 8px 6px;
+            text-align: left;
+            background: #1c1612;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        table.card tr.par td { color: var(--accent-emerald); font-weight: 700; padding: 8px 4px; }
+        table.card td.sum { font-weight: 800; padding: 8px 6px; background: rgba(255, 255, 255, 0.03); }
+        table.card td.sum, table.card th.sum { width: 36px; }
+        table.card td button {
+            position: relative;
+            width: 100%;
+            min-width: 0;
+            min-height: 42px;
+            border: none;
+            background: none;
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        table.card td button.birdie { color: #6ee7b7; }
+        table.card td button.eagle, table.card td button.albatross, table.card td button.ace { color: #fde68a; }
+        table.card td button.double, table.card td button.worse { color: #fca5a5; }
+
+
+        /* Board */
+        .round-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; scrollbar-width: none; }
+        .round-tabs button {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 8px 16px;
+            border-radius: 99px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .round-tabs button[aria-pressed="true"] { border-color: var(--accent-gold); color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); }
+
+        .cup-strip { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; text-align: center; }
+        .cup-strip .pts { font-family: var(--font-heading); font-size: 2rem; font-weight: 900; line-height: 1; }
+        .cup-strip .lbl { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; }
+
+        .match-card {
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border-radius: 16px;
+            background: rgba(28, 22, 18, 0.85);
+            border: 1px solid var(--glass-border);
+        }
+        .match-card.mine { border-color: rgba(16, 185, 129, 0.55); }
+        .match-card .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-weight: 700; }
+        .match-card .sides div:last-child { text-align: right; }
+        .match-card .lead { margin-top: 8px; display: grid; gap: 4px; }
+        .pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 99px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .pill.t1 { background: rgba(96, 165, 250, 0.16); color: #bfdbfe; }
+        .pill.t2 { background: rgba(248, 113, 113, 0.16); color: #fecaca; }
+        .pill.final { box-shadow: inset 0 0 0 1px currentColor; }
+
+        .standings { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+        .standings th, .standings td { padding: 10px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: right; }
+        .standings th:nth-child(2), .standings td:nth-child(2) { text-align: left; }
+        .standings th { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+        .board-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+        /* Bottom tabs: always on screen */
+        .tracker-nav { display: flex; }
+        .tracker-nav .bottom-nav-btn { flex: 1; min-height: 52px; padding: 5px 4px; text-decoration: none; }
+        .tracker-nav .bottom-nav-btn span:last-child { white-space: nowrap; }
+        .tracker-nav .bottom-nav-btn[aria-current="page"] { color: var(--accent-gold); }
+        .tracker-nav .bottom-nav-btn[hidden] { display: none; }
+        .tracker-nav .ico { font-size: 1.25rem; line-height: 1; }
+
+        .toast-container { bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+        @media (min-width: 900px) {
+            .tracker { padding-top: 120px; }
+            .tracker-nav { left: 50%; transform: translateX(-50%); max-width: 720px; border-radius: 18px 18px 0 0; border-left: 1px solid var(--glass-border); border-right: 1px solid var(--glass-border); }
+        }
+
+        @media (max-width: 360px) {
+            .step { width: 46px; height: 46px; }
+            .score-value { width: 50px; height: 50px; font-size: 1.6rem; }
+            .unit { padding: 12px 10px; }
+            .unit-name { font-size: 0.9rem; }
+            table.card .name { width: 76px; padding: 8px 5px; }
+            table.card td.sum, table.card th.sum { width: 30px; }
         }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
@@ -294,10 +518,12 @@
     <header class="site-header">
         <div class="container header-container">
             <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
-            <nav class="main-nav">
+            <nav class="main-nav" aria-label="Site">
                 <ul>
-                    <li><a href="index.html">Back to Home</a></li>
-                    <li><a href="rules.html" class="nav-link" style="color: white;">Rules</a></li>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="bookie.html">The Bookie</a></li>
+                    <li><a href="rules.html">Rules</a></li>
+                    <li><a href="bookie.html?next=round&amp;mode=login" id="nav-login" hidden>Log In</a></li>
                 </ul>
             </nav>
             <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
@@ -308,148 +534,55 @@
         </div>
     </header>
 
-    <main class="tracker-container">
-        <!-- Setup Screen -->
-        <div id="setup-screen" class="setup-screen glass-panel">
-            <h2 class="section-title">Round <span class="accent">Setup</span></h2>
+    <main class="tracker" id="tracker">
+        <!-- Setup: pick the round and who this phone scores -->
+        <section class="view" id="view-setup" aria-labelledby="setup-title" hidden>
+            <h2 id="setup-title">Keep <span class="accent">Score</span></h2>
+            <p class="muted small" style="margin-bottom: 14px;">One phone per group. Pick the round and your group, then score hole by hole. Everything saves on this phone first, so a dead zone won’t lose a score.</p>
+            <div id="setup-body"></div>
+        </section>
 
-            <!-- Join Active Round Section -->
-            <div id="active-rounds-section"
-                style="display: none; margin-bottom: 30px; padding: 20px; border: 1px solid var(--accent-emerald); border-radius: 12px; background: rgba(16, 185, 129, 0.05);">
-                <h3 style="color: var(--accent-emerald); margin-bottom: 15px;">Active Round Detected</h3>
-                <p style="font-size: 0.9rem; margin-bottom: 15px;">There is already a round in progress. Would you like
-                    to join it?</p>
-                <button id="join-round-btn" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">Join
-                    Active Round</button>
-                <div style="text-align: center;">
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">or create a new one below</span>
-                </div>
-            </div>
+        <!-- Score: one hole at a time -->
+        <section class="view" id="view-score" aria-label="Score this hole" hidden>
+            <div id="score-body"></div>
+        </section>
 
-            <div class="course-selector">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <h3>1. Select Round</h3>
-                        <select id="round-number-select">
-                            <option value="1">Round 1 · Thu (Talking Stick)</option>
-                            <option value="2">Round 2 · Fri AM (Cholla)</option>
-                            <option value="3">Round 3 · Fri PM (Saguaro)</option>
-                            <option value="4">Round 4 · Sat (final round)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <h3>2. Select Course</h3>
-                        <select id="course-select">
-                            <option value="">-- Choose a Course --</option>
-                            <!-- Courses loaded from Supabase -->
-                        </select>
-                    </div>
-                </div>
-            </div>
+        <!-- Card: the whole scorecard -->
+        <section class="view" id="view-card" aria-labelledby="card-title" hidden>
+            <h2 id="card-title">Score<span class="accent">card</span></h2>
+            <div id="card-body"></div>
+        </section>
 
-            <div class="player-selector">
-                <h3>2. Players in your Group</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Select your Matchup below to automatically load your group.</p>
-                <div id="player-selection-container" style="margin-top: 10px;">
-                    <!-- Players loaded from Supabase (Confirmed Only) -->
-                    <div style="color: var(--text-muted); font-size: 0.9rem;">Loading groupings...</div>
-                </div>
-            </div>
-
-            <button id="start-scoring-btn" class="btn btn-primary" style="width: 100%;">Start New Session</button>
-        </div>
-
-        <!-- Scoring Screen -->
-        <div id="scoring-screen" class="scoring-screen" style="display: none;">
-            <div class="glass-panel" style="margin-bottom: 20px; padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 id="active-course-name" style="margin: 0; font-size: 1.4rem;">Live Scoring</h2>
-                    <button id="back-to-setup" class="btn-nav" style="padding: 5px 15px; font-size: 0.8rem;">Setup</button>
-                </div>
-
-                <!-- Hole Navigation -->
-                <div class="hole-nav-header glass-panel">
-                    <button id="prev-hole-btn" class="hole-nav-btn">&larr; Prev</button>
-                    <div class="current-hole-info">
-                        <h3 id="current-hole-display">Hole 1</h3>
-                        <p id="current-par-display">Par 4</p>
-                    </div>
-                    <button id="next-hole-btn" class="hole-nav-btn">Next &rarr;</button>
-                </div>
-
-                <div class="desktop-controls" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; margin-bottom: 20px;">
-                    <button id="view-leaderboard-btn" class="btn btn-secondary" style="grid-column: span 2;">View Leaderboard</button>
-                    <button id="view-full-scorecard-btn" class="btn btn-secondary">Full Scorecard</button>
-                    <button id="finish-round-btn" class="btn btn-primary" style="margin-top: 0;">Finish Round</button>
-                </div>
-
-                <!-- Player Scoring List -->
-                <div id="hole-scoring-container" class="hole-scoring-container">
-                     <!-- Dynamically populated per hole -->
-                </div>
-
-                <p style="text-align: center; margin-top: 15px; color: var(--text-muted); font-size: 0.9rem;">Scores save automatically.</p>
-                
-                <!-- Mobile Bottom Tab Bar -->
-                <nav class="tracker-bottom-nav">
-                    <ul>
-                        <li>
-                            <button id="nav-scoring-btn" class="active">
-                                <span class="nav-icon">⛳</span>
-                                <span>Scoring</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button id="nav-scorecard-btn">
-                                <span class="nav-icon">📋</span>
-                                <span>Card</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button id="nav-leaderboard-btn">
-                                <span class="nav-icon">🏆</span>
-                                <span>Ranks</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button id="nav-finish-btn">
-                                <span class="nav-icon">🏁</span>
-                                <span>Finish</span>
-                            </button>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
-            
-            <!-- Full Scorecard Modal -->
-            <div id="full-scorecard-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto;">
-                <div class="glass-panel" style="max-width: 1000px; margin: 40px auto; padding: 20px; position: relative;">
-                    <button id="close-scorecard-btn" style="position: absolute; top: 15px; right: 20px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer;">&times;</button>
-                    <h3 style="margin-bottom: 20px;">Full Scorecard</h3>
-                    <div class="tracker-grid" style="margin-top: 0;">
-                        <table class="tracker-table" id="scorecard-table">
-                            <!-- Populated dynamically -->
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Leaderboard Modal -->
-            <div id="leaderboard-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto;">
-                <div class="glass-panel" style="max-width: 1000px; margin: 40px auto; padding: 20px; position: relative;">
-                    <button id="close-leaderboard-btn" style="position: absolute; top: 15px; right: 20px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer;">&times;</button>
-                    <h3 style="margin-bottom: 20px; text-align: center;">Live <span class="accent">Leaderboard</span></h3>
-                    <div id="dynamic-leaderboard-container" style="color: white; text-align: center; padding: 20px;">
-                        <!-- Leaderboard table populated dynamically -->
-                        Loading Leaderboard...
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Board: every match, open to everyone -->
+        <section class="view" id="view-board" aria-labelledby="board-title" hidden>
+            <h2 id="board-title">Live <span class="accent">Leaderboard</span></h2>
+            <div id="board-body"><p class="muted">Loading…</p></div>
+        </section>
     </main>
 
+    <!-- Quick score picker -->
+    <div class="sheet-backdrop" id="keypad" hidden>
+        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="keypad-title">
+            <h3 id="keypad-title">Score</h3>
+            <div class="keypad" id="keypad-buttons"></div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav tracker-nav" aria-label="Round Tracker">
+        <a class="bottom-nav-btn" href="#setup" data-view="setup"><span class="ico" aria-hidden="true">⛳</span><span>Keep Score</span></a>
+        <a class="bottom-nav-btn" href="#score" data-view="score" hidden><span class="ico" aria-hidden="true">⛳</span><span>Score</span></a>
+        <a class="bottom-nav-btn" href="#card" data-view="card" hidden><span class="ico" aria-hidden="true">📋</span><span>Card</span></a>
+        <a class="bottom-nav-btn" href="#board" data-view="board"><span class="ico" aria-hidden="true">🏆</span><span>Leaderboard</span></a>
+        <a class="bottom-nav-btn" href="bookie.html"><span class="ico" aria-hidden="true">💵</span><span>Bookie</span></a>
+    </nav>
+
+    <div class="toast-container" role="status" aria-live="polite"></div>
+    <div id="sync-live" class="sr-only" role="status" aria-live="polite"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="round_tracker.js?v=2027.7"></script>
+    <script src="trip-config.js?v=2027.8"></script>
+    <script src="scoring.js?v=2027.8"></script>
+    <script src="round_tracker.js?v=2027.8"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
@@ -468,7 +601,6 @@
             document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
         })();
     </script>
-
 </body>
 
 </html>

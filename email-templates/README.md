@@ -43,6 +43,28 @@ RSVPs need a player account (the same login as The Bookie). To switch this on:
    "has a login"; if one says "NO LOGIN YET", have them log in once (or turn on Confirm email).
 3. Keep **Allow new users to sign up** on: new players create their own accounts.
 
+**The invite link to send the guys:** https://bros-before-boges.vercel.app/signup
+It opens the sign-up form (name from the roster, or “I’m new”), sends the “Confirm your email”
+message, and the link in that email logs them in and drops them straight into the RSVP. Anyone who
+already has an account taps “Already have an account? Log in” on the same page. New players show
+up in Admin → RSVPs to approve, and every RSVP (and every new player) emails
+brosbeforeboges@lokdit.net with Jeff on copy. (The first alert needs FormSubmit’s one-time
+activation click.)
+
+## The Bookie and the Round Tracker (2027 setup)
+
+Run these once in the Supabase SQL Editor, after `rsvp_accounts.sql`. Both are safe to run again.
+- `bookie_2027.sql`: turns on prop bets and makes the database hold every bet to the page’s rules
+  (only confirmed players bet, only the player challenged accepts, winners come from the players in
+  the bet, and so on). Admins can still fix anything.
+- `tracker_2027.sql`: the live leaderboard opens to everyone (signed in or not), only confirmed
+  players can enter scores, hole scores must be 1 to 20, and scorecard totals are worked out from
+  the holes. The tracker works without it, but run it before the trip.
+
+The Round Tracker’s formats per round live in `trip-config.js` (`roundPlay`). They’re the 2026
+formats until the 2027 ones are set. Admin → Score Entry has **Fill from Round Tracker** to copy
+the groups’ cards in for the homepage scoreboard.
+
 What it sets up: RSVPs, profile updates and approvals go through database functions that act as
 the signed-in player, and the players table only accepts roster changes from an admin. Everyone
 else can only link an unclaimed roster name to their own login (The Bookie's name picker). The

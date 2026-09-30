@@ -1,5 +1,12 @@
 {
     "cleanUrls": true,
+    "redirects": [
+        {
+            "source": "/signup",
+            "destination": "/bookie?next=rsvp&mode=register",
+            "permanent": false
+        }
+    ],
     "rewrites": [
         {
             "source": "/admin",

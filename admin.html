@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.7">
+    <link rel="stylesheet" href="style.css?v=2027.8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -126,7 +126,7 @@
 
         .dashboard.active {
             display: grid;
-            grid-template-columns: 250px 1fr;
+            grid-template-columns: 250px minmax(0, 1fr);
             gap: 30px;
         }
 
@@ -699,7 +699,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
                         <div style="flex: 1; min-width: 250px;">
                             <h2>📝 Manual Score Entry</h2>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Key in each player's score for each round. This data powers the main Scoreboard on the home page.</p>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Key in each player's score for each round, or press <strong>Fill from Round Tracker</strong> to copy the groups' scorecards, check them, then Save. This data powers the main Scoreboard on the home page.</p>
                         </div>
                     </div>
 
@@ -734,7 +734,10 @@
                         </table>
                     </div>
 
-                    <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end;">
+                    <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end; flex-wrap: wrap;">
+                        <button id="fill-from-tracker-btn" class="admin-btn secondary" style="width: auto; padding: 12px 24px; margin: 0;" title="Copy this round's scorecards from the Round Tracker into the table. Nothing saves until you press Save.">
+                            ⛳ Fill from Round Tracker
+                        </button>
                         <button id="save-score-entry-btn" class="admin-btn" style="width: auto; padding: 12px 30px; margin: 0; background: linear-gradient(135deg, var(--admin-accent), #059669);">
                             💾 Save Round Scores
                         </button>
@@ -792,8 +795,9 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.7"></script>
-    <script src="admin.js?v=2027.7"></script>
+    <script src="trip-config.js?v=2027.8"></script>
+    <script src="scoring.js?v=2027.8"></script>
+    <script src="admin.js?v=2027.8"></script>
 </body>
 
 </html>

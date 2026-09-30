@@ -90,9 +90,12 @@ a {
     transition: var(--transition);
 }
 
-.glass-panel:hover {
-    border-color: rgba(16, 185, 129, 0.4);
-    transform: translateY(-5px);
+/* Hover lift only with a real mouse: on iPhone :hover sticks after a tap */
+@media (hover: hover) and (pointer: fine) {
+    .glass-panel:hover {
+        border-color: rgba(16, 185, 129, 0.4);
+        transform: translateY(-5px);
+    }
 }
 
 /* Header & Navigation */
