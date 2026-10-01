@@ -25,8 +25,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.8">
-    <link rel="stylesheet" href="home.css?v=2027.7">
+    <link rel="stylesheet" href="style.css?v=2027.9">
+    <link rel="stylesheet" href="home.css?v=2027.9">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -68,7 +68,7 @@
                 <li><a href="#cup" data-spy>The Cup</a></li>
                 <li><a href="#attendees" data-spy>The Crew</a></li>
                 <li><a href="rules.html">Rules</a></li>
-                <li><a href="bookie.html">The Bookie <span class="badge-beta">Beta</span></a></li>
+                <li><a href="bookie.html">The Bookie</a></li>
                 <li class="nav-menu">
                     <button type="button" class="nav-menu-btn" id="clubhouse-btn" aria-expanded="false" aria-controls="clubhouse-menu">
                         Clubhouse
@@ -87,6 +87,8 @@
                                 Admin
                             </a>
                         </li>
+                        <!-- Who's signed in, Golf profile, Log out / Log in: filled by script.js once the login is checked -->
+                        <li class="nav-menu-account" id="clubhouse-account" hidden></li>
                     </ul>
                 </li>
             </ul>
@@ -109,7 +111,7 @@
         <a href="#attendees">The Crew</a>
         <a href="#past-trips">Hall of Fame</a>
         <a href="rules.html">Rules</a>
-        <a href="bookie.html">The Bookie <small>Beta</small></a>
+        <a href="bookie.html">The Bookie</a>
         <div class="drawer-actions">
             <button type="button" class="btn btn-line" data-action="scoreboard">Scoreboard</button>
             <button type="button" class="btn btn-copper" data-action="rsvp">RSVP</button>
@@ -118,7 +120,10 @@
             <button type="button" class="drawer-link" data-action="start-round">Start a Round</button>
             <a href="admin.html">Admin</a>
         </div>
+        <!-- Player account row: filled by script.js once the login is checked -->
+        <div class="drawer-account" id="drawer-account" hidden></div>
     </nav>
+    <p class="sr-only" id="account-status" role="status" aria-live="polite"></p>
 
     <main id="main">
         <!-- ============================== HERO ============================== -->
@@ -139,12 +144,13 @@
                     <p class="hero-kicker"><span class="dot" aria-hidden="true"></span><span id="hero-kicker">The 2027 Edition · Scottsdale, Arizona</span></p>
                     <h1 class="hero-title">Desert heat.<br>Cold <em>putters.</em></h1>
                     <p class="hero-sub" id="hero-sub">Four days in the Sonoran Desert: Coore &amp; Crenshaw fairways, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line. Higher stakes, faster greens, same idiots.</p>
+                    <!-- RSVP is the filled button until the viewer has answered; then script.js fills the itinerary instead -->
                     <div class="hero-ctas">
-                        <a class="btn btn-copper" href="#schedule">
+                        <button type="button" class="btn btn-copper" id="hero-rsvp-cta" data-action="rsvp">RSVP now</button>
+                        <a class="btn btn-line" id="hero-trip-cta" href="#schedule">
                             See the itinerary
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </a>
-                        <button type="button" class="btn btn-line" data-action="rsvp">RSVP now</button>
                     </div>
                     <a id="hero-champs" class="hero-champs" href="#cup" hidden></a>
                 </div>
@@ -237,7 +243,7 @@
                 <div class="section-head reveal">
                     <p class="eyebrow">The Crew · Head Count</p>
                     <h2 class="h-display">Good friends. <em>Questionable</em> handicaps.</h2>
-                    <p class="lede" id="crew-lede">Who’s in for Scottsdale. RSVP with your name so we can lock in tee times and rooms. Changed your mind? RSVP again and we’ll count your latest answer.</p>
+                    <p class="lede" id="crew-lede">Who’s in for Scottsdale. RSVP so we can lock in tee times and rooms. Changed your mind? RSVP again and we’ll count your latest answer.</p>
                 </div>
 
                 <div class="headcount reveal" id="headcount" hidden>
@@ -279,10 +285,11 @@
                     <div class="chips" id="out-roster"></div>
                 </div>
 
-                <div class="crew-cta reveal">
+                <!-- Signed-out copy; script.js adjusts it for players and hides it once they've answered -->
+                <div class="crew-cta reveal" id="crew-cta">
                     <div>
-                        <h3>Are you in for 2027?</h3>
-                        <p>Put your name down so we get an accurate head count. It takes ten seconds.</p>
+                        <h3 id="crew-cta-title">Are you in for 2027?</h3>
+                        <p id="crew-cta-text">First time? Set up your player account once (about two minutes), then RSVP in a tap.</p>
                     </div>
                     <button type="button" class="btn btn-copper" data-action="rsvp">RSVP now</button>
                 </div>
@@ -372,7 +379,13 @@
                 <p class="eyebrow rsvp-eyebrow" id="rsvp-eyebrow">2027 · Scottsdale · Apr 8–11</p>
                 <h2 id="rsvp-title" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
                 <p class="modal-lede">Change your answer any time. We count your latest one.</p>
-                <p class="rsvp-who">RSVPing as <b id="rsvp-who-name"></b> <button type="button" class="link-btn" id="rsvp-signout">Not you?</button></p>
+                <p class="rsvp-who">RSVPing as <b id="rsvp-who-name"></b>
+                    <span class="rsvp-who-links">
+                        <button type="button" class="link-btn" data-action="profile">Golf profile</button>
+                        <span aria-hidden="true">·</span>
+                        <button type="button" class="link-btn" id="rsvp-signout">Switch player</button>
+                    </span>
+                </p>
 
                 <form id="rsvp-form" class="registration-form" novalidate>
 
@@ -488,7 +501,7 @@
             </button>
             <p class="eyebrow">Clubhouse</p>
             <h2 id="round-login-title" style="margin-bottom: 10px;">Start a <em>round</em></h2>
-            <p class="modal-lede">Scorekeepers only. Sign in to open the live round tracker.</p>
+            <p class="modal-lede">Scorekeepers only. Log in to open the live round tracker.</p>
             <div data-google-block hidden>
                 <button type="button" class="google-btn" data-google-signin data-next="round">
                     <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -514,7 +527,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.8"></script>
-    <script src="script.js?v=2027.8"></script>
+    <script src="script.js?v=2027.9"></script>
 </body>
 
 </html>

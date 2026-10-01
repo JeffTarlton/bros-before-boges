@@ -108,9 +108,24 @@ window.BBBScoring = (function () {
     // ------------------------------------------------------------------------------------
     // Matches
     // ------------------------------------------------------------------------------------
+    // Matchups in the order they were made, so "Match 1" stays Match 1 after an edit: the database
+    // returns rows in no fixed order, and an updated row usually moves to the end. By created_at
+    // when the table has it, then id, so Admin and every phone number the matches the same way.
+    function sortMatchups(matchups) {
+        const made = m => { const t = Date.parse(m && m.created_at); return isNaN(t) ? Infinity : t; };
+        const byId = (a, b) => {
+            if (a.id === b.id) return 0;
+            if (a.id === null || a.id === undefined) return 1; // not saved yet: last
+            if (b.id === null || b.id === undefined) return -1;
+            if (typeof a.id === 'number' && typeof b.id === 'number') return a.id - b.id;
+            return String(a.id) < String(b.id) ? -1 : 1;
+        };
+        return (matchups || []).slice().sort((a, b) => (made(a) - made(b)) || byId(a, b));
+    }
+
     // Matchup rows (t1_player1_id ...) become [{ id, number, sides: [{ team: 1, ids }, { team: 2, ids }] }]
     function matchesFrom(matchups) {
-        return (matchups || []).map((m, i) => ({
+        return sortMatchups(matchups).map((m, i) => ({
             id: m.id,
             number: i + 1,
             sides: [
@@ -258,7 +273,7 @@ window.BBBScoring = (function () {
 
     return {
         HOLES, HOLE_COLS, FORMATS, formatFor, cleanHole, holesOf, countEntered, mergeHoles, totals,
-        fmtToPar, quotaPoints, scoreName, holeCap, matchesFrom, sideHoles, matchPlay, sumContest,
+        fmtToPar, quotaPoints, scoreName, holeCap, sortMatchups, matchesFrom, sideHoles, matchPlay, sumContest,
         matchResult, partText, roundPoints, fmtPoints
     };
 })();

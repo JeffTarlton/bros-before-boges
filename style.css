@@ -26,6 +26,9 @@
     box-sizing: border-box;
 }
 
+/* The hidden attribute always wins, even over rules like `.main-nav a { display: inline-flex; }` */
+[hidden] { display: none !important; }
+
 html {
     scroll-behavior: smooth;
 }

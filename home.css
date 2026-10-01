@@ -2590,3 +2590,111 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) {
     .mosaic-tile { animation: none; }
 }
+
+
+/* --------------------------------------------------------------------------
+   The viewer: hero "You" row, You tags, account menus
+   -------------------------------------------------------------------------- */
+/* Hero card "You" row, in the RSVP sheet's in / probably / out colours */
+.hero-you { --c: var(--fairway); }
+.hero-you.maybe { --c: var(--gold); }
+.hero-you.out { --c: var(--red-team); }
+.hero-you .you-mark {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--c);
+    color: #140e0a;
+}
+.hero-facts .hero-you .you-mark svg { width: 12px; height: 12px; color: inherit; stroke-width: 3; }
+.hero-you.none .you-mark { background: none; border: 1.5px dashed var(--ink-dim); }
+.hero-you-text { flex: 1; min-width: 0; line-height: 1.35; }
+.hero-you-text b { font-weight: 600; }
+.hero-you-note { color: var(--ink-muted); font-size: 0.85rem; }
+.hero-rsvp.is-primary { background: var(--copper); border-color: var(--copper); color: #1a0f08; }
+.hero-rsvp.is-primary:hover { background: #ec8b5d; border-color: #ec8b5d; }
+/* The hero's small buttons keep their look but get a 44px tap area */
+.hero-rsvp { position: relative; flex: none; }
+.hero-rsvp::after { content: ''; position: absolute; inset: -6px -4px; }
+/* Phones: "Change my RSVP" + the filled itinerary button are no wider than "RSVP now" + "See the
+   itinerary", so wherever the signed-out pair shares a row this one does too, and nothing below
+   moves when the fills swap after the account check */
+@media (max-width: 640px) {
+    .hero-ctas.is-answered .btn { padding: 0 18px; }
+    .hero-ctas.is-answered .btn svg { display: none; }
+}
+
+/* "You" on your own card or chip in the crew lists */
+.you-tag {
+    margin-left: 6px;
+    font: 800 0.6rem var(--sans);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--copper);
+    border: 1px solid rgba(226, 125, 79, 0.55);
+    border-radius: 999px;
+    padding: 2px 8px;
+    vertical-align: 2px;
+}
+.player.is-you { border-color: rgba(226, 125, 79, 0.45); }
+.chip.is-you { border-color: rgba(226, 125, 79, 0.5); }
+.chip .you-tag { margin-left: 0; padding: 1px 6px; vertical-align: 0; }
+/* Strike through the name only, not the tag */
+.chip.out.is-you { text-decoration: none; }
+.chip.out.is-you .chip-name { text-decoration: line-through; text-decoration-color: rgba(244, 235, 223, 0.35); }
+/* A new sign-up's own spot while he waits on approval (only he sees it) */
+.player.is-waiting { border: 1px dashed var(--line-strong); background: transparent; }
+.player.is-waiting .player-meta { color: var(--ink-muted); }
+.chip.is-waiting { border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--ink-muted); }
+
+/* Drawer: who's signed in, Golf profile, Log out (or Log in) */
+.drawer-account {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 22px;
+}
+.drawer-account-who { flex-basis: 100%; padding-top: 6px; color: var(--ink-muted); font-size: 0.9rem; line-height: 1.4; overflow-wrap: anywhere; }
+.drawer-account-who b { color: var(--ink); font-weight: 600; }
+.drawer .drawer-account a,
+.drawer .drawer-account button.drawer-link {
+    width: auto;
+    border: none;
+    padding: 10px 0;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    font: 600 0.95rem var(--sans);
+    color: var(--gold);
+}
+/* Shorter screens: tighten the drawer so the account row at its foot (Golf profile, Log out)
+   shows without scrolling. Links stay at least 44px tall. */
+@media (max-width: 1300px) and (max-height: 900px) {
+    .drawer { padding-top: calc(var(--header-h) + 12px); padding-bottom: 28px; }
+    .drawer > a { padding-top: 10px; padding-bottom: 10px; }
+}
+@media (max-width: 1300px) and (max-height: 820px) {
+    .drawer { padding-top: calc(var(--header-h) + 8px); padding-bottom: 16px; gap: 4px; }
+    .drawer > a { padding-top: 8px; padding-bottom: 8px; font-size: 1.35rem; }
+    .drawer-actions { margin-top: 12px; }
+    .drawer-sub { margin-top: 6px; }
+    .drawer-account { margin-top: 8px; padding-top: 4px; }
+    .drawer-account-who { padding-top: 2px; }
+}
+
+/* Clubhouse menu (wide screens have no drawer) */
+.nav-menu-account { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.nav-menu-who { padding: 8px 14px 6px; font-size: 0.8rem; line-height: 1.35; color: var(--ink-dim); overflow-wrap: anywhere; }
+.nav-menu-who b { display: block; margin-top: 2px; font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+
+/* RSVP sheet: "RSVPing as … · Golf profile · Switch player", with 44px link buttons */
+.rsvp-who { align-items: center; padding: 4px 8px 4px 14px; min-height: 52px; }
+.rsvp-who-links { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--ink-dim); }
+.rsvp-sheet .link-btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
+.rsvp-who-links .link-btn { margin-left: 0; }

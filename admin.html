@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.8">
+    <link rel="stylesheet" href="style.css?v=2027.9">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -377,6 +377,95 @@
         .login-or::before,
         .login-or::after { content: ''; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.1); }
 
+        /* Solid, not faded: the save bar floats over the page on phones */
+        .admin-btn:disabled,
+        .admin-btn:disabled:hover {
+            background: #2a231e;
+            color: rgba(255, 255, 255, 0.4);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none !important;
+        }
+
+        .save-bar .admin-btn.secondary:not(:disabled) { background: #3a322c; }
+
+        /* A failed load shows where the data would be, with Retry */
+        .load-problem {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+            padding: 40px 20px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .load-problem.is-error { color: #fca5a5; font-weight: 600; }
+        .load-problem .admin-btn { width: auto; min-width: 120px; min-height: 44px; margin: 0; padding: 10px 24px; }
+        .admin-table td.load-cell { padding: 0; }
+        .admin-table td.load-cell::before { content: none; }
+
+        /* Matchups: a match that blocked the last save */
+        .matchup-card { border-color: rgba(255, 255, 255, 0.05); }
+        .matchup-card.has-problem { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444, 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .matchup-issue { margin: -5px 0 12px; color: #fca5a5; font-size: 0.85rem; font-weight: 600; }
+
+        /* Why Save is off or blocked, just above the Save button */
+        .save-bar {
+            z-index: 50;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: center;
+            max-width: min(540px, calc(100vw - 60px));
+        }
+
+        .save-note {
+            flex: 1 1 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 12px;
+            padding: 12px 14px;
+            background: rgba(14, 11, 9, 0.96);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-left: 4px solid #ef4444;
+            border-radius: 12px;
+            color: #fecaca;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .save-note[hidden] { display: none; }
+        .save-note span { flex: 1 1 220px; }
+        .save-note .admin-btn { flex: 0 0 auto; width: auto; min-height: 44px; margin: 0; padding: 10px 16px; font-size: 0.85rem; }
+        .save-note.is-info { border-color: rgba(255, 255, 255, 0.12); border-left-color: rgba(255, 255, 255, 0.35); color: rgba(255, 255, 255, 0.75); }
+
+        /* Editing pauses while a save runs (dimmed only if it takes a moment) */
+        .tab-content[inert] { opacity: 0.6; transition: opacity 0.2s ease 0.25s; }
+
+        /* Error toasts stay until dismissed */
+        .toast-error { cursor: pointer; }
+        .toast-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+        .toast-close {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            margin: -10px -16px -10px 0;
+            border: none;
+            border-radius: 10px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .toast-close:hover,
+        .toast-close:focus-visible { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
         @media (max-width: 1024px) {
             .rsvp-note { max-width: none; text-align: right; }
             .dashboard.active {
@@ -455,6 +544,7 @@
                 bottom: 15px;
                 right: 15px;
                 left: 15px;
+                max-width: none;
                 justify-content: center;
                 gap: 10px;
             }
@@ -477,7 +567,7 @@
             </div>
             <div id="auth-status">
                 <button id="logout-btn" class="admin-btn secondary"
-                    style="display: none; width: auto; padding: 10px 20px; margin: 0;">Logout</button>
+                    style="display: none; width: auto; padding: 10px 20px; margin: 0;">Log out</button>
             </div>
         </header>
 
@@ -494,7 +584,7 @@
                 </div>
                 <input type="email" id="email" class="admin-input" placeholder="Email Address">
                 <input type="password" id="password" class="admin-input" placeholder="Password">
-                <button id="login-btn" class="admin-btn">Login to Dashboard</button>
+                <button id="login-btn" class="admin-btn">Log in</button>
                 <p id="login-error" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
                 <p style="margin-top: 20px; font-size: 0.8rem; color: rgba(255,255,255,0.4);">
                     Credentials managed via Supabase Auth
@@ -541,7 +631,7 @@
                             <tbody id="roster-tbody">
                                 <!-- Populated by JS -->
                                 <tr>
-                                    <td colspan="5"
+                                    <td colspan="6"
                                         style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
                                         Loading roster data...
                                     </td>
@@ -602,9 +692,10 @@
                         </button>
                     </div>
                     <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
-                        Assign players to Team 1 or Team 2. Changes are saved when you click "Save Changes" at the
-                        bottom.
+                        Assign players to Team 1 or Team 2. Moves are saved when you press Save Changes (it appears
+                        at the bottom after your first move).
                     </p>
+                    <div id="drafting-status"></div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;" id="drafting-grid">
                         <!-- Column for Team 1 -->
                         <div class="glass-panel" style="padding: 20px; border-color: rgba(16, 185, 129, 0.3);">
@@ -749,6 +840,7 @@
 
         <!-- Floating Action Button -->
         <div id="save-bar" class="save-bar" style="display: none;">
+            <div id="save-note" class="save-note" role="alert" hidden></div>
             <button id="discard-btn" class="admin-btn secondary" style="width: auto; margin: 0;">Discard</button>
             <button id="save-btn" class="admin-btn"
                 style="width: auto; margin: 0; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);">Save Changes</button>
@@ -796,8 +888,8 @@
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.8"></script>
-    <script src="scoring.js?v=2027.8"></script>
-    <script src="admin.js?v=2027.8"></script>
+    <script src="scoring.js?v=2027.9"></script>
+    <script src="admin.js?v=2027.9"></script>
 </body>
 
 </html>

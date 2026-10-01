@@ -18,19 +18,66 @@ const LINK_ERROR = LINK_PARAMS.get('error_code') || LINK_PARAMS.get('error');
 const CAME_FROM_AUTH_LINK = /(^|[#&])(access_token|error_code|error)=/.test(window.location.hash) ||
     /[?&]code=/.test(window.location.search);
 
-// Other pages send people here to sign in (?next=rsvp etc.). Once their login is linked to
+// Other pages send people here to log in (?next=rsvp etc.). Once their login is linked to
 // a roster name they go straight back. `mode` opens the log-in or sign-up form on arrival.
-const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', round: 'round_tracker.html', admin: 'admin.html' };
-const NEXT_NOTES = {
-    rsvp: 'RSVPs need a player account: the same login you use for The Bookie and the round tracker. It takes a minute.',
-    profile: 'Log in to update your GHIN and handicap.',
-    round: 'Log in to start a round.',
-    admin: 'Log in with your admin account.'
-};
+const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', admin: 'admin.html' };
 const NEXT = NEXT_PAGES[LINK_PARAMS.get('next')] ? LINK_PARAMS.get('next') : null;
 const START_MODE = ['login', 'register'].includes(LINK_PARAMS.get('mode')) ? LINK_PARAMS.get('mode') : null;
 const NEW_PLAYER = '__new';
 const ALERTS = BBB.alerts || {};
+
+// Here for the RSVP, golf profile or homepage login: the page is "your player account", not
+// The Bookie (bookie.html's head script sets the same class before the first paint).
+const ACCOUNT_MODE = ['rsvp', 'profile', 'home'].includes(NEXT);
+const SITE_NAME = (BBB.trip && BBB.trip.name) || 'Bros before Boges';
+const TRIP_CITY = String((BBB.trip && BBB.trip.location) || '').split(',')[0].trim();
+const TRIP_DATES = (BBB.trip && BBB.trip.dates && BBB.trip.dates.short) || '';
+
+// What the login wall says, by why they came. RSVP and profile visitors never see betting talk.
+// `primary` is the button that comes first and in gold; the unlinked lines are for a login
+// that isn't tied to a roster name yet.
+const WALL = Object.assign({
+    primary: 'login',
+    login: 'Log in',
+    register: 'Create account',
+    unlinkedTitle: 'Almost there',
+    unlinkedText: 'Pick your name on the trip roster to finish setting up your player account.'
+}, {
+    rsvp: {
+        title: TRIP_CITY ? `RSVP for ${TRIP_CITY} ${TRIP_YEAR}` : `RSVP for the ${TRIP_YEAR} trip`,
+        text: 'One quick step first: set up your player account. You’ll come right back to your RSVP.',
+        primary: 'register',
+        register: 'Create my account',
+        login: 'I have an account: log in',
+        unlinkedTitle: 'One more step before your RSVP',
+        unlinkedText: 'Pick your name on the trip roster so your RSVP counts.'
+    },
+    profile: {
+        title: 'Your golf profile',
+        text: 'Log in to update your GHIN and handicap. It’s the same player account you use to RSVP.',
+        unlinkedText: 'Pick your name on the trip roster so your golf profile saves to the right player.'
+    },
+    home: {
+        title: 'Log in',
+        text: 'Log in to your player account: one login for RSVPs, The Bookie and live scoring.'
+    },
+    round: {
+        title: 'Keep score',
+        text: 'Log in to start scoring a round. It’s the same player account you use to RSVP.'
+    },
+    admin: {
+        title: 'Commissioner login',
+        text: 'Log in with your admin account.'
+    },
+    bookie: {
+        title: 'Log in to The Bookie',
+        text: 'Side bets, the ledger and settle-up for the trip. It’s the same player account you use to RSVP and keep score.',
+        unlinkedText: 'Betting opens once your login is linked to a confirmed name on the trip roster.'
+    }
+}[NEXT || 'bookie']);
+
+document.documentElement.classList.toggle('account-mode', ACCOUNT_MODE);
+if (ACCOUNT_MODE) document.title = NEXT === 'rsvp' ? `RSVP · ${SITE_NAME} ${TRIP_YEAR}` : `Your player account · ${SITE_NAME}`;
 
 // State
 let currentUser = null;
@@ -49,6 +96,9 @@ const busyWagers = new Set(); // bets with an action still saving: a second tap 
 let rsvpOut = null; // players whose latest RSVP for this trip is "out" (left out of the challenge list)
 let modalReturnFocus = null;
 let resetPending = OPENED_FROM_RESET_LINK; // don't leave the page before the new password is saved
+// 'checking' until the login check decides, then 'out', 'in' (logged in, can't bet yet),
+// 'dashboard', or 'leaving' (on the way back to ?next=)
+let wallState = 'checking';
 
 // Escape text from the database before it goes into innerHTML.
 function escHtml(value) {
@@ -60,6 +110,11 @@ function escHtml(value) {
 // DOM Elements
 const authWall = document.getElementById('auth-wall');
 const authWallNote = document.getElementById('auth-wall-note');
+const wallTitle = document.getElementById('auth-wall-title');
+const wallText = document.getElementById('auth-wall-text');
+const wallIcon = document.getElementById('auth-wall-icon');
+const wallButtons = document.getElementById('wall-buttons');
+const wallBackLink = document.getElementById('wall-back-link');
 const dashboard = document.getElementById('bookie-dashboard');
 const currentUserNameEl = document.getElementById('current-user-name');
 const modal = document.getElementById('bookie-modal');
@@ -68,6 +123,7 @@ const authForm = document.getElementById('auth-form');
 const createWagerForm = document.getElementById('create-wager-form');
 const settleWagerForm = document.getElementById('settle-wager-form');
 const modalTitle = document.getElementById('modal-title');
+const modalEyebrow = document.getElementById('modal-eyebrow');
 
 // Auth Form Elements
 const wallLoginBtn = document.getElementById('wall-login-btn');
@@ -196,7 +252,10 @@ async function initBookie() {
     // Check if CDN loaded properly
     if (!window.supabase) {
         console.error('CRITICAL: window.supabase is undefined. The Supabase CDN script may be blocked by an adblocker or failed to load.');
-        alert('Error: Betting backend failed to load. Please disable any strict ad-blockers or try refreshing the page.');
+        // Log in can't work without it, so say what to do instead of offering the buttons
+        showWall('Couldn’t reach the login service. Check your signal, turn off any strict ad-blocker, then refresh the page.');
+        wallButtons.hidden = true;
+        navLoginBtn.closest('li').hidden = true;
         return;
     }
 
@@ -228,9 +287,16 @@ async function initBookie() {
     const signedIn = await loadSession();
     if (OPENED_FROM_RESET_LINK && authMode !== 'reset') openAuthModal('reset');
     if (LINK_ERROR && !signedIn) {
-        showWall(LINK_ERROR === 'otp_expired'
-            ? 'That email link expired or was already used. Log in, or tap “Forgot password?” to get a fresh one.'
-            : 'That email link didn’t work. Log in, or tap “Forgot password?” to get a fresh one.');
+        // They already have an account by now: lead with logging in
+        // An expired sign-up link leaves the email unconfirmed; "Forgot password?" sends a link
+        // that also confirms it, so that's the way out if log in asks for confirmation.
+        showWall(`Log in below to keep going. ${LINK_ERROR === 'otp_expired'
+            ? 'That email link expired or was already used.'
+            : 'That email link didn’t work.'} If log in says to confirm your email, or your password doesn’t work, tap “Forgot password?” for a fresh link.`, false, { linkError: true });
+    } else if (modal.classList.contains('active') && authForm.style.display === 'block' && authMode !== 'reset') {
+        // A very slow check showed the logged-out wall and they opened a sheet from it:
+        // keep what they typed, unless the check found their login after all
+        if (signedIn) closeModal();
     } else if (START_MODE && !signedIn && navLoginBtn.dataset.signedIn !== 'true') {
         openAuthModal(START_MODE);
     }
@@ -411,7 +477,9 @@ function closeModal() {
     modal.classList.remove('active');
     document.body.classList.remove('modal-open');
     INERT_WHILE_MODAL.forEach(sel => document.querySelectorAll(sel).forEach(el => { el.inert = false; }));
-    if (modalReturnFocus && document.contains(modalReturnFocus)) modalReturnFocus.focus({ preventScroll: true });
+    // A sheet that opened on arrival (?mode=) has nothing to go back to: land on the wall's first button
+    const back = modalReturnFocus && modalReturnFocus !== document.body ? modalReturnFocus : (wallState === 'out' && wallButtons.querySelector('.wall-btn'));
+    if (back && document.contains(back)) back.focus({ preventScroll: true });
     modalReturnFocus = null;
 }
 
@@ -424,7 +492,9 @@ function pageUrl() {
 }
 
 function goToNextPage() {
-    showToast('You’re signed in. Taking you back…', 'success');
+    showChecking(NEXT === 'rsvp' ? 'You’re logged in. Taking you to your RSVP…' : 'You’re logged in. Taking you back…');
+    wallState = 'leaving'; // from here a slow page load only gets the "taking longer" note
+    showToast('You’re logged in. Taking you back…', 'success');
     window.location.replace(NEXT_PAGES[NEXT]);
 }
 
@@ -646,6 +716,7 @@ async function loadSession() {
     } catch (e) {
         console.error('Session check failed:', e);
     }
+    loginExpected = !!session;
     if (!session) {
         currentUser = null;
         showWall();
@@ -683,7 +754,7 @@ async function loadSession() {
     }
     if (!player) {
         currentUser = null;
-        showWall(`${linkProblem ? linkProblem + ' ' : ''}You're logged in as ${session.user.email || 'this account'}, but that login isn't linked to a name on the trip roster yet. Pick your name below. First trip? Choose “I’m new”.`, true);
+        showWall(`${linkProblem ? linkProblem + ' ' : ''}You’re logged in as ${session.user.email || 'this account'}, but that login isn’t linked to a name on the trip roster yet. First trip? Choose “I’m new” at the bottom of the list.`, true);
         await showLinkPicker(session.user);
         return false;
     }
@@ -698,7 +769,7 @@ async function loadSession() {
     // New guys can RSVP right away, but betting waits until the commissioner confirms them.
     if (player.status === 'potential') {
         currentUser = null;
-        showWall(`You’re signed up, ${String(player.name).split(' ')[0]}. The commissioner still needs to confirm you for the trip before you can place bets. You can RSVP now.`, true, { pending: true });
+        showWall('', true, { pending: true, name: String(player.name).split(' ')[0] });
         return false;
     }
 
@@ -715,42 +786,117 @@ async function loadSession() {
     return true;
 }
 
-function showWall(note, signedIn, opts) {
+const WALL_ICONS = {
+    checking: '<span class="wall-spinner"></span>',
+    bookie: '<i class="fas fa-user-secret"></i>',
+    trip: '<img src="bbb-logo.svg" alt="" width="64" height="64">'
+};
+
+function setWallCopy(title, text, icon) {
+    wallTitle.textContent = title;
+    wallText.textContent = text || '';
+    wallText.hidden = !text;
+    if (wallIcon.dataset.icon !== icon) {
+        wallIcon.innerHTML = WALL_ICONS[icon];
+        wallIcon.dataset.icon = icon;
+    }
+}
+
+function setNavLogin(signedIn) {
+    navLoginBtn.closest('li').hidden = false;
+    navLoginBtn.dataset.signedIn = signedIn ? 'true' : 'false';
+    navLoginBtn.textContent = signedIn ? 'Log out' : 'Log in';
+}
+
+// While the login check runs (and on the way back to ?next=) the wall says so, with no Log in
+// buttons a signed-in player or someone fresh from the confirmation email could mistake as meant for them.
+let checkingTimer = null;
+// True once a login is known (a stored session, a log-in that just went through, or an email
+// link being exchanged), so a slow check never falls back to "Log in" / "Create my account".
+let loginExpected = CAME_FROM_AUTH_LINK && !LINK_ERROR;
+
+// Nobody stays on the checking screen. The clock restarts when the check itself starts
+// (startBookie), so a slow page load doesn't count against it.
+function armCheckingTimeout() {
+    clearTimeout(checkingTimer);
+    checkingTimer = setTimeout(checkingTimedOut, 10000);
+}
+function checkingTimedOut() {
+    if (wallState !== 'checking' && wallState !== 'leaving') return;
+    // The page's load event is what stalled (a slow font file): start the check now
+    if (!bookieStarted) return startBookie();
+    if (loginExpected || wallState === 'leaving') {
+        // Logged in, just a weak signal: keep the message and say what to do
+        authWallNote.textContent = 'Taking longer than usual. Check your signal. If nothing happens, refresh the page.';
+        authWallNote.hidden = false;
+        return;
+    }
+    showWall(); // still no login after all this time: the normal logged-out wall
+}
+
+function showChecking(message) {
+    wallState = 'checking';
+    armCheckingTimeout();
+    navLoginBtn.closest('li').hidden = true; // no "Log in" while logging in
     document.body.classList.remove('is-authed');
     authWall.style.display = 'block';
+    authWall.setAttribute('aria-busy', 'true');
     dashboard.style.display = 'none';
-    const text = note || (!signedIn && NEXT ? NEXT_NOTES[NEXT] : '');
-    if (authWallNote) {
-        authWallNote.textContent = text;
-        authWallNote.hidden = !text;
+    setWallCopy(message, '', 'checking');
+    authWallNote.hidden = true;
+    wallButtons.hidden = true;
+    wallBackLink.hidden = true;
+    document.getElementById('link-roster').hidden = true;
+    document.getElementById('wall-rsvp-link').hidden = true;
+}
+
+function showWall(note, signedIn, opts) {
+    opts = opts || {};
+    wallState = signedIn ? 'in' : 'out';
+    document.body.classList.remove('is-authed');
+    authWall.style.display = 'block';
+    authWall.removeAttribute('aria-busy');
+    dashboard.style.display = 'none';
+    authWallNote.textContent = note || '';
+    authWallNote.hidden = !note;
+    // Logged in but not able to bet yet (unlinked or awaiting the commissioner): don't say "log in".
+    // After a failed email link the note says what to do, so the "set up your account" line goes.
+    const icon = NEXT ? 'trip' : 'bookie';
+    if (opts.pending) {
+        setWallCopy(`You’re signed up, ${opts.name}`, 'You can RSVP now. Betting opens once the commissioner confirms you for the trip.', icon);
+    } else if (signedIn) {
+        setWallCopy(WALL.unlinkedTitle, WALL.unlinkedText, icon);
+    } else {
+        setWallCopy(WALL.title, opts.linkError ? '' : WALL.text, icon);
     }
-    // Logged in but not able to bet yet (unlinked or awaiting the commissioner): don't say "log in"
-    const wallTitle = document.getElementById('auth-wall-title');
-    const wallText = document.getElementById('auth-wall-text');
-    if (wallTitle) wallTitle.textContent = signedIn ? 'Almost there' : 'Members Only';
-    if (wallText) {
-        wallText.textContent = signedIn
-            ? 'Betting opens once your login is linked to a confirmed name on the trip roster.'
-            : 'You must be logged in to access the sportsbook, place wagers, and view the ledger.';
+    // Signed in but unlinked: offer the name picker instead of log in / create account
+    wallButtons.hidden = !!signedIn;
+    if (!signedIn) {
+        // Someone with a failed email link already has an account, so Log in comes first
+        const loginFirst = opts.linkError || WALL.primary === 'login';
+        wallLoginBtn.textContent = WALL.login;
+        wallRegisterBtn.textContent = WALL.register;
+        wallLoginBtn.classList.toggle('btn-primary', loginFirst);
+        wallLoginBtn.classList.toggle('btn-ghost', !loginFirst);
+        wallRegisterBtn.classList.toggle('btn-primary', !loginFirst);
+        wallRegisterBtn.classList.toggle('btn-ghost', loginFirst);
+        wallButtons.insertBefore(loginFirst ? wallLoginBtn : wallRegisterBtn, loginFirst ? wallRegisterBtn : wallLoginBtn);
     }
-    // Signed in but unlinked: offer the name picker instead of log in / sign up
-    const wallButtons = document.getElementById('wall-buttons');
-    if (wallButtons) wallButtons.style.display = signedIn ? 'none' : 'flex';
+    wallBackLink.hidden = !NEXT;
     const linkBox = document.getElementById('link-roster');
-    if (linkBox && (!signedIn || (opts && opts.pending))) linkBox.hidden = true;
-    const rsvpLink = document.getElementById('wall-rsvp-link');
-    if (rsvpLink) rsvpLink.hidden = !(opts && opts.pending);
-    navLoginBtn.dataset.signedIn = signedIn ? 'true' : 'false';
-    navLoginBtn.textContent = signedIn ? 'Log Out' : 'Login / Register';
+    if (!signedIn || opts.pending) linkBox.hidden = true;
+    document.getElementById('wall-rsvp-link').hidden = !opts.pending;
+    setNavLogin(signedIn);
 }
 
 function showDashboard() {
+    wallState = 'dashboard';
     document.body.classList.add('is-authed');
     authWall.style.display = 'none';
+    authWall.removeAttribute('aria-busy');
     dashboard.style.display = 'block';
     currentUserNameEl.textContent = currentUser.name;
-    navLoginBtn.dataset.signedIn = 'true';
-    navLoginBtn.textContent = 'Log Out';
+    setNavLogin(true);
 }
 
 function setAuthMessage(text, isError) {
@@ -779,22 +925,26 @@ function openAuthModal(mode) {
     syncNewNameField(authNameInput, 'auth-new-name');
     const googleBlock = document.getElementById('auth-google');
     if (googleBlock) googleBlock.style.display = isReset ? 'none' : '';
-    if (forgotPasswordBtn) forgotPasswordBtn.style.display = mode === 'login' ? 'inline' : 'none';
-    toggleAuthModeBtn.parentElement.style.display = isReset ? 'none' : 'block';
+    // '' leaves the layout (44px tap targets) to the stylesheet
+    if (forgotPasswordBtn) forgotPasswordBtn.style.display = mode === 'login' ? '' : 'none';
+    toggleAuthModeBtn.parentElement.style.display = isReset ? 'none' : '';
+    // Here to RSVP: say where this is going ("Step 1 of 2 · Scottsdale · Apr 8–11")
+    modalEyebrow.textContent = ['Step 1 of 2', TRIP_CITY, TRIP_DATES].filter(Boolean).join(' · ');
+    modalEyebrow.hidden = NEXT !== 'rsvp' || isReset;
 
     if (isRegister) {
-        // One account covers RSVPs, betting and the round tracker; name it for why they came
-        modalTitle.textContent = NEXT ? 'Create Your Player Account' : 'Create Betting Account';
-        authSubmitBtn.textContent = 'Sign Up';
-        toggleAuthModeBtn.textContent = 'Already have an account? Log in here.';
+        // One player account covers RSVPs, betting and the round tracker
+        modalTitle.textContent = 'Create your player account';
+        authSubmitBtn.textContent = 'Create my account';
+        toggleAuthModeBtn.textContent = 'Already have an account? Log in';
         loadRosterChoices();
     } else if (isReset) {
-        modalTitle.textContent = LINK_PARAMS.get('type') === 'invite' ? 'Choose Your Password' : 'Choose a New Password';
-        authSubmitBtn.textContent = 'Save Password';
+        modalTitle.textContent = LINK_PARAMS.get('type') === 'invite' ? 'Choose your password' : 'Choose a new password';
+        authSubmitBtn.textContent = 'Save password';
     } else {
-        modalTitle.textContent = NEXT ? 'Log In' : 'Log In to The Bookie';
-        authSubmitBtn.textContent = 'Log In';
-        toggleAuthModeBtn.textContent = 'Need an account? Sign up here.';
+        modalTitle.textContent = NEXT ? 'Log in' : 'Log in to The Bookie';
+        authSubmitBtn.textContent = 'Log in';
+        toggleAuthModeBtn.textContent = 'New here? Create an account';
     }
 
     openModal(isRegister ? authNameInput : (isReset ? authPasswordInput : authEmailInput));
@@ -816,7 +966,7 @@ async function loadRosterChoices() {
 function friendlyAuthError(err) {
     const msg = (err && err.message) || String(err);
     if (/invalid login credentials/i.test(msg)) return 'That email and password don’t match. Try again, or tap “Forgot password?”.';
-    if (/email not confirmed/i.test(msg)) return 'Confirm your email first: open the link we sent you, then log in here.';
+    if (/email not confirmed/i.test(msg)) return 'Confirm your email first: open the link we sent you, then log in here. Link expired? Tap “Forgot password?” below for a fresh one.';
     if (/already registered/i.test(msg)) return 'That email already has a login (maybe from the Round Tracker or Admin). Log in with it instead, then pick your name to link it.';
     if (/password should be at least/i.test(msg)) return 'Pick a password with at least 6 characters.';
     if (isMissingFunction(err)) return 'This part of the site is still being set up. Try again in a few minutes, or text the commissioner.';
@@ -841,7 +991,7 @@ async function registerNewPlayer(rawName, email, password) {
     if (error) throw error;
     const same = (everyone || []).find(p => normName(p.name) === normName(name));
     if (same && same.user_id) {
-        throw new Error(`${same.name} already has an account. Tap “Already have an account? Log in here.” below, and use “Forgot password?” there if you need to.`);
+        throw new Error(`${same.name} already has an account. Tap “Already have an account? Log in” below, and use “Forgot password?” there if you need to.`);
     }
     if (same) throw new Error(`${same.name} is already on the roster. Pick that name from the list instead.`);
 
@@ -865,7 +1015,7 @@ async function registerAccount(playerId, email, password, newName) {
     const match = open.find(p => p.id === playerId);
     if (!match) {
         await loadRosterChoices();
-        throw new Error('That name already has a Bookie account. Log in instead, or tap “Forgot password?”.');
+        throw new Error('That name already has a player account. Log in instead, or tap “Forgot password?”.');
     }
 
     const { data: authData, error: regError } = await supabaseClient.auth.signUp({
@@ -925,6 +1075,8 @@ async function handleAuthSubmit(e) {
         }
 
         closeModal();
+        loginExpected = true;
+        showChecking('Logging you in…'); // not the logged-out wall while the roster link loads
         await loadSession();
     } catch (err) {
         // A sign-up can create the account (and sign in) and still fail to link the name. Then
@@ -962,7 +1114,7 @@ async function sendPasswordReset(e) {
     if (error) {
         setAuthMessage(friendlyAuthError(error), true);
     } else {
-        setAuthMessage('If that email has a Bookie account, a reset link is on its way. Open it on this phone. Nothing after a few minutes? Ask the commissioner.', false);
+        setAuthMessage('If that email has a player account, a reset link is on its way. Open it on this phone. Nothing after a few minutes? Ask the commissioner.', false);
     }
 }
 
@@ -2375,7 +2527,7 @@ function openWagerModal() {
     const out = rsvpOut || new Set();
     wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>' + dbPlayers
         .filter(p => p.id !== currentUser.id && p.status !== 'potential' && !out.has(p.id))
-        .map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}${p.user_id ? '' : ' (no Bookie account yet)'}</option>`)
+        .map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}${p.user_id ? '' : ' (no player account yet)'}</option>`)
         .join('');
     if (keep && [...wagerTargetSelect.options].some(o => o.value === keep)) wagerTargetSelect.value = keep;
 
@@ -2532,9 +2684,25 @@ window.showToast = function (message, type = 'success') {
     setTimeout(dismiss, type === 'error' ? 7000 : 3000);
 };
 
+// The page opens on "checking your login". Fresh from the confirmation email, say that instead.
+showChecking(CAME_FROM_AUTH_LINK && !LINK_ERROR && !OPENED_FROM_RESET_LINK
+    ? (NEXT === 'rsvp' ? 'Confirming your email… taking you to your RSVP' : 'Signing you in…')
+    : 'One sec, checking your login…');
+
+let bookieStarted = false;
+function startBookie() {
+    if (bookieStarted) return;
+    bookieStarted = true;
+    if (wallState === 'checking') armCheckingTimeout();
+    initBookie().catch(err => {
+        console.error('The Bookie failed to start:', err);
+        if (wallState === 'checking') showWall();
+    });
+}
+
 // Kickoff: handles both early and late script execution
 if (document.readyState === 'complete') {
-    initBookie();
+    startBookie();
 } else {
-    window.addEventListener('load', initBookie);
+    window.addEventListener('load', startBookie);
 }

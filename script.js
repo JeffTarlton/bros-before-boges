@@ -36,6 +36,10 @@ const ALERTS = CFG.alerts || {};
 // The Bookie page (bookie.html?next=…), which sends people back here when they're done.
 const account = { checked: false, user: null, player: null, myRsvp: undefined };
 
+// Nothing personal ("You're in", the You tag, Log out) renders until the first account and
+// RSVP checks are done, so a signed-in player never sees a flash of the stranger's page.
+let personalReady = false;
+
 // DOM Element Registry (populated in init)
 let elements = {};
 
@@ -70,7 +74,13 @@ const ICON_PATHS = {
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
-    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'
+    camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+    // Same marks as the RSVP sheet's in / probably / can't make it choices
+    tick: '<path d="M20 6 9 17l-5-5"/>',
+    question: '<path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'
 };
 
 function icon(name) {
@@ -168,14 +178,15 @@ async function init() {
 
         // Wire up buttons first so a bad config entry can't leave Sign Up / Scoreboard dead.
         setupEventListeners();
-        [renderHero, renderTripDetails, renderSchedule, renderCourses, renderCup, renderHallOfFame, initCountdown, initScrollEffects]
+        [renderHero, renderTripDetails, renderSchedule, renderCourses, renderCup, renderHallOfFame, renderCrewCta, initCountdown, initScrollEffects]
             .forEach(fn => {
                 try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
             });
 
         showGoogleButtonsIfEnabled();
         await Promise.all([loadRosterData(), loadRsvps(), loadAccount()]);
-        renderRoster();
+        personalReady = true;
+        renderPersonal();
         roster.loaded = true;
         openFromAddress();
         if (elements.leaderboardModal && elements.leaderboardModal.classList.contains('active')) renderDynamicScoreboard();
@@ -931,23 +942,44 @@ function fmtHcp(h) {
     return n < 0 ? `+${Math.abs(n).toFixed(1)}` : n.toFixed(1);
 }
 
-function playerCardHTML(p, i, meta) {
+// The signed-in viewer's own roster row
+function isMe(playerId) {
+    const v = viewer();
+    return !!(v && v.player && playerId && v.player.id === playerId);
+}
+
+const YOU_TAG = '<span class="you-tag">You</span>';
+
+// `waiting`: the viewer's own card while the commissioner hasn't approved them yet (only they see it)
+function playerCardHTML(p, i, meta, waiting) {
     const nameKey = p.name.replace(/\s+/g, '');
     const hasCard = (CFG.playerCards || []).includes(nameKey);
     const cap = isCaptain(p.name);
+    const me = waiting || isMe(p.id);
     const hcp = fmtHcp(p.handicap);
     return `
-            <div class="player ${cap ? 'is-captain' : ''} reveal" style="transition-delay: ${Math.min(i, 12) * 30}ms;">
+            <div class="player ${cap ? 'is-captain' : ''} ${me ? 'is-you' : ''} ${waiting ? 'is-waiting' : ''} reveal" style="transition-delay: ${Math.min(i, 12) * 30}ms;">
                 <div class="player-avatar">
                     <span>${esc(getInitials(p.name))}</span>
                     ${hasCard ? `<img src="assets/PlayerCards/${esc(nameKey)}.jpg" alt="" loading="lazy" onerror="this.remove()">` : ''}
                 </div>
                 <div class="player-info">
-                    <div class="player-name">${esc(p.name)}${cap ? '<span class="cap-tag">Capt.</span>' : ''}</div>
+                    <div class="player-name">${esc(p.name)}${cap ? '<span class="cap-tag">Capt.</span>' : ''}${me && !waiting ? YOU_TAG : ''}</div>
                     <div class="player-meta">${esc(meta)}</div>
                 </div>
                 <div class="player-hcp"><b>${esc(hcp)}</b><span>HCP</span></div>
             </div>`;
+}
+
+// A name chip in the Probably / Can't make it lists. The viewer's own chip gets a You tag;
+// while they wait on approval it's a dashed placeholder only they can see.
+function rsvpChipHTML(name, cls, playerId) {
+    if (isMe(playerId)) return `<span class="chip ${cls} is-you"><span class="chip-name">${esc(name)}</span>${YOU_TAG}</span>`;
+    return `<span class="chip ${cls}">${esc(name)}</span>`;
+}
+
+function waitingChipHTML(name) {
+    return `<span class="chip is-waiting">${esc(name)} · you, waiting on approval</span>`;
 }
 
 function renderRoster() {
@@ -1115,27 +1147,38 @@ function renderHeadcount() {
     const panel = document.getElementById('headcount');
     if (panel) panel.hidden = false;
 
+    // A new sign-up isn't on the public lists until approved. Show him his own spot anyway
+    // (dashed, to him only) so the head count doesn't look like his RSVP got lost.
+    const v = viewer();
+    const waiting = v && v.pending && v.status ? v : null;
+
     if (grid) {
-        grid.innerHTML = counts.in.length
-            ? counts.in.map((r, i) => {
-                const player = rosterPlayerById(r.player_id);
-                const meta = [realGhin(player.ghin) ? `GHIN ${realGhin(player.ghin)}` : null, r.sunday_round ? 'Sunday round' : null]
-                    .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
-                return playerCardHTML(player, i, meta);
-            }).join('')
+        const cards = counts.in.map((r, i) => {
+            const player = rosterPlayerById(r.player_id);
+            const meta = [realGhin(player.ghin) ? `GHIN ${realGhin(player.ghin)}` : null, r.sunday_round ? 'Sunday round' : null]
+                .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
+            return playerCardHTML(player, i, meta);
+        });
+        if (waiting && waiting.status === 'in') cards.push(playerCardHTML(waiting.player, cards.length, 'You, waiting on approval', true));
+        grid.innerHTML = cards.length
+            ? cards.join('')
             : `<div class="crew-empty" style="grid-column: 1 / -1;">No one’s in yet. Be the first to RSVP.</div>`;
     }
 
     if (elements.crewCount) {
         elements.crewCount.textContent = counts.in.length ? `${counts.in.length} golfer${counts.in.length === 1 ? '' : 's'}` : '';
     }
+    const chipList = (list, cls, status) => list.map(r => rsvpChipHTML(rsvpName(r), cls, r.player_id))
+        .concat(waiting && waiting.status === status ? [waitingChipHTML(waiting.player.name)] : []);
     if (elements.potentialRoster && elements.bubbleBlock) {
-        elements.bubbleBlock.hidden = counts.maybe.length === 0;
-        elements.potentialRoster.innerHTML = counts.maybe.map(r => `<span class="chip muted">${esc(rsvpName(r))}</span>`).join('');
+        const chips = chipList(counts.maybe, 'muted', 'maybe');
+        elements.bubbleBlock.hidden = chips.length === 0;
+        elements.potentialRoster.innerHTML = chips.join('');
     }
     if (elements.outRoster && elements.outBlock) {
-        elements.outBlock.hidden = counts.out.length === 0;
-        elements.outRoster.innerHTML = counts.out.map(r => `<span class="chip out">${esc(rsvpName(r))}</span>`).join('');
+        const chips = chipList(counts.out, 'out', 'out');
+        elements.outBlock.hidden = chips.length === 0;
+        elements.outRoster.innerHTML = chips.join('');
     }
 
     updateHeroHeadcount(counts);
@@ -1151,10 +1194,185 @@ function updateHeroHeadcount(counts) {
         li.id = 'hero-headcount';
         facts.appendChild(li);
     }
-    const label = counts.in.length || counts.maybe.length
+    // A player who's answered can't be "the first", and the You row below carries his RSVP button
+    const v = viewer();
+    const youRow = !!(v && v.player && v.known);
+    const label = counts.in.length || counts.maybe.length || (v && v.status)
         ? `${counts.in.length} in · ${counts.maybe.length} probably`
         : 'Be the first to RSVP';
-    li.innerHTML = `${icon('users')}<span>${esc(label)}</span><button type="button" class="hero-rsvp" data-action="rsvp">RSVP</button>`;
+    li.innerHTML = `${icon('users')}<span>${esc(label)}</span>${youRow ? '' : '<button type="button" class="hero-rsvp" id="hero-headcount-rsvp" data-action="rsvp">RSVP</button>'}`;
+}
+
+// ---------------------------------------------------------------------------
+// The viewer: who's signed in and what they answered
+// ---------------------------------------------------------------------------
+// The viewer's current answer: the head count's row for them, or what they've sent or loaded
+// on this page (account.myRsvp), whichever is newer.
+function myAnswer() {
+    const listed = myLatestRsvp();
+    const mine = account.myRsvp;
+    if (mine && (!listed || !mine.created_at || !listed.created_at || mine.created_at >= listed.created_at)) return mine;
+    return listed;
+}
+
+// null until the first account check is done, or when it failed: show nothing rather than guess.
+// `known` is false when the RSVPs couldn't load, so we can't say whether they've answered.
+function viewer() {
+    if (!personalReady || account.error) return null;
+    if (!account.user) return { signedIn: false };
+    const player = account.player;
+    if (!player) return { signedIn: true, email: account.user.email || '' };
+    const known = rsvpState.available || account.myRsvp !== undefined;
+    const answer = known ? myAnswer() : null;
+    return {
+        signedIn: true,
+        player,
+        pending: player.status === 'potential',
+        known,
+        status: answer && RSVP_LABELS[answer.status] ? answer.status : null
+    };
+}
+
+// Re-render everything that depends on who's looking. Runs after the first account check, and
+// again after an RSVP, a profile save, a log out, or any later account re-check.
+function renderPersonal() {
+    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus].forEach(fn => {
+        try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
+    });
+}
+
+const YOU_COPY = {
+    in: { text: 'You’re in', mark: 'tick' },
+    maybe: { text: 'You’re a probably', mark: 'question' },
+    out: { text: 'You can’t make it', mark: 'x' }
+};
+
+// Hero card row under the head count: "You're in · Change", or "You haven't RSVP'd yet · RSVP"
+function renderYouRow() {
+    const facts = document.getElementById('hero-facts');
+    if (!facts) return;
+    let li = document.getElementById('hero-you');
+    const v = viewer();
+    if (!(v && v.player && v.known)) {
+        if (li) li.remove();
+        return;
+    }
+    if (!li) {
+        li = document.createElement('li');
+        li.id = 'hero-you';
+    }
+    // Keep it right under the head count row (which renderHeadcount may add later)
+    const headcount = document.getElementById('hero-headcount');
+    if (headcount) headcount.after(li);
+    else facts.appendChild(li);
+
+    const copy = YOU_COPY[v.status];
+    li.className = `hero-you ${v.status || 'none'}`;
+    li.innerHTML = copy
+        ? `<span class="you-mark" aria-hidden="true">${icon(copy.mark)}</span>
+           <span class="hero-you-text"><b>${copy.text}</b>${v.pending ? '<span class="hero-you-note"> · shows on the list once the commissioner approves you</span>' : ''}</span>
+           <button type="button" class="hero-rsvp" id="hero-you-rsvp" data-action="rsvp" aria-label="Change your RSVP">Change</button>`
+        : `<span class="you-mark" aria-hidden="true"></span>
+           <span class="hero-you-text"><b>You haven’t RSVP’d yet</b></span>
+           <button type="button" class="hero-rsvp is-primary" id="hero-you-rsvp" data-action="rsvp">RSVP</button>`;
+}
+
+// Until the viewer has answered, RSVP is the filled hero button; after that the itinerary is.
+// Only the fills and the label change, never the order: this runs once the account check is
+// done, and a tap aimed at RSVP a moment earlier should still land on RSVP.
+function renderHeroCtas() {
+    const rsvpBtn = document.getElementById('hero-rsvp-cta');
+    const tripBtn = document.getElementById('hero-trip-cta');
+    if (!rsvpBtn || !tripBtn) return;
+    const v = viewer();
+    const answered = !!(v && v.status);
+    if (rsvpBtn.classList.contains('btn-copper') === !answered) return;
+    rsvpBtn.textContent = answered ? 'Change my RSVP' : 'RSVP now';
+    // Swap the fills without the hover colour transition, so it doesn't fade in on page load
+    [rsvpBtn, tripBtn].forEach(b => { b.style.transition = 'none'; });
+    rsvpBtn.classList.toggle('btn-copper', !answered);
+    rsvpBtn.classList.toggle('btn-line', answered);
+    tripBtn.classList.toggle('btn-copper', answered);
+    tripBtn.classList.toggle('btn-line', !answered);
+    rsvpBtn.parentNode.classList.toggle('is-answered', answered); // keeps the pair on one row on phones
+    void rsvpBtn.offsetWidth;
+    [rsvpBtn, tripBtn].forEach(b => { b.style.transition = ''; });
+}
+
+// Crew section's "Are you in?" block: hidden once the viewer has answered.
+function renderCrewCta() {
+    const cta = document.getElementById('crew-cta');
+    const title = document.getElementById('crew-cta-title');
+    const text = document.getElementById('crew-cta-text');
+    if (!cta) return;
+    if (title && RSVP_YEAR) title.textContent = `Are you in for ${RSVP_YEAR}?`;
+    const v = viewer();
+    cta.hidden = !!(v && v.status);
+    if (!text) return;
+    text.textContent = v && v.player
+        ? 'Put your name down so we get an accurate head count. It takes ten seconds.'
+        : v && v.signedIn
+            ? 'Finish setting up your player account, then RSVP in a tap.'
+            : 'First time? Set up your player account once (about two minutes), then RSVP in a tap.';
+}
+
+// "Signed in as …" with Golf profile and Log out (or Log in) in the drawer, and in the
+// Clubhouse menu for wide screens, which have no drawer.
+function renderAccountMenus() {
+    const drawerRow = document.getElementById('drawer-account');
+    const clubRow = document.getElementById('clubhouse-account');
+    const v = viewer();
+    [drawerRow, clubRow].forEach(el => { if (el) el.hidden = !v; });
+    if (!v) return;
+
+    const who = v.player ? v.player.name : v.email || 'your account';
+    const loginUrl = accountUrl('home', 'login');
+    if (drawerRow) {
+        drawerRow.innerHTML = !v.signedIn
+            ? `<a href="${loginUrl}">Log in</a>`
+            : `<p class="drawer-account-who">Signed in as <b>${esc(who)}</b></p>
+               ${v.player
+                   ? '<button type="button" class="drawer-link" data-action="profile">Golf profile</button>'
+                   : `<a href="${accountUrl('home')}">Finish setting up</a>`}
+               <button type="button" class="drawer-link" data-action="logout">Log out</button>`;
+    }
+    if (clubRow) {
+        clubRow.innerHTML = !v.signedIn
+            ? `<a href="${loginUrl}">${icon('login')}Log in</a>`
+            : `<p class="nav-menu-who">Signed in as <b>${esc(who)}</b></p>
+               ${v.player
+                   ? `<button type="button" data-action="profile">${icon('flag')}Golf profile</button>`
+                   : `<a href="${accountUrl('home')}">${icon('user')}Finish setting up</a>`}
+               <button type="button" data-action="logout">${icon('logout')}Log out</button>`;
+    }
+}
+
+// Many of these golfers won't remember their password, so ask before logging out.
+// Returns true once logged out (and the page shows the signed-out view).
+async function logOutHere() {
+    const who = account.player ? account.player.name : (account.user && account.user.email) || 'your account';
+    const device = window.matchMedia('(pointer: coarse)').matches ? 'this phone' : 'this device';
+    if (!window.confirm(`Log out of ${who} on ${device}? You’ll need your password to log back in.`)) return false;
+    await signOutHere();
+    renderPersonal();
+    return true;
+}
+
+// Log out from the drawer or the Clubhouse menu. The menu stays open while we ask.
+async function logOutFromMenu() {
+    const returnTo = focusReturnTarget(); // the menu's button: the Log out button is re-rendered away
+    if (!(await logOutHere())) return;
+    setDrawer(false);
+    setClubhouse(false);
+    if (returnTo && returnTo.isConnected) returnTo.focus();
+    announce('You’re logged out.');
+}
+
+function announce(message) {
+    const el = document.getElementById('account-status');
+    if (!el) return;
+    el.textContent = '';
+    setTimeout(() => { el.textContent = message; }, 60);
 }
 
 // ---------------------------------------------------------------------------
@@ -1167,7 +1385,11 @@ async function loadAccount() {
     account.error = false;
     if (!supabaseInstance) { account.checked = true; return; }
     try {
-        const { data: { session } } = await supabaseInstance.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabaseInstance.auth.getSession();
+        // An expired login that couldn't be refreshed (offline, weak signal) comes back as no
+        // session plus a retryable error, but stays stored and works again once back online:
+        // that's "couldn't check", not "logged out". (Other refresh errors do end the login.)
+        if (sessionError && sessionError.name === 'AuthRetryableFetchError') throw sessionError;
         account.user = session ? session.user : null;
         if (account.user) {
             const { data, error } = await supabaseInstance
@@ -1186,6 +1408,9 @@ async function loadAccount() {
         account.error = true;
         account.checked = false;
     }
+    // A later re-check (an RSVP / profile tap found the login changed, or retried a failed
+    // check, or the page came back from the back/forward cache)
+    if (personalReady) renderPersonal();
 }
 
 // Before showing or saving an RSVP / profile: re-read the account if the login changed
@@ -1410,6 +1635,7 @@ async function signOutHere() {
     account.player = null;
     account.myRsvp = undefined;
     account.checked = true;
+    account.error = false;
 }
 
 // A request without a login (it ended in another tab, or expired) is refused by the
@@ -1527,7 +1753,7 @@ async function handleRsvpSubmit(e) {
         }
 
         await loadRsvps();
-        renderRoster();
+        renderPersonal();
         showRsvpDone(saved);
     } catch (err) {
         console.error('RSVP failed:', err);
@@ -1579,13 +1805,19 @@ function showRsvpDone(rsvp) {
 // ---------------------------------------------------------------------------
 // Golf profile (GHIN / handicap) for the signed-in player
 // ---------------------------------------------------------------------------
+// Set when the profile was opened from the RSVP form: closing it goes back to the form with
+// the picked answer and note as they were, since that RSVP hasn't been sent yet.
+let profileBackToRsvp = false;
+
 async function openProfile() {
     await ensureFreshAccount();
     if (!account.player) {
         showAccountStep('profile');
         return;
     }
-    closeDialog(elements.rsvpModal);
+    const sheet = elements.rsvpModal;
+    const formStep = document.getElementById('rsvp-step-form');
+    profileBackToRsvp = !!(sheet && sheet.classList.contains('active') && formStep && !formStep.hidden);
     const p = account.player;
     const hcp = p.handicap === null || p.handicap === undefined || p.handicap === '' ? null : Number(p.handicap);
     document.getElementById('profile-name').textContent = p.name;
@@ -1594,7 +1826,20 @@ async function openProfile() {
     document.getElementById('handicap').value = hcp === null || isNaN(hcp) ? '' : Math.abs(hcp).toFixed(1);
     document.getElementById('handicap-plus').checked = hcp !== null && hcp < 0;
     setFieldError('profile-error', '');
+    // Open the profile before closing the sheet, so focus doesn't drop onto the page in between
     openDialog(elements.registrationModal, '#ghin-number');
+    closeDialog(sheet);
+}
+
+// Cancel, close, Escape, or a moment after Save
+async function closeProfile() {
+    const modal = elements.registrationModal;
+    if (!modal || !modal.classList.contains('active')) return;
+    const back = profileBackToRsvp;
+    profileBackToRsvp = false;
+    if (back) await openRsvp(true); // opens over the profile, so focus goes straight to the form
+    closeDialog(modal);
+    if (elements.registrationForm) elements.registrationForm.reset();
 }
 
 // "9.4" -> 9.4, "+2.1" or "2.1" with the plus box ticked -> -2.1. A comma decimal ("9,4",
@@ -1636,9 +1881,9 @@ async function handleProfileSubmit(e) {
         Object.assign(account.player, { ghin: data ? data.ghin : ghin || null, handicap: data ? data.handicap : handicap });
         const onRoster = roster.confirmed.find(p => p.id === account.player.id);
         if (onRoster) Object.assign(onRoster, { ghin: account.player.ghin, handicap: account.player.handicap === null ? null : parseFloat(account.player.handicap) });
-        renderRoster();
+        renderPersonal();
         btn.textContent = 'Saved';
-        setTimeout(() => closeDialog(elements.registrationModal), 700);
+        setTimeout(closeProfile, 700);
     } catch (err) {
         console.error('Profile save failed:', err);
         const text = `${err.code || ''} ${err.message || ''}`;
@@ -1994,8 +2239,26 @@ function closeDialog(el) {
     if (!document.querySelector('.modal.active, .lightbox.active')) {
         document.body.style.overflow = '';
         setBackgroundInert(false);
-        if (lastFocused && typeof lastFocused.focus === 'function' && lastFocused.isConnected) lastFocused.focus();
+        lastFocused = focusAfterDialog(lastFocused);
+        if (lastFocused) lastFocused.focus();
     }
+}
+
+// The button that opened a dialog may be gone or hidden by the time it closes: the hero's RSVP
+// buttons are re-rendered after an RSVP or a log out, and the crew block hides once you've
+// answered. Use its new copy, or the nearest RSVP button still showing, so focus doesn't drop
+// to the top of the page.
+function focusAfterDialog(el) {
+    if (!el || typeof el.focus !== 'function') return null;
+    const shown = n => !!n && n.isConnected && n.getClientRects().length > 0;
+    if (shown(el)) return el;
+    const sameId = el.id && document.getElementById(el.id);
+    if (shown(sameId)) return sameId;
+    if (!(el.matches && el.matches('[data-action="rsvp"]'))) return el.isConnected ? el : null;
+    const section = el.isConnected ? el.closest('section') : null;
+    const nearby = section ? [...section.querySelectorAll('[data-action="rsvp"]')] : [];
+    const hero = ['hero-you-rsvp', 'hero-headcount-rsvp', 'hero-rsvp-cta'].map(id => document.getElementById(id));
+    return nearby.concat(hero).find(shown) || null;
 }
 
 function setDrawer(open) {
@@ -2017,6 +2280,7 @@ function setClubhouse(open) {
 }
 
 function runAction(action) {
+    if (action === 'logout') { logOutFromMenu(); return; } // asks first, with the menu still open
     if (!document.querySelector('.modal.active, .lightbox.active')) {
         const t = focusReturnTarget();
         if (t) lastFocused = t;
@@ -2107,7 +2371,8 @@ function setupEventListeners() {
         elements.navToggle.addEventListener('click', () => setDrawer(!elements.drawer.classList.contains('is-open')));
     }
     if (elements.drawer) {
-        elements.drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setDrawer(false)));
+        // Delegated, so the account row's links (rendered later) close the drawer too
+        elements.drawer.addEventListener('click', (e) => { if (e.target.closest('a')) setDrawer(false); });
     }
     if (elements.clubhouseBtn) {
         elements.clubhouseBtn.addEventListener('click', (e) => {
@@ -2118,15 +2383,17 @@ function setupEventListeners() {
             if (!e.currentTarget.contains(e.relatedTarget)) setClubhouse(false);
         });
     }
+    // Back from The Bookie after logging in or out there: the cached page may show the old login
+    window.addEventListener('pageshow', (e) => { if (e.persisted && personalReady) ensureFreshAccount(); });
+
     const desktopNav = window.matchMedia('(min-width: 1301px)');
     const closeDrawerOnDesktop = (e) => { if (e.matches) setDrawer(false); };
     if (desktopNav.addEventListener) desktopNav.addEventListener('change', closeDrawerOnDesktop);
     else if (desktopNav.addListener) desktopNav.addListener(closeDrawerOnDesktop);
 
     // Close buttons
-    const closeReg = () => { closeDialog(elements.registrationModal); if (elements.registrationForm) elements.registrationForm.reset(); };
-    document.getElementById('modal-close')?.addEventListener('click', closeReg);
-    document.getElementById('cancel-btn')?.addEventListener('click', closeReg);
+    document.getElementById('modal-close')?.addEventListener('click', closeProfile);
+    document.getElementById('cancel-btn')?.addEventListener('click', closeProfile);
     document.getElementById('leaderboard-close')?.addEventListener('click', () => closeDialog(elements.leaderboardModal));
     document.getElementById('round-login-close')?.addEventListener('click', () => closeDialog(elements.roundLoginModal));
 
@@ -2135,7 +2402,7 @@ function setupEventListeners() {
         if (!modal) return;
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
-                if (modal === elements.registrationModal) closeReg();
+                if (modal === elements.registrationModal) closeProfile();
                 else closeDialog(modal);
             }
         });
@@ -2156,10 +2423,11 @@ function setupEventListeners() {
     document.querySelectorAll('[data-google-signin]').forEach(btn => {
         btn.addEventListener('click', () => signInWithGoogle(btn.dataset.next || 'rsvp'));
     });
-    // "Not you?" / "Use a different account": sign out on this device, then show the account step
+    // "Switch player" / "Use a different account": log out on this device (after asking), then
+    // show the account step
     ['rsvp-signout', 'rsvp-switch-account'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', async () => {
-            await signOutHere();
+            if (!(await logOutHere())) return;
             showAccountStep('rsvp');
         });
     });
@@ -2198,7 +2466,9 @@ function setupEventListeners() {
             const ae = document.activeElement;
             if (ae && ae.closest && ae.closest('#clubhouse-menu')) elements.clubhouseBtn.focus();
             else if (ae && ae.closest && ae.closest('#drawer')) elements.navToggle.focus();
-            closeReg();
+            // Escape from a profile opened in the RSVP form goes back to the form: closeProfile
+            // reopens it a moment later, after the sheet's close below has nothing to close
+            closeProfile();
             closeDialog(elements.rsvpModal);
             closeDialog(elements.leaderboardModal);
             closeDialog(elements.roundLoginModal);

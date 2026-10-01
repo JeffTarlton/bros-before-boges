@@ -12,24 +12,44 @@ try {
     console.error('Supabase initialization failed:', e);
 }
 
-// Toast Notification System
-window.showToast = function(message, type = 'success') {
+// Toast Notification System. Successes fade after 3 s; errors stay until tapped, because
+// they're often the only record of what did or didn't save. opts.timeout lets a passing
+// notice fade anyway; opts.kind ('save') lets the next message about the same thing replace it.
+window.showToast = function(message, type = 'success', opts = {}) {
     const container = document.getElementById('toast-container');
     if (!container) return;
-    
+    const isError = type !== 'success';
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', isError ? 'alert' : 'status');
+    if (opts.kind) toast.dataset.kind = opts.kind;
     toast.innerHTML = `
-        <div style="font-size: 1.2rem;">${type === 'success' ? '✅' : '⚠️'}</div>
-        <div>${message}</div>
+        <div style="font-size: 1.2rem;" aria-hidden="true">${isError ? '⚠️' : '✅'}</div>
+        <div class="toast-text">${message}</div>
+        ${isError ? '<button type="button" class="toast-close" aria-label="Dismiss message">×</button>' : ''}
     `;
-    
-    container.appendChild(toast);
-    
-    setTimeout(() => {
+    const dismiss = () => {
+        if (toast.classList.contains('fade-out')) return;
         toast.classList.add('fade-out');
         setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    };
+    toast.addEventListener('click', dismiss);
+
+    // A newer result of the same kind (the latest save) replaces the older one, and the same
+    // error twice doesn't stack
+    const text = toast.querySelector('.toast-text').innerHTML;
+    container.querySelectorAll('.toast').forEach(t => {
+        if ((opts.kind && t.dataset.kind === opts.kind) ||
+            (isError && t.classList.contains('toast-error') && t.querySelector('.toast-text').innerHTML === text)) t.remove();
+    });
+    container.appendChild(toast);
+    const life = isError ? opts.timeout : 3000;
+    if (life) setTimeout(dismiss, life);
+};
+
+window.clearToasts = function(kind) {
+    document.querySelectorAll(`#toast-container .toast[data-kind="${kind}"]`).forEach(t => t.remove());
 };
 
 // DOM Elements Registry
@@ -42,6 +62,13 @@ let matchups = [];
 let originalMatchups = [];
 let currentMatchupRound = 1;
 let hasChanges = false;
+// Each dataset is 'loading', 'ok' or 'error'. Save writes matchups as a diff against what
+// loaded, so it stays off unless both loaded in this page session.
+const loadState = { roster: 'loading', matchups: 'loading' };
+let saving = false;
+let saveProblem = null; // what's blocking the last Save attempt, shown above the Save button
+let leavingPage = false; // set once Logout is confirmed, so the unload prompt doesn't ask twice
+const EDITOR_TABS = ['tab-roster', 'tab-drafting', 'tab-matchups', 'tab-potential'];
 
 // Initial Load
 function init() {
@@ -52,6 +79,7 @@ function init() {
             dashboard: document.getElementById('dashboard'),
             rosterTbody: document.getElementById('roster-tbody'),
             saveBar: document.getElementById('save-bar'),
+            saveNote: document.getElementById('save-note'),
             loginBtn: document.getElementById('login-btn'),
             logoutBtn: document.getElementById('logout-btn'),
             loginError: document.getElementById('login-error'),
@@ -63,6 +91,8 @@ function init() {
             autoDraftBtn: document.getElementById('auto-draft-btn'),
             team1List: document.getElementById('team1-list'),
             team2List: document.getElementById('team2-list'),
+            draftingGrid: document.getElementById('drafting-grid'),
+            draftingStatus: document.getElementById('drafting-status'),
             matchupsList: document.getElementById('matchups-list'),
             addMatchupBtn: document.getElementById('add-matchup-btn'),
             potentialList: document.getElementById('potential-list'),
@@ -82,6 +112,15 @@ function init() {
 // PostgREST turns * into %; escaping it too means an email with * simply never matches.
 function escapeLike(value) {
     return String(value || '').replace(/[\\%_*]/g, '\\$&');
+}
+
+// supabase-js passes the browser's own network error through ("TypeError: Failed to fetch",
+// or "Load failed" on an iPhone). Say what it means instead.
+function plainError(err) {
+    const text = (err && err.message) || String(err || 'Unknown error');
+    return /failed to fetch|load failed|networkerror|network request failed/i.test(text)
+        ? 'couldn’t reach the server. Check your connection.'
+        : text;
 }
 
 async function checkInitialAuth() {
@@ -192,6 +231,20 @@ function setupEventListeners() {
         elements.discardBtn.addEventListener('click', discardChanges);
     }
 
+    // Retry buttons appear wherever a failed load would have shown data (and in the save bar)
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-retry-load]')) retryLoads();
+        const show = e.target.closest('[data-show-matchup]');
+        if (show) showMatchup(Number(show.dataset.showMatchup));
+    });
+
+    // Closing or reloading the tab with unsaved roster/team/matchup edits asks first
+    window.addEventListener('beforeunload', (e) => {
+        if (!hasChanges || leavingPage) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+
     // Table Interaction (Event Delegation)
     if (elements.rosterTbody) {
         elements.rosterTbody.addEventListener('input', (e) => {
@@ -300,6 +353,8 @@ async function handleLogin() {
     }
 }
 async function handleLogout() {
+    if (hasChanges && !confirm('You have unsaved changes. Log out anyway?')) return;
+    leavingPage = true;
     if (supabaseInstance) {
         await supabaseInstance.auth.signOut();
     }
@@ -310,6 +365,7 @@ function showDashboard() {
     if (elements.authScreen) elements.authScreen.style.display = 'none';
     if (elements.dashboard) elements.dashboard.classList.add('active');
     if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
+    renderSaveBar(); // the add buttons stay off until the roster is in
     loadRoster();
     loadMatchups();
 }
@@ -323,12 +379,14 @@ async function loadRoster() {
                 .order('status') // 'confirmed' before 'potential', so real players always load
                 .order('name');
 
-            if (!error && data) {
-                players = JSON.parse(JSON.stringify(data)); // Deep copy
-                originalPlayers = JSON.parse(JSON.stringify(data));
-            }
+            if (error || !data) throw error || new Error('No roster data came back.');
+            players = JSON.parse(JSON.stringify(data)); // Deep copy
+            originalPlayers = JSON.parse(JSON.stringify(data));
+            loadState.roster = 'ok';
         } catch (e) {
+            // The tabs show the error instead of an empty list, and Save stays off
             console.error('Roster load failed:', e);
+            loadState.roster = 'error';
         }
     } else {
         // Fallback to demo data
@@ -339,12 +397,9 @@ async function loadRoster() {
         ];
         players = JSON.parse(JSON.stringify(demoData));
         originalPlayers = JSON.parse(JSON.stringify(demoData));
+        loadState.roster = 'ok';
     }
-    renderRosterTable();
-    renderDraftingUI();
-    renderMatchupsUI();
-    renderPotentialUI();
-    checkChanges();
+    renderAllTabs();
 }
 
 async function loadMatchups() {
@@ -354,16 +409,80 @@ async function loadMatchups() {
                 .from('matchups')
                 .select('*');
 
-            if (!error && data) {
-                matchups = JSON.parse(JSON.stringify(data));
-                originalMatchups = JSON.parse(JSON.stringify(data));
-            }
+            if (error || !data) throw error || new Error('No matchups data came back.');
+            // Same order as the Round Tracker, so Match 3 here is Match 3 on the course
+            const ordered = window.BBBScoring ? window.BBBScoring.sortMatchups(data) : data;
+            matchups = JSON.parse(JSON.stringify(ordered));
+            originalMatchups = JSON.parse(JSON.stringify(ordered));
+            loadState.matchups = 'ok';
         } catch (e) {
             console.error('Matchups load failed:', e);
+            loadState.matchups = 'error';
         }
+    } else {
+        loadState.matchups = 'ok';
     }
     renderMatchupsUI();
     checkChanges();
+}
+
+function renderAllTabs() {
+    renderRosterTable();
+    renderDraftingUI();
+    renderMatchupsUI();
+    renderPotentialUI();
+    checkChanges();
+}
+
+const LOAD_NAMES = { roster: 'the roster', matchups: 'matchups' };
+
+// What a tab shows instead of its data while a load it needs is running or has failed
+function loadProblem(needs) {
+    const failed = needs.filter(k => loadState[k] === 'error');
+    if (failed.length) return { error: true, text: `Couldn’t load ${failed.map(k => LOAD_NAMES[k]).join(' or ')}. Check your connection.` };
+    const loading = needs.filter(k => loadState[k] === 'loading');
+    if (loading.length) return { error: false, text: `Loading ${loading.map(k => LOAD_NAMES[k]).join(' and ')}…` };
+    return null;
+}
+
+function loadProblemHtml(problem) {
+    return `<div class="load-problem${problem.error ? ' is-error' : ''}" role="${problem.error ? 'alert' : 'status'}">
+        <span>${problem.text}</span>
+        ${problem.error ? '<button type="button" class="admin-btn secondary" data-retry-load>Retry</button>' : ''}
+    </div>`;
+}
+
+const canSave = () => loadState.roster === 'ok' && loadState.matchups === 'ok';
+
+// While a save runs, the lists it's writing can't be edited: an edit made then would be
+// neither saved nor kept once the page reloads what's stored
+function setSaving(on) {
+    saving = on;
+    EDITOR_TABS.forEach(id => {
+        const tab = document.getElementById(id);
+        if (tab) tab.inert = on;
+    });
+    renderSaveBar();
+}
+
+// Re-run only the loads that failed, so edits to the dataset that did load survive
+async function retryLoads() {
+    const focused = document.activeElement && document.activeElement.closest('[data-retry-load]');
+    const fromSaveBar = !!(focused && focused.closest('#save-bar'));
+    const jobs = [];
+    if (loadState.roster === 'error') { loadState.roster = 'loading'; jobs.push(loadRoster); }
+    if (loadState.matchups === 'error') { loadState.matchups = 'loading'; jobs.push(loadMatchups); }
+    if (!jobs.length) return;
+    renderAllTabs();
+    await Promise.all(jobs.map(load => load()));
+    if (!focused) return;
+    // The Retry that had focus was re-drawn: focus the new Retry if it failed again, otherwise
+    // Save (from the save bar) or the open tab's heading
+    const scope = fromSaveBar ? elements.saveBar : [...document.querySelectorAll('.tab-content')].find(t => t.style.display !== 'none');
+    if (!scope) return;
+    const target = scope.querySelector('[data-retry-load]') || (fromSaveBar ? elements.saveBtn : scope.querySelector('h2'));
+    if (target && target.tagName === 'H2') target.setAttribute('tabindex', '-1');
+    if (target) target.focus();
 }
 
 
@@ -371,10 +490,16 @@ async function loadMatchups() {
 function renderRosterTable() {
     if (!elements.rosterTbody) return;
 
+    const problem = loadProblem(['roster']);
+    if (problem) {
+        elements.rosterTbody.innerHTML = `<tr><td colspan="6" class="load-cell">${loadProblemHtml(problem)}</td></tr>`;
+        return;
+    }
+
     const confirmedPlayers = players.filter(p => p.status !== 'potential');
 
     if (confirmedPlayers.length === 0) {
-        elements.rosterTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>`;
+        elements.rosterTbody.innerHTML = `<tr><td colspan="6" class="load-cell" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>`;
         return;
     }
 
@@ -405,6 +530,8 @@ function updatePlayerData(index, field, value) {
 }
 
 function addNewPlayer() {
+    // Off until the roster loads: otherwise there's no way to see whether he went in
+    if (supabaseInstance && loadState.roster !== 'ok') return;
     // Clear previous values & errors
     document.getElementById('modal-name').value = '';
     document.getElementById('modal-email').value = '';
@@ -458,7 +585,7 @@ async function saveNewPlayer() {
             .select();
 
         if (error) {
-            errEl.textContent = 'Error saving: ' + error.message;
+            errEl.textContent = 'Error saving: ' + plainError(error);
             errEl.style.display = 'block';
             saveBtn.disabled = false;
             saveBtn.textContent = 'Save Player';
@@ -466,8 +593,17 @@ async function saveNewPlayer() {
         }
 
         closeAddPlayerModal();
-        // Refresh the live roster from DB
-        await loadRoster();
+        // Said now, so a roster reload that fails below can't leave it in doubt
+        window.showToast(`${escHtml(name)} is on the roster.`, 'success');
+        if (hasChanges && loadState.roster === 'ok' && data && data[0]) {
+            // A reload would throw away the unsaved edits: add him to both copies instead
+            players.push(JSON.parse(JSON.stringify(data[0])));
+            originalPlayers.push(JSON.parse(JSON.stringify(data[0])));
+            renderAllTabs();
+        } else {
+            // Refresh the live roster from DB
+            await loadRoster();
+        }
     } else {
         // Demo mode — add to local state only
         players.push(newPlayer);
@@ -492,9 +628,54 @@ function checkChanges() {
 
     hasChanges = current !== original;
 
+    // A blocked save's message follows the edits: it updates as matches are fixed and goes
+    // once nothing blocks the save (or nothing is left to save)
+    if (saveProblem) saveProblem = hasChanges ? findSaveProblem() : null;
+    renderSaveBar();
+    markMatchupProblems();
+}
+
+function renderSaveBar() {
     if (elements.saveBar) {
         elements.saveBar.style.display = hasChanges ? 'flex' : 'none';
     }
+    if (elements.saveBtn) {
+        elements.saveBtn.disabled = saving || !canSave();
+        elements.saveBtn.textContent = saving ? 'Saving…' : 'Save Changes';
+    }
+    if (elements.discardBtn) elements.discardBtn.disabled = saving;
+    // Lists can't be added to while the data they belong to is missing
+    if (elements.addMatchupBtn) elements.addMatchupBtn.disabled = !canSave();
+    ['autoDraftBtn', 'addPotentialBtn', 'addPlayerBtn'].forEach(key => {
+        if (elements[key]) elements[key].disabled = loadState.roster !== 'ok';
+    });
+
+    const note = elements.saveNote;
+    if (!note) return;
+    let html = '';
+    let waiting = false; // still loading: a plain notice, not an alarm
+    if (!canSave()) {
+        const problem = loadProblem(['roster', 'matchups']);
+        waiting = !(problem && problem.error);
+        html = !waiting
+            ? `<span>${problem.text} Saving is off until it loads, so nothing gets overwritten.</span><button type="button" class="admin-btn secondary" data-retry-load>Retry</button>`
+            : '<span>Still loading. Save turns on once the roster and matchups are in.</span>';
+    } else if (saveProblem) {
+        const more = saveProblem.count > 1 ? ` (${saveProblem.count - 1} more to fix after this.)` : '';
+        html = `<span>${escHtml(saveProblem.text)}${more}</span>` +
+            (saveProblem.index !== undefined ? `<button type="button" class="admin-btn secondary" data-show-matchup="${saveProblem.index}">Show match</button>` : '');
+    }
+    note.classList.toggle('is-info', waiting);
+    const role = waiting ? 'status' : 'alert';
+    if (note.getAttribute('role') !== role) note.setAttribute('role', role);
+    // Only touch the note when its text changes, so screen readers don't re-announce it
+    if (note.dataset.html !== html) {
+        note.dataset.html = html;
+        note.innerHTML = html;
+    }
+    note.hidden = !html;
+    // Room to scroll the last rows out from under the floating bar
+    document.body.style.paddingBottom = hasChanges && elements.saveBar ? `${elements.saveBar.offsetHeight + 30}px` : '';
 }
 
 function renderDraftingUI() {
@@ -502,6 +683,12 @@ function renderDraftingUI() {
 
     elements.team1List.innerHTML = '';
     elements.team2List.innerHTML = '';
+
+    // A failed load would otherwise look like two empty teams
+    const problem = loadProblem(['roster']);
+    if (elements.draftingStatus) elements.draftingStatus.innerHTML = problem ? loadProblemHtml(problem) : '';
+    if (elements.draftingGrid) elements.draftingGrid.style.display = problem ? 'none' : 'grid';
+    if (problem) return;
 
     const draftablePlayers = players.filter(p => p.status !== 'potential');
 
@@ -577,6 +764,12 @@ function renderMatchupsUI() {
     if (!elements.matchupsList) return;
     elements.matchupsList.innerHTML = '';
 
+    const problem = loadProblem(['roster', 'matchups']);
+    if (problem) {
+        elements.matchupsList.innerHTML = loadProblemHtml(problem);
+        return;
+    }
+
     if (players.length === 0) {
         elements.matchupsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Load players and assign teams first.</p>';
         return;
@@ -592,13 +785,25 @@ function renderMatchupsUI() {
         if (m.t2_player2_id) assignedInRound.add(m.t2_player2_id);
     });
 
+    // A pick missing from the team's list still shows, so it can be seen and cleared with "Select…"
+    const strayLabel = ref => {
+        const p = players.find(x => (x.id || x.name) === ref);
+        if (p) return `${p.name} (${p.team_id ? `now Team ${p.team_id}` : 'no team now'})`;
+        const removed = originalPlayers.find(x => x.id === ref);
+        return removed ? `${removed.name} (off roster)` : 'Player not on the roster';
+    };
+
     const getOptions = (teamId, currentVal) => {
-        return players.filter(p => p.team_id === teamId).map(p => {
+        const team = players.filter(p => p.team_id === teamId);
+        const stray = currentVal && !team.some(p => (p.id || p.name) === currentVal)
+            ? `<option value="${escHtml(currentVal)}" selected>${escHtml(strayLabel(currentVal))}</option>`
+            : '';
+        return stray + team.map(p => {
             const pId = p.id || p.name;
             const isAssigned = assignedInRound.has(pId);
             const isCurrent = (pId === currentVal);
             if (!isAssigned || isCurrent) {
-                return `<option value="${pId}" ${isCurrent ? 'selected' : ''}>${escHtml(p.name)}</option>`;
+                return `<option value="${escHtml(pId)}" ${isCurrent ? 'selected' : ''}>${escHtml(p.name)}</option>`;
             }
             return '';
         }).join('');
@@ -607,25 +812,27 @@ function renderMatchupsUI() {
     roundMatchups.forEach((match, index) => {
         const globalIndex = matchups.indexOf(match);
         const div = document.createElement('div');
-        div.className = 'glass-panel';
-        div.style = "padding: 20px; border-color: rgba(255,255,255,0.05);";
+        div.className = 'glass-panel matchup-card';
+        div.dataset.matchup = globalIndex;
+        div.style = "padding: 20px;";
 
         const isSingles = currentMatchupRound === 3;
-        
+
         div.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
                 <h4 style="color: var(--admin-accent);">Match ${index + 1}</h4>
-                <button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" onclick="removeMatchup(${globalIndex})">Remove</button>
+                <button type="button" class="admin-btn secondary" style="width: auto; min-height: 44px; padding: 0 16px; font-size: 0.8rem; margin: 0;" aria-label="Remove match ${index + 1}" onclick="removeMatchup(${globalIndex})">Remove</button>
             </div>
-            
+            <p class="matchup-issue" hidden></p>
+
             <div style="margin-bottom: 15px;">
                 <div style="font-size: 0.8rem; font-weight: bold; color: var(--accent-emerald); margin-bottom: 5px;">Team 1</div>
-                <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
+                <select data-field="t1_player1_id" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
                     <option value="">Select T1 Player 1</option>
                     ${getOptions(1, match.t1_player1_id)}
                 </select>
                 ${!isSingles ? `
-                <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
+                <select data-field="t1_player2_id" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
                     <option value="">Select T1 Player 2</option>
                     ${getOptions(1, match.t1_player2_id)}
                 </select>` : ''}
@@ -633,12 +840,12 @@ function renderMatchupsUI() {
 
             <div>
                 <div style="font-size: 0.8rem; font-weight: bold; color: #ef4444; margin-bottom: 5px;">Team 2</div>
-                <select class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
+                <select data-field="t2_player1_id" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
                     <option value="">Select T2 Player 1</option>
                     ${getOptions(2, match.t2_player1_id)}
                 </select>
                 ${!isSingles ? `
-                <select class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
+                <select data-field="t2_player2_id" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
                     <option value="">Select T2 Player 2</option>
                     ${getOptions(2, match.t2_player2_id)}
                 </select>` : ''}
@@ -650,9 +857,11 @@ function renderMatchupsUI() {
     if (roundMatchups.length === 0) {
         elements.matchupsList.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No matchups defined for this round. Click "+ Create Matchup" to start.</p>';
     }
+    markMatchupProblems();
 }
 
 function addMatchup() {
+    if (!canSave()) return; // nothing to add to until both lists have loaded
     matchups.push({
         round_number: currentMatchupRound,
         t1_player1_id: null, t1_player2_id: null,
@@ -669,7 +878,8 @@ window.removeMatchup = (index) => {
 };
 
 window.updateMatchupTeam = (index, field, value) => {
-    matchups[index][field] = value;
+    // Back to "Select…" stores null, as loaded, so it doesn't count as an edit
+    matchups[index][field] = value || null;
     checkChanges();
 };
 
@@ -677,6 +887,12 @@ window.updateMatchupTeam = (index, field, value) => {
 function renderPotentialUI() {
     if (!elements.potentialList) return;
     elements.potentialList.innerHTML = '';
+
+    const problem = loadProblem(['roster']);
+    if (problem) {
+        elements.potentialList.innerHTML = loadProblemHtml(problem);
+        return;
+    }
 
     const potentialPlayers = players.filter(p => p.status === 'potential');
 
@@ -703,7 +919,7 @@ function renderPotentialUI() {
 
 function addPotentialPlayer() {
     const name = elements.newPotentialName.value.trim();
-    if (!name) return;
+    if (!name || loadState.roster !== 'ok') return;
 
     players.push({
         name: name,
@@ -731,11 +947,8 @@ function discardChanges() {
     if (confirm('Discard all unsaved changes?')) {
         players = JSON.parse(JSON.stringify(originalPlayers));
         matchups = JSON.parse(JSON.stringify(originalMatchups));
-        renderRosterTable();
-        renderDraftingUI();
-        renderMatchupsUI();
-        renderPotentialUI();
-        checkChanges();
+        saveProblem = null;
+        renderAllTabs();
     }
 }
 
@@ -762,52 +975,232 @@ async function bookieHistoryWarning(playerIds) {
     }
 }
 
+const MATCHUP_SLOTS = ['t1_player1_id', 't1_player2_id', 't2_player1_id', 't2_player2_id'];
+const MATCHUP_FIELDS = ['round_number', ...MATCHUP_SLOTS];
+
+// "Round 2 · Match 3", numbered the way the Matchups tab numbers them
+function matchupLabel(m, list = matchups) {
+    return `Round ${m.round_number} · Match ${list.filter(x => x.round_number === m.round_number).indexOf(m) + 1}`;
+}
+
+const isBlankMatchup = m => MATCHUP_SLOTS.every(k => !m[k]);
+
+// The row as it should be stored. A side with only its second player picked keeps him, as player 1.
+function matchupValues(m) {
+    const v = { round_number: m.round_number };
+    [['t1_player1_id', 't1_player2_id'], ['t2_player1_id', 't2_player2_id']].forEach(([one, two]) => {
+        const picks = [m[one], m[two]].filter(Boolean);
+        v[one] = picks[0] || null;
+        v[two] = picks[1] || null;
+    });
+    return v;
+}
+
+// Every match Save would store wrongly. A fully blank match isn't one: Save just drops it.
+function matchupProblems() {
+    const problems = [];
+    const currentIds = new Set(players.map(p => p.id).filter(Boolean));
+    const removed = new Map(originalPlayers.filter(p => p.id && !currentIds.has(p.id)).map(p => [p.id, p]));
+    const newNames = new Set(players.filter(p => !p.id).map(p => p.name));
+    // Ids already stored in a match stay valid even if that player isn't in this roster copy
+    const stored = new Set();
+    originalMatchups.forEach(m => MATCHUP_SLOTS.forEach(k => { if (m[k]) stored.add(m[k]); }));
+
+    matchups.forEach((m, index) => {
+        if (isBlankMatchup(m)) return;
+        const label = matchupLabel(m);
+        const v = matchupValues(m);
+        const missing = !v.t1_player1_id ? 't1' : !v.t2_player1_id ? 't2' : null;
+        if (missing) {
+            const team = missing === 't1' ? 'Team 1' : 'Team 2';
+            problems.push({ index, field: `${missing}_player1_id`, short: `Missing a ${team} player.`, text: `${label} is missing a ${team} player. Pick one or remove the match.` });
+            return;
+        }
+        MATCHUP_SLOTS.forEach(k => {
+            const ref = m[k];
+            if (!ref) return;
+            if (removed.has(ref)) {
+                const name = removed.get(ref).name || 'A player you’re removing';
+                problems.push({ index, field: k, short: `${name} is being removed from the roster.`, text: `${name} is still in ${label}. Take him out of the match before removing him, or press Discard.` });
+            } else if (!currentIds.has(ref) && !newNames.has(ref) && !stored.has(ref)) {
+                problems.push({ index, field: k, short: 'Has a player who isn’t on the roster any more.', text: `${label} has a player who isn’t on the roster any more. Pick again.` });
+            }
+        });
+    });
+    return problems;
+}
+
+// Players this save moves off a side they're still picked for. Not a block (on draft night
+// last year's matches would stop every save), but worth a question: the Round Tracker goes
+// by the match, so it would still score them for their old team there.
+function teamMismatches() {
+    const out = [];
+    matchups.forEach((m, index) => {
+        if (isBlankMatchup(m)) return;
+        const before = m.id ? originalMatchups.find(o => o.id === m.id) : null;
+        MATCHUP_SLOTS.forEach(k => {
+            const ref = m[k];
+            const side = k.startsWith('t1') ? 1 : 2;
+            const p = ref && players.find(x => (x.id || x.name) === ref);
+            if (!p || p.team_id === side) return;
+            // An old mismatch that this session didn't touch isn't this save's doing
+            const was = p.id ? originalPlayers.find(o => o.id === p.id) : null;
+            if (was && was.team_id === p.team_id && before && before[k] === ref) return;
+            out.push({ index, field: k, text: `${p.name} ${p.team_id ? `is now on Team ${p.team_id}` : 'isn’t on a team now'} but still plays for Team ${side} in ${matchupLabel(m)}.` });
+        });
+    });
+    return out;
+}
+
+// The first thing blocking a save (with how many there are), or null
+function findSaveProblem() {
+    const problems = matchupProblems();
+    return problems.length ? Object.assign({}, problems[0], { count: problems.length }) : null;
+}
+
+// After a blocked save, outline the matches that need fixing on the round being shown.
+// Updated in place (not re-drawn) so a select being changed keeps focus.
+function markMatchupProblems() {
+    if (!elements.matchupsList) return;
+    const byIndex = new Map();
+    if (saveProblem) matchupProblems().forEach(p => { if (!byIndex.has(p.index)) byIndex.set(p.index, p.short); });
+    elements.matchupsList.querySelectorAll('[data-matchup]').forEach(card => {
+        const text = byIndex.get(Number(card.dataset.matchup));
+        card.classList.toggle('has-problem', !!text);
+        const note = card.querySelector('.matchup-issue');
+        if (note) {
+            note.textContent = text || '';
+            note.hidden = !text;
+        }
+    });
+}
+
+// "Show match": open the Matchups tab on that round and put focus on the pick to fix
+function showMatchup(index, pick) {
+    const m = matchups[index];
+    if (!m) return;
+    const tabItem = document.querySelector('.sidebar-item[data-tab="matchups"]');
+    if (tabItem && !tabItem.classList.contains('active')) tabItem.click();
+    window.filterMatchupRound(m.round_number);
+    const card = elements.matchupsList.querySelector(`[data-matchup="${index}"]`);
+    if (!card) return;
+    const field = pick || (saveProblem && saveProblem.index === index ? saveProblem.field : null);
+    const target = (field && card.querySelector(`select[data-field="${field}"]`)) || card.querySelector('select');
+    // Centre the pick itself: on a phone the bottom of a tall card sits under the save bar
+    (target || card).scrollIntoView({ block: 'center' });
+    if (target) target.focus({ preventScroll: true });
+}
+
+// Only the writes needed to turn the matchups that loaded into `list` (what's being saved).
+// resolve() turns a pick into a player id (players added in this save are picked by name).
+function diffMatchups(list, resolve) {
+    const before = new Map(originalMatchups.filter(m => m.id).map(m => [m.id, matchupValues(m)]));
+    const resolved = m => {
+        const v = matchupValues(m);
+        MATCHUP_SLOTS.forEach(k => { if (v[k]) v[k] = resolve(v[k]); });
+        return v;
+    };
+    const kept = new Set();
+    const plan = { deletes: [], updates: [], inserts: [] };
+    list.forEach(m => {
+        const blank = isBlankMatchup(m);
+        if (!m.id) {
+            if (!blank) plan.inserts.push(resolved(m)); // a blank new match is simply dropped
+            return;
+        }
+        if (blank) return; // emptied out: same as Remove, deleted below
+        kept.add(m.id);
+        const now = resolved(m);
+        const was = before.get(m.id) || {};
+        const fields = {};
+        MATCHUP_FIELDS.forEach(k => { if ((now[k] || null) !== (was[k] || null)) fields[k] = now[k]; });
+        if (Object.keys(fields).length) plan.updates.push({ id: m.id, label: matchupLabel(m, list), fields });
+    });
+    before.forEach((v, id) => { if (!kept.has(id)) plan.deletes.push(id); });
+    plan.count = plan.deletes.length + plan.updates.length + plan.inserts.length;
+    return plan;
+}
+
 async function saveChanges() {
     if (!supabaseInstance) {
         alert('Saving is disabled in demo mode.');
         return;
     }
+    if (saving) return;
+    // Matchups are saved as changes against what loaded. Without a good load, a save could
+    // overwrite real pairings with an empty or stale list.
+    if (!canSave()) {
+        renderSaveBar();
+        const problem = loadProblem(['roster', 'matchups']);
+        window.showToast(problem && problem.error
+            ? `Nothing was saved. ${problem.text} Tap Retry, then save again.`
+            : 'Nothing was saved: the roster and matchups are still loading.', 'error', { kind: 'save' });
+        return;
+    }
 
+    // 1. Check the whole save before writing anything
+    saveProblem = findSaveProblem();
+    if (saveProblem) {
+        renderSaveBar();
+        markMatchupProblems();
+        return;
+    }
+    const moved = teamMismatches();
+    if (moved.length && !confirm(`${moved[0].text}${moved.length > 1 ? ` And ${moved.length - 1} more like this.` : ''}\n\n` +
+        `The Round Tracker goes by the match, so it would still score him for his old team there.\n\nSave anyway? Cancel takes you to the match.`)) {
+        showMatchup(moved[0].index, moved[0].field);
+        return;
+    }
+
+    // Everything below is built from this copy, so what's written is exactly what was checked.
+    // Saving starts before the first await, so a second tap or Discard can't start another save.
+    const snap = JSON.parse(JSON.stringify({ players, matchups }));
+    window.clearToasts('save'); // an earlier save's result no longer applies
+    setSaving(true);
+
+    const originalIds = originalPlayers.map(p => p.id).filter(id => id);
+    const currentIds = snap.players.map(p => p.id).filter(id => id);
+    const deletedIds = originalIds.filter(id => !currentIds.includes(id));
+    const nameOf = id => (originalPlayers.find(p => p.id === id) || {}).name || 'A player';
+
+    // Deleting a player also deletes the Bookie bets they created
+    if (deletedIds.length > 0) {
+        const warning = await bookieHistoryWarning(deletedIds);
+        if (warning && !confirm(warning)) {
+            setSaving(false);
+            return;
+        }
+    }
+
+    // Roster edits: only the fields you actually changed, only on the players you changed.
+    // Writing whole rows from this page's snapshot would undo anything changed since it
+    // loaded (a player's own GHIN/handicap update, an approval, a Bookie link).
+    const editable = p => ADMIN_PLAYER_FIELDS.reduce((row, key) => {
+        if (p[key] !== undefined) row[key] = p[key];
+        return row;
+    }, {});
+    const changedFields = p => {
+        const before = originalPlayers.find(o => o.id === p.id) || {};
+        return ADMIN_PLAYER_FIELDS.reduce((diff, key) => {
+            if (p[key] !== undefined && JSON.stringify(p[key]) !== JSON.stringify(before[key])) diff[key] = p[key];
+            return diff;
+        }, {});
+    };
+    const updates = snap.players.filter(p => p.id)
+        .map(p => ({ id: p.id, name: p.name, fields: changedFields(p) }))
+        .filter(u => Object.keys(u.fields).length > 0);
+    const newRows = snap.players.filter(p => !p.id).map(editable);
+    const newNames = new Set(newRows.map(r => r.name));
+    const matchupsChanged = diffMatchups(snap.matchups, ref => ref).count > 0;
+
+    let step = 'roster';
+    let wrote = false;        // anything reached the database
+    let savedRoster = false;  // roster edits and new players all saved
+    let matchupWrites = 0;
     try {
         console.log('Saving changes to Supabase...');
 
-        // 1. Find deleted players
-        const originalIds = originalPlayers.map(p => p.id).filter(id => id);
-        const currentIds = players.map(p => p.id).filter(id => id);
-        const deletedIds = originalIds.filter(id => !currentIds.includes(id));
-
-        // 2. Perform Deletions (deleting a player also deletes the Bookie bets they created)
-        if (deletedIds.length > 0) {
-            const warning = await bookieHistoryWarning(deletedIds);
-            if (warning && !confirm(warning)) return;
-
-            const { error: delError } = await supabaseInstance
-                .from('players')
-                .delete()
-                .in('id', deletedIds);
-
-            if (delError) throw delError;
-        }
-
-        // 3. Save roster edits: only the fields you actually changed, only on the players you
-        // changed. Writing whole rows from this page's snapshot would undo anything changed
-        // since it loaded (a player's own GHIN/handicap update, an approval, a Bookie link).
-        const editable = p => ADMIN_PLAYER_FIELDS.reduce((row, key) => {
-            if (p[key] !== undefined) row[key] = p[key];
-            return row;
-        }, {});
-        const changedFields = p => {
-            const before = originalPlayers.find(o => o.id === p.id) || {};
-            return ADMIN_PLAYER_FIELDS.reduce((diff, key) => {
-                if (p[key] !== undefined && JSON.stringify(p[key]) !== JSON.stringify(before[key])) diff[key] = p[key];
-                return diff;
-            }, {});
-        };
-        const updates = players.filter(p => p.id)
-            .map(p => ({ id: p.id, name: p.name, fields: changedFields(p) }))
-            .filter(u => Object.keys(u.fields).length > 0);
-        const newRows = players.filter(p => !p.id).map(editable);
-
+        // 2. Roster edits
         for (const u of updates) {
             const { data: updated, error: updateError } = await supabaseInstance
                 .from('players')
@@ -817,44 +1210,113 @@ async function saveChanges() {
             if (updateError) throw updateError;
             // Row-level security can skip a row without an error; say so instead of "saved"
             if (!updated || !updated.length) throw new Error(`${u.name || 'A player'} wasn't updated (no permission, or they were removed). Reload and try again.`);
+            wrote = true;
         }
+
+        // 3. New players, with their ids back so matches that picked them by name can use them
+        const newIdByName = new Map();
         if (newRows.length > 0) {
-            const { error: insertError } = await supabaseInstance
+            const { data: inserted, error: insertError } = await supabaseInstance
                 .from('players')
-                .insert(newRows);
+                .insert(newRows)
+                .select('id, name');
             if (insertError) throw insertError;
+            wrote = true;
+            (inserted || []).forEach(r => { if (!newIdByName.has(r.name)) newIdByName.set(r.name, r.id); });
+        }
+        savedRoster = updates.length + newRows.length > 0;
+
+        // 4. Matchups: only the ones that changed, each by id. Never delete-all-and-reinsert:
+        // the Round Tracker reads these to know who plays whom.
+        step = 'matchups';
+        if (matchupsChanged) {
+            const plan = diffMatchups(snap.matchups, ref => {
+                if (!newNames.has(ref)) return ref;
+                if (!newIdByName.has(ref)) throw new Error(`${ref} was added, but his new player id didn’t come back.`);
+                return newIdByName.get(ref);
+            });
+            if (plan.deletes.length) {
+                const { data: gone, error: delError } = await supabaseInstance
+                    .from('matchups')
+                    .delete()
+                    .in('id', plan.deletes)
+                    .select('id');
+                if (delError) throw delError;
+                matchupWrites += (gone || []).length;
+                if (matchupWrites) wrote = true;
+                const left = plan.deletes.length - (gone || []).length;
+                if (left) throw new Error(`${left} removed match${left === 1 ? ' wasn’t' : 'es weren’t'} deleted (no permission, or already gone).`);
+            }
+            for (const u of plan.updates) {
+                const { data: updated, error: updateError } = await supabaseInstance
+                    .from('matchups')
+                    .update(u.fields)
+                    .eq('id', u.id)
+                    .select('id');
+                if (updateError) throw updateError;
+                if (!updated || !updated.length) throw new Error(`${u.label} wasn’t updated (no permission, or it was deleted).`);
+                matchupWrites++;
+                wrote = true;
+            }
+            // One at a time, in screen order: rows saved together share a created_at, and
+            // created_at is what numbers the matches (scoring.js sortMatchups)
+            for (const row of plan.inserts) {
+                const { data: added, error: insertError } = await supabaseInstance
+                    .from('matchups')
+                    .insert(row)
+                    .select('id');
+                if (insertError) throw insertError;
+                matchupWrites += (added || []).length;
+                wrote = true;
+            }
         }
 
-        // 4. Update Matchups
-        const refreshedPlayers = (await supabaseInstance.from('players').select('id, name').order('status').order('name')).data;
-        const matchupsToSave = matchups.map(m => {
-            const t1p1 = refreshedPlayers.find(rp => rp.id === m.t1_player1_id || rp.name === m.t1_player1_id);
-            const t1p2 = refreshedPlayers.find(rp => rp.id === m.t1_player2_id || rp.name === m.t1_player2_id);
-            const t2p1 = refreshedPlayers.find(rp => rp.id === m.t2_player1_id || rp.name === m.t2_player1_id);
-            const t2p2 = refreshedPlayers.find(rp => rp.id === m.t2_player2_id || rp.name === m.t2_player2_id);
-            return {
-                round_number: m.round_number,
-                t1_player1_id: t1p1 ? t1p1.id : null,
-                t1_player2_id: t1p2 ? t1p2.id : null,
-                t2_player1_id: t2p1 ? t2p1.id : null,
-                t2_player2_id: t2p2 ? t2p2.id : null
-            };
-        }).filter(m => m.t1_player1_id && m.t2_player1_id);
-
-        await supabaseInstance.from('matchups').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-        if (matchupsToSave.length > 0) {
-            const { error: matchError } = await supabaseInstance
-                .from('matchups')
-                .insert(matchupsToSave);
-            if (matchError) throw matchError;
+        // 5. Removed players last, once no match points at them any more
+        step = 'removals';
+        if (deletedIds.length > 0) {
+            const { data: removedRows, error: delError } = await supabaseInstance
+                .from('players')
+                .delete()
+                .in('id', deletedIds)
+                .select('id');
+            if (delError) throw new Error(`${deletedIds.map(nameOf).join(', ')} couldn’t be removed: ${plainError(delError)}`);
+            const removedIds = new Set((removedRows || []).map(r => r.id));
+            if (removedIds.size) wrote = true;
+            const stuck = deletedIds.filter(id => !removedIds.has(id));
+            if (stuck.length) throw new Error(`${stuck.map(nameOf).join(', ')} ${stuck.length === 1 ? 'wasn’t' : 'weren’t'} removed (no permission, or already gone).`);
         }
 
-        window.showToast('Changes saved successfully! 🎉', 'success');
-        loadRoster();
+        // All of it is now stored, even if the reload below fails (Save stays off until Retry)
+        originalPlayers = snap.players;
+        originalMatchups = snap.matchups;
+        await Promise.all([loadRoster(), loadMatchups()]);
+        setSaving(false);
+        window.showToast('Changes saved successfully! 🎉', 'success', { kind: 'save' });
     } catch (err) {
         console.error('Save failed:', err);
-        window.showToast('Error saving changes: ' + escHtml(err.message), 'error');
+        let msg = escHtml(plainError(err));
+        if (!/[.!?]$/.test(msg)) msg += '.'; // database messages come without a full stop
+        if (!wrote) {
+            // Nothing reached the database: keep the edits on screen so Save can be tried again
+            setSaving(false);
+            window.showToast(`Nothing was saved: ${msg}`, 'error', { kind: 'save' });
+            return;
+        }
+        let text;
+        if (step === 'roster') {
+            text = `Only some roster changes saved: ${msg}${matchupsChanged ? ' Matchups weren’t saved.' : ''}`;
+        } else if (step === 'matchups') {
+            text = (savedRoster
+                ? (matchupWrites ? 'Saved the roster, but only some matchup changes saved: ' : 'Saved the roster, but matchups didn’t save: ')
+                : 'Only some matchup changes saved: ') + msg;
+            if (deletedIds.length) text += ' Players you removed are still on the roster.';
+        } else {
+            text = `Saved your other changes, but ${msg}`;
+        }
+        // Part of the save landed: show what's really stored rather than a mix
+        window.showToast(`${text} The page now shows what’s stored, so check it before saving again.`, 'error', { kind: 'save' });
+        await Promise.all([loadRoster(), loadMatchups()]);
+        setSaving(false);
     }
 }
 
@@ -1092,7 +1554,7 @@ async function fillFromTracker() {
             .gte('date', since);
         if (error) throw error;
         if (!rounds || !rounds.length) {
-            window.showToast(`The Round Tracker has no Round ${scoreEntryRound} cards yet.`, 'error');
+            window.showToast(`The Round Tracker has no Round ${scoreEntryRound} cards yet.`, 'error', { timeout: 10000 });
             return;
         }
         const { data: rows, error: rowsError } = await supabaseInstance.from('scores').select('*').in('round_id', rounds.map(r => r.id));
@@ -1185,7 +1647,7 @@ async function saveScoreEntries() {
         });
 
         if (upsertData.length === 0) {
-            window.showToast('No scores to save. Enter at least one score.', 'error');
+            window.showToast('No scores to save. Enter at least one score.', 'error', { timeout: 10000 });
             return;
         }
 

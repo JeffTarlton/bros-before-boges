@@ -8,13 +8,30 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>The Bookie (Beta) - Bros before Boges</title>
+    <title>The Bookie · Bros before Boges</title>
+    <!-- Share preview. This page is also the login for RSVPs, so a shared link shows the trip, not
+         the betting. Trip-specific: update these each year along with index.html's. -->
+    <meta name="description" content="RSVP, side bets and live scoring for the trip.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Bros before Boges 2027 · Scottsdale">
+    <meta property="og:description" content="RSVP, side bets and live scoring for the trip.">
+    <meta property="og:url" content="https://bros-before-boges.vercel.app/bookie">
+    <meta property="og:image" content="https://bros-before-boges.vercel.app/assets/courses/og-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://bros-before-boges.vercel.app/assets/courses/og-card.jpg">
+    <script>
+        // Here to log in for the RSVP, golf profile or homepage: show the site's name instead of
+        // The Bookie's from the first paint (bookie.js applies the same rule as ACCOUNT_MODE)
+        if (/[?&]next=(rsvp|profile|home)(&|$)/.test(location.search)) document.documentElement.classList.add('account-mode');
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.8">
+    <link rel="stylesheet" href="style.css?v=2027.9">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         html {
@@ -495,9 +512,11 @@
         }
 
         .auth-links a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
             color: var(--accent-emerald);
             text-decoration: underline;
-            padding: 6px 0;
         }
 
         .auth-message {
@@ -550,10 +569,222 @@
 
         .link-roster .field-hint { margin: 0 0 14px; }
 
+        /* The logo goes home. Account mode (here for the RSVP or profile) shows the site's name. */
+        .site-header .logo {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .logo-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 44px;
+            color: inherit;
+        }
+
+        .logo-site {
+            gap: 10px;
+            font-size: 1.35rem;
+            white-space: nowrap;
+        }
+
+        .logo-site img {
+            width: 34px;
+            height: 34px;
+            flex: none;
+        }
+
+        html:not(.account-mode) .logo-site,
+        html.account-mode .logo-bookie {
+            display: none;
+        }
+
+        @media (max-width: 380px) {
+            .logo-site {
+                gap: 8px;
+                font-size: 1.1rem;
+            }
+
+            .logo-site img {
+                width: 28px;
+                height: 28px;
+            }
+        }
+
+        /* The login wall. It starts as "checking your login" and bookie.js fills it in. */
+        .site-header [hidden],
+        #auth-wall [hidden] {
+            display: none !important;
+        }
+
+        #auth-wall {
+            position: relative;
+            text-align: center;
+            padding: 60px 40px;
+            margin-bottom: 50px;
+        }
+
+        .wall-back {
+            position: absolute;
+            top: 10px;
+            left: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 0 8px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .wall-back:hover {
+            color: var(--text-main);
+        }
+
+        .wall-icon {
+            margin-bottom: 20px;
+            font-size: 3.5rem;
+            line-height: 1;
+            color: var(--accent-gold);
+        }
+
+        .wall-icon img {
+            display: inline-block;
+            width: 64px;
+            height: 64px;
+        }
+
+        /* Plain CSS, so it turns even before the icon font arrives */
+        .wall-spinner {
+            display: inline-block;
+            width: 44px;
+            height: 44px;
+            border: 4px solid rgba(251, 191, 36, 0.2);
+            border-top-color: var(--accent-gold);
+            border-radius: 50%;
+            animation: wall-spin 0.9s linear infinite;
+        }
+
+        @keyframes wall-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .wall-spinner { animation-duration: 2.4s; }
+        }
+
+        #auth-wall-title {
+            font-family: var(--font-heading);
+            margin-bottom: 15px;
+            text-wrap: balance;
+        }
+
+        #auth-wall[aria-busy="true"] #auth-wall-title {
+            margin-bottom: 0;
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* "Taking longer than usual…" under a slow check */
+        #auth-wall[aria-busy="true"] #auth-wall-note {
+            margin: 20px auto 0;
+        }
+
+        #auth-wall-text {
+            max-width: 500px;
+            margin: 0 auto 30px;
+            color: var(--text-muted);
+        }
+
+        #auth-wall-note {
+            max-width: 520px;
+            margin: 0 auto 24px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(251, 191, 36, 0.08);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        #wall-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
         #wall-google { flex: 1 1 100%; }
 
+        /* Log in / Create account: the one that fits why they came is gold and comes first */
+        #wall-buttons .wall-btn {
+            flex: 1 1 220px;
+            min-height: 48px;
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 700;
+            border-radius: 14px;
+            text-wrap: balance;
+        }
+
+        /* "I have an account: log in" stays on one line on a 320px phone */
+        @media (max-width: 360px) {
+            #wall-buttons .wall-btn {
+                padding: 14px 12px;
+            }
+        }
+
+        /* Dark text on gold (as the homepage's buttons) so it reads outdoors: 5.9:1 or better across the gradient */
+        #wall-buttons .wall-btn.btn-primary {
+            background: linear-gradient(135deg, var(--accent-gold), #d97706);
+            border: none;
+            color: #1a0f08;
+        }
+
+        #wall-buttons .wall-btn.btn-ghost {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: white;
+        }
+
         #wall-rsvp-link:not([hidden]) { display: inline-flex; }
-        #wall-rsvp-link[hidden] { display: none; }
+
+        @media (max-width: 480px) {
+            #auth-wall {
+                padding: 64px 20px 36px;
+            }
+
+            .wall-back {
+                top: 8px;
+                left: 8px;
+            }
+
+            .wall-icon {
+                font-size: 2.8rem;
+            }
+
+            .wall-icon img {
+                width: 56px;
+                height: 56px;
+            }
+        }
+
+        /* "Step 1 of 2 · Scottsdale · Apr 8–11" over the sign-up title when they came to RSVP */
+        .modal-eyebrow {
+            margin: 0 0 6px;
+            padding-right: 44px;
+            color: var(--accent-gold);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
 
         /* Long login emails wrap instead of running off narrow phones */
         #auth-wall-note,
@@ -623,13 +854,17 @@
 <body class="app-page">
     <header class="site-header" style="background: rgba(14, 11, 9, 0.95);">
         <div class="container header-container">
-            <h1 class="logo" style="display: flex; align-items: center; gap: 8px;">The <span class="accent" style="color: var(--accent-gold);">Bookie</span> <span style="font-size: 1rem; color: var(--text-muted); font-weight: 600;">(Beta)</span></h1>
+            <h1 class="logo">
+                <a class="logo-link logo-bookie" href="index.html" aria-label="The Bookie, Bros before Boges home">The <span class="accent" style="color: var(--accent-gold);">Bookie</span></a>
+                <a class="logo-link logo-site" href="index.html" aria-label="Bros before Boges home"><img src="bbb-logo.svg" alt="" width="34" height="34">Bros before Boges</a>
+            </h1>
             <nav class="main-nav">
                 <ul>
                     <li><a href="index.html">Back to Home</a></li>
                     <li><a href="round_tracker.html">Round Tracker</a></li>
                     <li><a href="rules.html" class="nav-link">Rules</a></li>
-                    <li><button id="bookie-login-btn" class="btn-nav">Login / Register</button></li>
+                    <!-- Hidden until the login check finishes, so a signed-in player never sees "Log in" -->
+                    <li hidden><button type="button" id="bookie-login-btn" class="btn-nav">Log in</button></li>
                 </ul>
             </nav>
             <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
@@ -642,23 +877,23 @@
 
     <main class="section-padding bookie-main">
         <div class="container">
-            <!-- Authentication Required Warning -->
-            <div id="auth-wall" class="glass-panel" style="text-align: center; padding: 60px 40px; margin-bottom: 50px;">
-                <div style="font-size: 3.5rem; margin-bottom: 20px; color: var(--accent-gold);"><i class="fas fa-user-secret" aria-hidden="true"></i></div>
-                <h2 id="auth-wall-title" style="font-family: var(--font-heading); margin-bottom: 15px;">Members Only</h2>
-                <p id="auth-wall-text" style="color: var(--text-muted); margin-bottom: 30px; max-width: 500px; margin-left: auto; margin-right: auto;">
-                    You must be logged in to access the sportsbook, place wagers, and view the ledger.
-                </p>
-                <p id="auth-wall-note" role="status" hidden style="max-width: 520px; margin: 0 auto 24px; padding: 14px 16px; border-radius: 12px; background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); color: var(--text-main); line-height: 1.5;"></p>
-                <div id="wall-buttons" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 640px; margin: 0 auto;">
+            <!-- Login wall. Starts neutral while bookie.js checks the login (no logged-out flash),
+                 then shows log in / create account, the name picker, or gives way to the dashboard. -->
+            <div id="auth-wall" class="glass-panel" aria-busy="true">
+                <a id="wall-back-link" class="wall-back" href="index.html" hidden><span aria-hidden="true">←</span> Back to the trip</a>
+                <div id="auth-wall-icon" class="wall-icon" aria-hidden="true" data-icon="checking"><span class="wall-spinner"></span></div>
+                <h2 id="auth-wall-title">One sec, checking your login…</h2>
+                <p id="auth-wall-text" hidden></p>
+                <p id="auth-wall-note" role="status" hidden></p>
+                <div id="wall-buttons" hidden>
                     <div id="wall-google" data-google-block hidden>
                         <button type="button" class="google-btn" data-google-signin>
                             <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                             Continue with Google
                         </button>
                     </div>
-                    <button class="btn btn-primary" id="wall-login-btn" style="flex: 1 1 240px; min-height: 48px; padding: 14px 20px; font-size: 1rem; white-space: nowrap; background: linear-gradient(135deg, var(--accent-gold), #b45309); border: none;">Log In as Existing Player</button>
-                    <button class="btn btn-ghost" id="wall-register-btn" style="flex: 1 1 220px; min-height: 48px; padding: 14px 22px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; font-weight: 700; font-size: 1rem; border-radius: 14px;">Create Betting Account</button>
+                    <button type="button" class="btn btn-primary wall-btn" id="wall-login-btn">Log in</button>
+                    <button type="button" class="btn btn-ghost wall-btn" id="wall-register-btn">Create account</button>
                 </div>
                 <!-- Shown when you're logged in but the login isn't tied to a roster name yet -->
                 <div id="link-roster" class="link-roster" hidden>
@@ -669,7 +904,7 @@
                         <input type="text" id="link-new-name" autocomplete="name" autocapitalize="words" maxlength="60">
                         <p class="field-hint">The commissioner confirms new players before the trip.</p>
                     </div>
-                    <button type="button" id="link-roster-btn" class="btn btn-primary" style="width: 100%; min-height: 48px; padding: 14px 20px; font-size: 1rem;">Link My Name</button>
+                    <button type="button" id="link-roster-btn" class="btn btn-primary" style="width: 100%; min-height: 48px; padding: 14px 20px; font-size: 1rem;">Link my name</button>
                 </div>
                 <!-- New players waiting on the commissioner can still RSVP -->
                 <a id="wall-rsvp-link" class="btn btn-primary" href="index.html#rsvp" hidden style="min-height: 48px; padding: 14px 28px; font-size: 1rem;">RSVP for the trip</a>
@@ -785,11 +1020,12 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
     </button>
 
-    <!-- Generic Modal for Login/Register/Create Wager -->
+    <!-- Shared sheet: log in, create account, choose a password, propose and settle bets -->
     <div id="bookie-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content">
             <button type="button" class="modal-close" id="bookie-modal-close" aria-label="Close">×</button>
-            <h3 id="modal-title" style="margin-bottom: 20px; font-family: var(--font-heading); font-size: 1.5rem;">Authenticate</h3>
+            <p id="modal-eyebrow" class="modal-eyebrow" hidden></p>
+            <h3 id="modal-title" style="margin-bottom: 20px; font-family: var(--font-heading); font-size: 1.5rem;">Log in</h3>
 
             <!-- Auth Form -->
             <form id="auth-form" class="registration-form">
@@ -825,9 +1061,9 @@
                 <p id="auth-error" class="auth-message" role="alert" style="color: #ef4444;"></p>
                 <p id="auth-notice" class="auth-message" role="status" style="color: var(--accent-emerald);"></p>
 
-                <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; margin-bottom: 15px;">Log In</button>
+                <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; margin-bottom: 15px;">Log in</button>
                 <p class="auth-links">
-                    <a href="#" id="toggle-auth-mode">Need an account? Sign up here.</a>
+                    <a href="#" id="toggle-auth-mode">New here? Create an account</a>
                     <a href="#" id="forgot-password">Forgot password?</a>
                 </p>
             </form>
@@ -903,7 +1139,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.8"></script>
-    <script src="bookie.js?v=2027.8" defer></script>
+    <script src="bookie.js?v=2027.9" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
