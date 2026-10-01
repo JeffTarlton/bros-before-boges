@@ -360,7 +360,21 @@
         .score-value.bogey { border-color: rgba(248, 113, 113, 0.6); }
         .score-value.double, .score-value.worse { border-color: #f87171; color: #fca5a5; }
 
+        /* Next hole: once every score on the hole is in, the button pins itself just above the
+           bottom tabs (like the setup screen's Start bar), so it's under the thumb on every hole */
         .next-bar { margin-top: 6px; }
+        .next-bar:not(:empty) {
+            position: sticky;
+            bottom: calc(76px + env(safe-area-inset-bottom));
+            z-index: 5;
+            padding: 10px 0 6px;
+            background: linear-gradient(to top, rgba(14, 11, 9, 0.98) 75%, rgba(14, 11, 9, 0));
+        }
+        .next-bar .t-btn { min-height: 56px; font-size: 1.1rem; transition: opacity 0.2s; }
+        /* It just appeared where the thumb is: a quick second tap meant for a stepper can't land on it */
+        .next-bar.arming { pointer-events: none; }
+        .next-bar.arming .t-btn { opacity: 0.6; }
+        .hole-head .step-hole.ready { background: linear-gradient(135deg, var(--accent-gold), #b45309); border-color: transparent; color: #1a1208; }
 
         /* Keypad sheet */
         .sheet-backdrop {
@@ -582,7 +596,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.8"></script>
     <script src="scoring.js?v=2027.9"></script>
-    <script src="round_tracker.js?v=2027.8"></script>
+    <script src="round_tracker.js?v=2027.9"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

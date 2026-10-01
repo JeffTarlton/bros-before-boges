@@ -21,6 +21,7 @@ const SESSION_KEY = 'bbb_tracker_session';
 const OUTBOX_KEY = 'bbb_tracker_outbox';
 const REFRESH_MS = 45000;
 const BOARD_STALE_MS = 30000;
+const NEXT_ARM_MS = 700; // how long a freshly shown next-hole button ignores taps
 // Rounds before this date belong to earlier trips
 const WINDOW_START = (CFG.bookie && CFG.bookie.seasonStart) || (CFG.trip && CFG.trip.dates && CFG.trip.dates.start) || '2000-01-01';
 
@@ -41,6 +42,7 @@ const S = {
     setup: null,         // setup screen choices
     board: { round: null, data: {}, loading: {}, error: {}, at: {}, tried: {} },
     keypad: null,
+    nextShown: { key: null, at: 0 }, // which hole's next button is showing, and since when
     ready: false,        // login and roster checked
     droppedStale: null,  // a group left open from an earlier day
     warnedOtherPhone: false
@@ -1052,6 +1054,10 @@ function renderScore() {
     if (allIn && openHasGap && open !== h && open !== h + 1) next = `<button type="button" class="t-btn gold block" data-action="hole" data-hole="${open}">Back to hole ${open} →</button>`;
     else if (allIn && h < HOLES) next = `<button type="button" class="t-btn gold block" data-action="hole" data-hole="${h + 1}">Hole ${h + 1} →</button>`;
     else if (allIn && h === HOLES) next = '<a class="t-btn gold block" href="#card">All 18 in. Check the card →</a>';
+    // The button appears right under the thumb as the last score goes in: ignore taps for a moment
+    const nextKey = next ? `${sess.roundNumber}:${h}` : null;
+    if (nextKey !== S.nextShown.key) S.nextShown = { key: nextKey, at: Date.now() };
+    const armLeft = nextKey ? NEXT_ARM_MS - (Date.now() - S.nextShown.at) : 0;
 
     body.innerHTML = `
         <div class="score-top">
@@ -1061,17 +1067,23 @@ function renderScore() {
         <div class="hole-head">
             <button type="button" class="step-hole" data-action="hole" data-hole="${h - 1}" aria-label="Previous hole"${h === 1 ? ' disabled' : ''}>‹</button>
             <div class="hole-title"><h2 tabindex="-1">Hole ${h}</h2><span>Par ${par}${escHtml(nine)}${cap ? ` · <span class="nowrap">max ${cap}</span>` : ''}</span>${format.key === 'points' ? '<small class="hole-hint">Picked up? Tap the score.</small>' : ''}</div>
-            <button type="button" class="step-hole" data-action="hole" data-hole="${h + 1}" aria-label="Next hole"${h === HOLES ? ' disabled' : ''}>›</button>
+            <button type="button" class="step-hole${allIn && h < HOLES ? ' ready' : ''}" data-action="hole" data-hole="${h + 1}" aria-label="Next hole"${h === HOLES ? ' disabled' : ''}>›</button>
         </div>
         <div class="hole-strip" role="group" aria-label="Jump to a hole">${strip}</div>
         <div class="status-lines">${holeStatusLines()}</div>
         ${rows || '<p class="muted">Nobody to score. Tap Change group to pick your group.</p>'}
-        <div class="next-bar">${next}</div>
+        <div class="next-bar${armLeft > 0 ? ' arming' : ''}">${next}</div>
         <p class="muted small legend">A gold dot on a score means it hasn’t reached the database yet. It keeps trying.</p>
         <div class="btn-row" style="margin-top: 14px; justify-content: space-between;">
             <a class="t-btn small ghost" href="#setup">Change group</a>
             <a class="t-btn small ghost" href="#board">Leaderboard</a>
         </div>`;
+    if (armLeft > 0) {
+        setTimeout(() => {
+            const bar = $('score-body').querySelector('.next-bar');
+            if (bar && S.nextShown.key === nextKey) bar.classList.remove('arming');
+        }, armLeft);
+    }
     // Keep the current hole visible in the strip, without scrolling the page
     centerInStrip(body.querySelector('.hole-strip'), '[aria-current="true"]');
     const head = body.querySelector('.hole-head');
