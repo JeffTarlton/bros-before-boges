@@ -12,7 +12,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0e0b09">
     <title>Bros before Boges 2027 | Scottsdale, Arizona</title>
-    <meta name="description" content="The annual Bros before Boges golf trip. April 8–11, 2027 in Scottsdale, Arizona: Talking Stick, We-Ko-Pa Cholla & Saguaro, and the Cup on the line.">
+    <meta name="description" content="The annual Bros before Boges golf trip. April 8–11, 2027 in Scottsdale, Arizona: Talking Stick, We-Ko-Pa Cholla & Saguaro, Camelback Ambiente, and the Cup on the line.">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Bros before Boges 2027 · Scottsdale, Arizona">
     <meta property="og:description" content="April 8–11, 2027. Talking Stick, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line.">
@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.9">
-    <link rel="stylesheet" href="home.css?v=2027.9">
+    <link rel="stylesheet" href="home.css?v=2027.10">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -75,10 +75,18 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </button>
                     <ul class="nav-menu-list" id="clubhouse-menu">
+                        <!-- The tracker sends signed-out people through the shared login and back -->
                         <li>
-                            <button type="button" id="start-round-btn" data-action="start-round">
+                            <a href="round_tracker.html#setup">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polygon points="10 8 16 12 10 16 10 8" /></svg>
-                                Start a Round
+                                Keep score
+                            </a>
+                        </li>
+                        <!-- During and after the trip the header pair is Live scores / Keep score, so Standings moves here -->
+                        <li data-phase="trip wrap" hidden>
+                            <button type="button" data-action="scoreboard">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
+                                Standings
                             </button>
                         </li>
                         <li>
@@ -94,9 +102,15 @@
             </ul>
             </nav>
 
+            <!-- data-phase: the pair for the trip's phase (before / during / after, in Arizona time). During and
+                 after the trip it matches the Today / wrap card's pair, order and fill, as the drawer's does -->
             <div class="nav-actions">
-                <button type="button" class="btn btn-line btn-sm" id="leaderboard-btn" data-action="scoreboard">Scoreboard</button>
-                <button type="button" class="btn btn-copper btn-sm" id="rsvp-btn" data-action="rsvp">RSVP</button>
+                <button type="button" class="btn btn-line btn-sm" id="leaderboard-btn" data-action="scoreboard" data-phase="pre">Standings</button>
+                <button type="button" class="btn btn-copper btn-sm" id="rsvp-btn" data-action="rsvp" data-phase="pre">RSVP</button>
+                <a class="btn btn-copper btn-sm" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
+                <a class="btn btn-line btn-sm" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+                <a class="btn btn-copper btn-sm" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
+                <a class="btn btn-line btn-sm" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
             </div>
 
             <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
@@ -112,12 +126,19 @@
         <a href="#past-trips">Hall of Fame</a>
         <a href="rules.html">Rules</a>
         <a href="bookie.html">The Bookie</a>
+        <!-- During and after the trip the pair matches the Today / wrap card's (order and fill): on phones
+             that card holds the page's one pair, so a tap aimed at the copper button always lands the same -->
         <div class="drawer-actions">
-            <button type="button" class="btn btn-line" data-action="scoreboard">Scoreboard</button>
-            <button type="button" class="btn btn-copper" data-action="rsvp">RSVP</button>
+            <button type="button" class="btn btn-line" data-action="scoreboard" data-phase="pre">Standings</button>
+            <button type="button" class="btn btn-copper" data-action="rsvp" data-phase="pre">RSVP</button>
+            <a class="btn btn-copper" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
+            <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+            <a class="btn btn-copper" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
+            <a class="btn btn-line" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
         </div>
         <div class="drawer-sub">
-            <button type="button" class="drawer-link" data-action="start-round">Start a Round</button>
+            <a href="round_tracker.html#setup" data-phase="pre">Keep score</a>
+            <button type="button" class="drawer-link" data-action="scoreboard" data-phase="trip wrap" hidden>Standings</button>
             <a href="admin.html">Admin</a>
         </div>
         <!-- Player account row: filled by script.js once the login is checked -->
@@ -134,34 +155,62 @@
 
             <div class="wrap hero-grid">
                 <div class="hero-copy">
-                    <!-- Live Cup pill — revealed by script.js once the season is live -->
-                    <div id="team-scoreboard-widget" class="cup-pill team-scoreboard-hidden" role="status">
-                        <span class="live">Live Cup</span>
+                    <!-- Cup pill: revealed by script.js once the season is live; opens Live scores. Reads "Final" after the trip. -->
+                    <a id="team-scoreboard-widget" class="cup-pill team-scoreboard-hidden" href="round_tracker.html#board">
+                        <span class="live" id="cup-pill-label">The Cup</span>
+                        <span class="cup-pill-sep" aria-hidden="true">·</span>
                         <span class="team blue">Blue <b id="score-team-1">0</b></span>
+                        <span class="cup-pill-sep" aria-hidden="true">–</span>
                         <span class="team red"><b id="score-team-2">0</b> Red</span>
-                    </div>
+                        <span class="sr-only">. Open live scores</span>
+                        <svg class="cup-pill-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                    </a>
 
                     <p class="hero-kicker"><span class="dot" aria-hidden="true"></span><span id="hero-kicker">The 2027 Edition · Scottsdale, Arizona</span></p>
                     <h1 class="hero-title">Desert heat.<br>Cold <em>putters.</em></h1>
                     <p class="hero-sub" id="hero-sub">Four days in the Sonoran Desert: Coore &amp; Crenshaw fairways, a 36‑hole Friday at We-Ko-Pa, and the Cup on the line. Higher stakes, faster greens, same idiots.</p>
-                    <!-- RSVP is the filled button until the viewer has answered; then script.js fills the itinerary instead -->
+                    <!-- Before the trip RSVP is the filled button until the viewer has answered; then script.js fills the itinerary instead.
+                         During the trip: Live scores + Keep score. After it: Final scores + Settle up. (Not on phones and
+                         tablets, home.css: there the Today / wrap card right below carries the same pair.) -->
                     <div class="hero-ctas">
-                        <button type="button" class="btn btn-copper" id="hero-rsvp-cta" data-action="rsvp">RSVP now</button>
-                        <a class="btn btn-line" id="hero-trip-cta" href="#schedule">
+                        <button type="button" class="btn btn-copper" id="hero-rsvp-cta" data-action="rsvp" data-phase="pre">RSVP now</button>
+                        <a class="btn btn-line" id="hero-trip-cta" href="#schedule" data-phase="pre">
                             See the itinerary
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </a>
+                        <a class="btn btn-copper" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
+                        <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+                        <a class="btn btn-copper" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
+                        <a class="btn btn-line" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
                     </div>
                     <a id="hero-champs" class="hero-champs" href="#cup" hidden></a>
                 </div>
 
                 <aside class="hero-card" aria-label="Trip at a glance">
-                    <div class="hero-card-label"><span id="cd-label">Countdown to Scottsdale</span><span id="cd-target-label"></span></div>
-                    <div class="countdown" id="trip-countdown" role="timer" aria-live="off">
+                    <div class="hero-card-label" data-phase="pre"><span id="cd-label">Countdown to Scottsdale</span><span id="cd-target-label"></span></div>
+                    <div class="countdown" id="trip-countdown" role="timer" aria-live="off" data-phase="pre">
                         <div class="countdown-cell"><b id="cd-days">--</b><span>Days</span></div>
                         <div class="countdown-cell"><b id="cd-hours">--</b><span>Hours</span></div>
                         <div class="countdown-cell"><b id="cd-mins">--</b><span>Mins</span></div>
                         <div class="countdown-cell"><b id="cd-secs">--</b><span>Secs</span></div>
+                    </div>
+                    <!-- During the trip: today's plan (Today card); after it: That's a wrap. script.js fills the top part;
+                         the buttons are here so they show at once, before the scripts have loaded on a weak signal -->
+                    <div class="today" id="hero-today" data-phase="trip wrap" hidden>
+                        <div id="hero-today-body"></div>
+                        <div class="today-actions" data-phase="trip" hidden>
+                            <a class="btn btn-copper" href="round_tracker.html#board">Live scores</a>
+                            <a class="btn btn-line" href="round_tracker.html#setup">Keep score</a>
+                        </div>
+                        <div class="today-actions" data-phase="wrap" hidden>
+                            <a class="btn btn-copper" href="round_tracker.html#board">Final scores</a>
+                            <a class="btn btn-line" href="bookie.html#ledger-panel">Settle up</a>
+                            <!-- Only when this trip's album in trip-config.js has a shareUrl (script.js) -->
+                            <a class="btn btn-line" id="wrap-photos" href="#" target="_blank" rel="noopener" hidden>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+                                Add your photos
+                            </a>
+                        </div>
                     </div>
                     <ul class="hero-facts" id="hero-facts"></ul>
                 </aside>
@@ -259,7 +308,8 @@
                     </div>
                     <div class="hc-foot">
                         <span id="hc-updated"></span>
-                        <button type="button" class="btn btn-copper btn-sm" data-action="rsvp">RSVP</button>
+                        <!-- Stays during the trip (outlined) so the RSVP sheet is still reachable -->
+                        <button type="button" class="btn btn-copper btn-sm" id="hc-rsvp" data-action="rsvp">RSVP</button>
                     </div>
                 </div>
 
@@ -320,8 +370,9 @@
                     <li><a href="#courses">Courses</a></li>
                     <li><a href="rules.html">Rules</a></li>
                     <li><a href="bookie.html">The Bookie</a></li>
-                    <li><button type="button" data-action="scoreboard">Scoreboard</button></li>
-                    <li><button type="button" data-action="start-round">Start a Round</button></li>
+                    <li><button type="button" data-action="scoreboard">Standings</button></li>
+                    <li><a href="round_tracker.html#board">Live scores</a></li>
+                    <li><a href="round_tracker.html#setup">Keep score</a></li>
                     <li><a href="admin.html">Admin</a></li>
                 </ul>
                 <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
@@ -359,7 +410,7 @@
             <div id="rsvp-step-account" hidden>
                 <p class="eyebrow rsvp-eyebrow">2027 · Scottsdale · Apr 8–11</p>
                 <h2 id="rsvp-account-title" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
-                <p class="modal-lede" id="rsvp-account-lede">RSVPs need a player account. It’s the same login as The Bookie and the round tracker, so you only set it up once.</p>
+                <p class="modal-lede" id="rsvp-account-lede">RSVPs need a player account. It’s the same login you use for The Bookie and to keep score, so you only set it up once.</p>
                 <div class="rsvp-auth">
                     <div data-google-block hidden>
                         <button type="button" class="google-btn" data-google-signin>
@@ -472,62 +523,53 @@
         </div>
     </div>
 
-    <!-- ============================== LEADERBOARD MODAL ============================== -->
+    <!-- ============================== STANDINGS MODAL ============================== -->
+    <!-- The official Cup total and the roster / handicaps. Live scores (hole by hole) are on the round tracker's board. -->
     <div id="leaderboard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
         <div class="modal-content leaderboard-modal-content glass-panel" style="padding: 0; overflow-y: auto; overflow-x: hidden; max-width: 1100px;">
             <div class="scoreboard-hero" id="scoreboard-hero">
-                <button type="button" class="modal-x" id="leaderboard-close" aria-label="Close scoreboard">
+                <button type="button" class="modal-x" id="leaderboard-close" aria-label="Close standings">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
                 </button>
-                <h2 id="leaderboard-title">Trip <em>Leaderboard</em></h2>
+                <h2 id="leaderboard-title"><em>Standings</em></h2>
             </div>
             <div class="scoreboard-container">
-                <div id="live-board-cta" hidden style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 14px;">
-                    <span style="color: var(--ink-dim); font-size: 0.9rem; line-height: 1.45;"><strong style="color: var(--ink);">Live match scores</strong><br>Every match, hole by hole, straight from the groups’ scorecards.</span>
-                    <a class="btn btn-copper btn-sm" href="round_tracker.html#board">Open the live leaderboard</a>
-                </div>
                 <div class="modern-scoreboard" id="dynamic-leaderboard">
-                    <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading leaderboard…</div>
+                    <div class="loading-spinner" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading the standings…</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ============================== START ROUND LOGIN ============================== -->
-    <div id="round-login-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="round-login-title">
-        <div class="modal-content glass-panel" style="max-width: 440px;">
-            <button type="button" class="modal-x" id="round-login-close" aria-label="Close login">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
-            <p class="eyebrow">Clubhouse</p>
-            <h2 id="round-login-title" style="margin-bottom: 10px;">Start a <em>round</em></h2>
-            <p class="modal-lede">Scorekeepers only. Log in to open the live round tracker.</p>
-            <div data-google-block hidden>
-                <button type="button" class="google-btn" data-google-signin data-next="round">
-                    <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                    Continue with Google
-                </button>
-                <div class="or-divider"><span>or use email</span></div>
-            </div>
-            <form id="round-login-form" class="registration-form" novalidate>
-                <div class="form-group">
-                    <label for="round-email">Email</label>
-                    <input type="email" id="round-email" class="field-input" autocomplete="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="round-password">Password</label>
-                    <input type="password" id="round-password" class="field-input" autocomplete="current-password" required>
-                </div>
-                <button type="submit" id="round-login-submit" class="btn btn-copper" style="width: 100%; margin-top: 8px;">Log in</button>
-                <p id="round-login-error" class="form-error" role="alert" style="display: none;"></p>
-                <p class="round-forgot"><a href="bookie.html?next=round&amp;mode=login">Forgot your password?</a></p>
-            </form>
-        </div>
-    </div>
-
+    <script src="trip-config.js?v=2027.10"></script>
+    <script>
+        // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
+        // the supabase-js bundle below, which can take a while on a weak signal at the course: until
+        // then home.css keeps every phase-specific button hidden. Same rule (and ?preview=) as
+        // tripPhase() in script.js, which takes over once it loads and keeps the phase current.
+        (() => {
+            try {
+                const trip = (window.BBB && window.BBB.trip) || {};
+                const dates = trip.dates || {};
+                const pv = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?$/.exec((new URLSearchParams(location.search).get('preview') || '').trim());
+                let today;
+                if (pv && +pv[2] >= 1 && +pv[2] <= 12 && +pv[3] >= 1 && +pv[3] <= 31 && +(pv[4] || 0) <= 23 && +(pv[5] || 0) <= 59) {
+                    today = `${pv[1]}-${pv[2]}-${pv[3]}`;
+                } else {
+                    const p = {};
+                    new Intl.DateTimeFormat('en-US', { timeZone: trip.timeZone || 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' })
+                        .formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+                    today = `${p.year}-${p.month}-${p.day}`;
+                }
+                const end = dates.end || dates.start;
+                const phase = !dates.start || today < dates.start ? 'pre' : today > end ? 'wrap' : 'trip';
+                document.querySelectorAll('[data-phase]').forEach(el => { el.hidden = !el.dataset.phase.split(' ').includes(phase); });
+                document.documentElement.classList.add(`phase-${phase}`, 'phase-set');
+            } catch (e) { /* script.js picks the phase once it loads */ }
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.8"></script>
-    <script src="script.js?v=2027.9"></script>
+    <script src="script.js?v=2027.10"></script>
 </body>
 
 </html>

@@ -73,6 +73,7 @@ const ICON_PATHS = {
     mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     chevron: '<path d="m6 9 6 6 6-6"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
     // Same marks as the RSVP sheet's in / probably / can't make it choices
@@ -144,6 +145,93 @@ function fmtPoints(v) {
 }
 
 // ---------------------------------------------------------------------------
+// Trip phases: before, during and after the trip, by the calendar in Arizona
+// ---------------------------------------------------------------------------
+// 'pre'  until trip.dates.start: countdown and RSVPs
+// 'trip' trip.dates.start through trip.dates.end (whole days): a Today card, Live scores, Keep score
+// 'wrap' after trip.dates.end, until trip-config.js moves on to next year: That's a wrap
+// Always the date in the trip's time zone, never the phone's own: the crew flies in from other
+// zones. (season.live still decides whether teams and Cup points show.)
+const TRIP_TZ = TRIP.timeZone || 'America/Phoenix';
+const TRIP_TZ_NAME = TRIP.timeZoneName || 'Arizona';
+
+let tripClockParts = null;
+// The date and time in the trip's time zone at instant `ms`: { date: 'YYYY-MM-DD', hour, minute }
+function tripClock(ms) {
+    if (!tripClockParts) {
+        try {
+            // hour12:false rather than hourCycle, which older Safari ignores (it'd hand back 1–12)
+            const fmt = new Intl.DateTimeFormat('en-US', { timeZone: TRIP_TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            tripClockParts = t => {
+                const p = {};
+                fmt.formatToParts(t).forEach(x => { p[x.type] = x.value; });
+                return p;
+            };
+        } catch (e) {
+            // No time zone support (or a bad trip.timeZone): Arizona's fixed UTC-7
+            const two = n => String(n).padStart(2, '0');
+            tripClockParts = t => {
+                const d = new Date(t - 7 * 3600000);
+                return { year: d.getUTCFullYear(), month: two(d.getUTCMonth() + 1), day: two(d.getUTCDate()), hour: two(d.getUTCHours()), minute: two(d.getUTCMinutes()) };
+            };
+        }
+    }
+    const p = tripClockParts(ms);
+    return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) % 24, minute: Number(p.minute) };
+}
+
+// The instant when the trip's clocks read y-mo-d h:mi
+function tripWallTime(y, mo, d, h, mi) {
+    const wanted = Date.UTC(y, mo - 1, d, h, mi);
+    let ms = wanted;
+    for (let i = 0; i < 2; i++) {
+        const c = tripClock(ms);
+        const [cy, cm, cd] = c.date.split('-').map(Number);
+        ms += wanted - Date.UTC(cy, cm - 1, cd, c.hour, c.minute);
+    }
+    return ms;
+}
+
+function addDays(date, n) {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// 'Fri Apr 9' for a 'YYYY-MM-DD' date (noon, so no time zone can tip it into another day)
+function shortDay(date) {
+    return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+}
+
+// ?preview=2027-04-09T06:45 (trip time; a date alone means 8:00 AM) shows the page as it will be at
+// that moment, so the commissioner can check trip-day mode early. The clock runs on from there. A
+// ribbon marks it, and its Exit link drops the parameter. Normal visitors never have it.
+const PREVIEW = (() => {
+    let raw = '';
+    try { raw = new URLSearchParams(window.location.search).get('preview') || ''; } catch (e) { return null; }
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?$/.exec(raw.trim());
+    if (!m) return null;
+    const [y, mo, d, h, mi] = [m[1], m[2], m[3], m[4] || 8, m[5] || 0].map(Number);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+    return { at: tripWallTime(y, mo, d, h, mi), since: Date.now() };
+})();
+
+function nowMs() {
+    return PREVIEW ? PREVIEW.at + (Date.now() - PREVIEW.since) : Date.now();
+}
+
+function tripPhase(ms) {
+    const c = tripClock(ms);
+    const dates = TRIP.dates || {};
+    const start = dates.start || null;
+    const end = dates.end || start;
+    const name = !start || c.date < start ? 'pre' : c.date > end ? 'wrap' : 'trip';
+    // From 6 PM the Today card also says what's on tomorrow
+    return { name, date: c.date, hour: c.hour, minute: c.minute, evening: c.hour >= 18 };
+}
+
+let phase = tripPhase(nowMs());
+
+// ---------------------------------------------------------------------------
 // Initialization
 // ---------------------------------------------------------------------------
 async function init() {
@@ -168,7 +256,6 @@ async function init() {
             registrationModal: document.getElementById('registration-modal'),
             registrationForm: document.getElementById('registration-form'),
             leaderboardModal: document.getElementById('leaderboard-modal'),
-            roundLoginModal: document.getElementById('round-login-modal'),
             dynamicLeaderboard: document.getElementById('dynamic-leaderboard'),
             lightboxModal: document.getElementById('lightbox-modal'),
             lightboxImage: document.getElementById('lightbox-image'),
@@ -176,9 +263,9 @@ async function init() {
             lightboxCount: document.getElementById('lightbox-count')
         };
 
-        // Wire up buttons first so a bad config entry can't leave Sign Up / Scoreboard dead.
+        // Wire up buttons first so a bad config entry can't leave Sign Up / Standings dead.
         setupEventListeners();
-        [renderHero, renderTripDetails, renderSchedule, renderCourses, renderCup, renderHallOfFame, renderCrewCta, initCountdown, initScrollEffects]
+        [applyPhase, renderHero, renderTripDetails, renderSchedule, renderCourses, renderCup, renderHallOfFame, renderCrewCta, initCountdown, initScrollEffects, watchPhase]
             .forEach(fn => {
                 try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
             });
@@ -334,22 +421,22 @@ function renderTripDetails() {
 // ---------------------------------------------------------------------------
 // Countdown
 // ---------------------------------------------------------------------------
+let countdownTimer = null;
 function initCountdown() {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    // From the first trip day the Today card (then That's a wrap) takes this slot
+    if (phase.name !== 'pre') return;
     const target = new Date(TRIP.countdownTarget || '2027-04-08T07:00:00-07:00').getTime();
-    const end = TRIP.dates && TRIP.dates.end ? new Date(`${TRIP.dates.end}T23:59:59-07:00`).getTime() : target;
     const els = ['cd-days', 'cd-hours', 'cd-mins', 'cd-secs'].map(id => document.getElementById(id));
     const label = document.getElementById('cd-label');
     if (els.some(el => !el)) return;
     if (label && TRIP.countdownLabel) label.textContent = TRIP.countdownLabel;
 
-    let timer = null;
     function update() {
-        const now = Date.now();
-        let distance = target - now;
+        let distance = target - nowMs();
         if (distance <= 0) {
             els.forEach(el => { el.textContent = '00'; });
-            if (label) label.textContent = now <= end ? "We're live in the desert" : 'See you next year';
-            if (timer) clearInterval(timer);
+            if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
             return;
         }
         const days = Math.floor(distance / 86400000);
@@ -364,7 +451,178 @@ function initCountdown() {
         els[3].textContent = String(seconds).padStart(2, '0');
     }
     update();
-    timer = setInterval(update, 1000);
+    if (target > nowMs()) countdownTimer = setInterval(update, 1000);
+}
+
+// ---------------------------------------------------------------------------
+// Trip-day mode: what changes with the phase
+// ---------------------------------------------------------------------------
+// Shows the [data-phase] elements for this phase (header and drawer pairs, hero buttons, the
+// countdown or the Today card), puts the Cup ahead of the courses, and fills the day's card.
+// Safe to run again: checkPhase re-runs it when the day, the phase or the evening changes.
+function applyPhase() {
+    const root = document.documentElement;
+    root.classList.remove('phase-pre', 'phase-trip', 'phase-wrap');
+    document.querySelectorAll('[data-phase]').forEach(el => {
+        el.hidden = !el.dataset.phase.split(' ').includes(phase.name);
+    });
+    // Until a phase is set every [data-phase] element is invisible (home.css), so a trip-day visitor
+    // never sees the RSVP buttons flash up first. The small script in index.html sets it before the
+    // supabase-js bundle loads; this keeps it right from then on.
+    root.classList.add(`phase-${phase.name}`, 'phase-set');
+    [orderSections, renderTodayCard, renderCupPillLabel, renderCrewPhase, renderNextEdition, renderPreviewRibbon].forEach(fn => {
+        try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
+    });
+}
+
+// A phone left open overnight moves on by itself: the next day's card, the Tomorrow line at
+// 6 PM, trip-day mode at midnight. Checked twice a minute and whenever the page comes back.
+function checkPhase() {
+    const next = tripPhase(nowMs());
+    const key = p => `${p.name}|${p.date}|${p.evening}`;
+    const changed = key(next) !== key(phase);
+    phase = next;
+    if (!changed) return;
+    [applyPhase, renderSchedule, initCountdown].forEach(fn => {
+        try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
+    });
+    if (personalReady) renderPersonal();
+    initReveals();
+}
+
+function watchPhase() {
+    setInterval(checkPhase, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPhase(); });
+}
+
+function itineraryDay(date) {
+    return (CFG.itinerary || []).find(d => d && d.date === date) || null;
+}
+
+// '#course-…' for a slot that names a course, else null
+function slotCourseHref(slot) {
+    const group = slot && slot.courseId ? findCourseGroup(slot.courseId) : null;
+    return group ? `#course-${group.anchor || group.id}` : null;
+}
+
+function slotWhatHTML(slot) {
+    const href = slotCourseHref(slot);
+    return href ? `<a href="${esc(href)}">${esc(slot.what)}</a>` : esc(slot.what);
+}
+
+// During the trip: today's itinerary entry (Live scores / Keep score follow, in index.html). From
+// 6 PM, a quiet line with tomorrow's first slot.
+function todayCardHTML() {
+    const day = itineraryDay(phase.date);
+    const rows = (day && day.slots || []).map(s => {
+        const href = slotCourseHref(s);
+        const cells = `<span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${esc(s.meta || '')}</span>`;
+        // The whole row is the link (a 44px+ target), to the course card
+        return `<li>${href
+            ? `<a class="slot today-slot" href="${esc(href)}">${cells}<span class="today-slot-go" aria-hidden="true">${icon('chevronRight')}</span></a>`
+            : `<div class="slot today-slot">${cells}</div>`}</li>`;
+    }).join('');
+    const title = day ? day.title : `${TRIP.name || 'Bros before Boges'} ${TRIP.year || ''}`.trim();
+
+    const next = phase.evening ? itineraryDay(addDays(phase.date, 1)) : null;
+    const first = next && (next.slots || [])[0];
+    const tomorrow = first
+        ? `${slotWhatHTML(first)}${first.meta ? ` · ${esc(first.meta)}` : ''}`
+        : next ? esc(next.title) : '';
+
+    return `
+        <p class="today-eyebrow"><b>Today</b><span class="today-sep">·</span>${esc(shortDay(phase.date))}</p>
+        ${title ? `<h2 class="today-title">${esc(title)}</h2>` : ''}
+        ${rows ? `<ul class="today-slots">${rows}</ul>` : ''}
+        ${tomorrow ? `<p class="today-next"><span>Tomorrow:</span> ${tomorrow}</p>` : ''}`;
+}
+
+// After the trip (Final scores / Settle up follow, in index.html)
+function wrapCardHTML() {
+    const where = (TRIP.location || '').split(',')[0];
+    return `
+        <p class="today-eyebrow"><b>That’s a wrap</b>${where ? `<span class="today-where"><span class="today-sep">·</span>${esc(where)} ${esc(TRIP.year || '')}</span>` : ''}</p>
+        <h2 class="today-title">Thanks for a great trip.</h2>`;
+}
+
+function renderTodayCard() {
+    const el = document.getElementById('hero-today');
+    const body = document.getElementById('hero-today-body');
+    if (!el || !body) return;
+    body.innerHTML = phase.name === 'trip' ? todayCardHTML() : phase.name === 'wrap' ? wrapCardHTML() : '';
+    el.classList.toggle('is-wrap', phase.name === 'wrap');
+    // "Add your photos" only when this trip's album in trip-config has a shareUrl
+    const photos = document.getElementById('wrap-photos');
+    const album = (CFG.photoAlbums || []).find(a => a && String(a.year) === String(TRIP.year) && /^https:\/\//i.test(a.shareUrl || ''));
+    if (photos) {
+        photos.hidden = !album;
+        if (album) photos.href = album.shareUrl;
+    }
+}
+
+function renderCupPillLabel() {
+    const pill = document.getElementById('team-scoreboard-widget');
+    const label = document.getElementById('cup-pill-label');
+    if (!pill || !label) return;
+    label.textContent = phase.name === 'wrap' ? 'Final' : 'The Cup';
+    pill.classList.toggle('is-final', phase.name === 'wrap');
+}
+
+// Once the trip starts the crew section stops asking for RSVPs (renderCrewCta, renderYouRow and the
+// hero head count drop theirs). The head count's own RSVP button stays, outlined, so the sheet is
+// still there for anyone who needs it.
+function renderCrewPhase() {
+    const asking = phase.name === 'pre';
+    const lede = document.getElementById('crew-lede');
+    if (lede) {
+        if (lede.dataset.preText === undefined) lede.dataset.preText = lede.textContent;
+        const where = (TRIP.location || '').split(',')[0] || 'the trip';
+        lede.textContent = asking ? lede.dataset.preText
+            : phase.name === 'trip' ? `The crew in ${where} this week.` : `The crew that made it to ${where}.`;
+    }
+    const btn = document.getElementById('hc-rsvp');
+    if (btn) {
+        btn.classList.toggle('btn-copper', asking);
+        btn.classList.toggle('btn-line', !asking);
+    }
+}
+
+// During and after the trip the Cup comes before the course guide, on the page and in the menus
+function orderSections() {
+    const cup = document.getElementById('cup');
+    const courses = document.getElementById('courses');
+    if (!cup || !courses) return;
+    const cupFirst = phase.name !== 'pre';
+    const navItem = sel => { const a = document.querySelector(sel); return a ? a.closest('li') : null; };
+    [
+        [cup, courses],
+        [navItem('.nav-links a[href="#cup"]'), navItem('.nav-links a[href="#courses"]')],
+        [document.querySelector('#drawer > a[href="#cup"]'), document.querySelector('#drawer > a[href="#courses"]')]
+    ].forEach(([c, k]) => {
+        if (!c || !k || c.parentNode !== k.parentNode) return;
+        const cupIsFirst = !!(k.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (cupFirst && !cupIsFirst) k.before(c);
+        if (!cupFirst && cupIsFirst) c.before(k);
+    });
+    // Keep the section backgrounds alternating
+    cup.classList.toggle('section-alt', !cupFirst);
+    courses.classList.toggle('section-alt', cupFirst);
+}
+
+// "Preview · Fri Apr 9, 6:45 AM (Arizona) · Exit", so a preview can't pass for the real thing
+function renderPreviewRibbon() {
+    if (!PREVIEW || document.getElementById('preview-ribbon')) return;
+    const c = tripClock(PREVIEW.at);
+    const when = `${shortDay(c.date)}, ${c.hour % 12 || 12}:${String(c.minute).padStart(2, '0')} ${c.hour < 12 ? 'AM' : 'PM'}`;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('preview');
+    const qs = params.toString();
+    const ribbon = document.createElement('div');
+    ribbon.className = 'preview-ribbon';
+    ribbon.id = 'preview-ribbon';
+    ribbon.setAttribute('role', 'note');
+    ribbon.innerHTML = `<span class="preview-ribbon-dot" aria-hidden="true"></span><span><b>Preview</b> · ${esc(when)} (${esc(TRIP_TZ_NAME)})</span><span aria-hidden="true">·</span><a href="${esc(window.location.pathname + (qs ? `?${qs}` : ''))}" aria-label="Exit preview">Exit</a>`;
+    document.body.appendChild(ribbon);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,6 +636,9 @@ function renderSchedule() {
     const dawnSvg = `<svg viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true"><path fill="currentColor" d="M0 80V52l40-14 30 10 44-28 38 22 30-12 50 26 36-18 42 20 34-16 56 24v14z"/><path fill="currentColor" d="M300 80V30h8v12c0 4 2 6 6 6h4V36h8v24h-4c-4 0-6 2-6 6v14z" opacity=".9"/></svg>`;
 
     elements.scheduleTimeline.innerHTML = (CFG.itinerary || []).map((day, idx) => {
+        // During the trip: today's card gets a TODAY tag, earlier days fold down and dim
+        const isToday = phase.name === 'trip' && day.date === phase.date;
+        const isPast = phase.name === 'trip' && day.date < phase.date;
         const d = new Date(`${day.date}T12:00:00`);
         const dayNum = String(d.getDate()).padStart(2, '0');
         const month = d.toLocaleString('en-US', { month: 'short' });
@@ -393,17 +654,15 @@ function renderSchedule() {
         } else {
             media = `<div class="day-media"><img src="${esc(m.src)}" alt="${esc(m.alt || '')}" loading="lazy" decoding="async">`;
         }
-        media += `${day.tag ? `<span class="day-tag ${day.tagSoft ? 'soft' : ''}">${esc(day.tag)}</span>` : ''}
+        media += `${isToday ? '<span class="day-today">Today</span>' : ''}${day.tag ? `<span class="day-tag ${day.tagSoft ? 'soft' : ''}">${esc(day.tag)}</span>` : ''}
             <div class="day-date"><b>${dayNum}</b><span>${esc(month)}<small>${esc(dow)}</small></span></div></div>`;
 
-        const slots = (day.slots || []).map(s => {
-            const group = s.courseId ? findCourseGroup(s.courseId) : null;
-            const what = group ? `<a href="#course-${esc(group.anchor || group.id)}">${esc(s.what)}</a>` : esc(s.what);
-            return `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${what}</span><span class="slot-meta">${esc(s.meta || '')}</span></li>`;
-        }).join('');
+        const slots = (day.slots || []).map(s =>
+            `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${slotWhatHTML(s)}</span><span class="slot-meta">${esc(s.meta || '')}</span></li>`
+        ).join('');
 
         return `
-        <article class="day reveal reveal-delay-${idx % 4}">
+        <article class="day reveal reveal-delay-${idx % 4}${isToday ? ' is-today' : ''}${isPast ? ' is-past' : ''}"${isToday ? ' aria-current="date"' : ''}>
             ${media}
             <div class="day-body">
                 <h3 class="day-title">${esc(day.title)}</h3>
@@ -673,7 +932,8 @@ function renderCup() {
             <div class="side blue"><span>Blue</span><b id="home-ryder-blue-pts">0</b></div>
             <div class="vs">vs</div>
             <div class="side red"><span>Red</span><b id="home-ryder-red-pts">0</b></div>
-            <p class="needed">${esc(cup.liveNote || 'Live Cup standings — updated by the scorekeepers after every session.')}</p>
+            <p class="needed">${esc(cup.liveNote || 'The official Cup total, updated by the commissioner after every session.')}</p>
+            <a class="cup-live-link" href="round_tracker.html#board">Live scores, hole by hole <span aria-hidden="true">›</span></a>
         </div>`;
     }
 
@@ -693,17 +953,20 @@ function renderCup() {
         html += `<div class="cup-reel-slot" style="grid-column: 1 / -1;">${champsReelHTML(latest, editions)}</div>`;
     }
 
-    // The hardware + this year's draft
+    // The hardware + this year's draft. Once drafted teams are live the draft card has said its
+    // piece, so the hardware runs full width and keeps the rules link.
     const trophy = cup.trophy;
     html += `
-        <div class="cup-card cup-hardware reveal">
+        <div class="cup-card cup-hardware reveal${liveTeams ? ' is-wide' : ''}">
             ${trophy && trophy.src ? `<button type="button" class="hardware-photo" data-lightbox-single="${esc(trophy.full || trophy.src)}" data-caption="${esc(trophy.caption || '')}" aria-label="View the trophy full screen"><img src="${esc(trophy.src)}" alt="${esc(trophy.alt || 'The Bros before Boges trophy')}" loading="lazy" decoding="async"></button>` : ''}
             <div>
                 <p class="eyebrow">The Hardware</p>
                 <h3>${esc(cup.trophyTitle || 'The Cup')}</h3>
                 <p>${esc(cup.trophyText || '')}</p>
+                ${liveTeams ? '<a class="btn btn-line btn-sm" href="rules.html" style="margin-top: 22px;">Read the rules</a>' : ''}
             </div>
-        </div>
+        </div>`;
+    if (!liveTeams) html += `
         <div class="cup-card reveal reveal-delay-1">
             <p class="eyebrow">${esc(TRIP.year)} Draft</p>
             <h3>${esc(cup.draftTitle || 'Draft pending')}</h3>
@@ -783,6 +1046,19 @@ function switchReelYear(year) {
 // ---------------------------------------------------------------------------
 // Hall of Fame
 // ---------------------------------------------------------------------------
+// This year's row: "Up next" with the dates, "This week" with Live scores during the trip, and
+// Final scores after it (until the commissioner adds the result to history in trip-config.js)
+function nextEditionResultHTML() {
+    if (phase.name === 'trip') return `<b>This week</b><a class="edition-link" href="round_tracker.html#board">Live scores${icon('chevronRight')}</a>`;
+    if (phase.name === 'wrap') return `<b>In the books</b><a class="edition-link" href="round_tracker.html#board">Final scores${icon('chevronRight')}</a>`;
+    return `<b>Up next</b><span style="color: var(--copper);">${esc(TRIP.dates && TRIP.dates.short)}</span>`;
+}
+
+function renderNextEdition() {
+    const el = document.getElementById('edition-next-result');
+    if (el) el.innerHTML = nextEditionResultHTML();
+}
+
 function renderHallOfFame() {
     const list = document.getElementById('editions');
     if (list) {
@@ -790,7 +1066,7 @@ function renderHallOfFame() {
             <div class="edition next reveal">
                 <h3 class="edition-year">${esc(TRIP.year)}</h3>
                 <div><div class="edition-where">${esc(TRIP.location)}</div><div class="edition-note">${esc(CFG.hallOfFameNextNote || '')}</div></div>
-                <div class="edition-result"><b>Up next</b><span style="color: var(--copper);">${esc(TRIP.dates && TRIP.dates.short)}</span></div>
+                <div class="edition-result" id="edition-next-result">${nextEditionResultHTML()}</div>
             </div>`;
         const past = (CFG.history || []).map(e => {
             const w = e.champion;
@@ -1194,13 +1470,17 @@ function updateHeroHeadcount(counts) {
         li.id = 'hero-headcount';
         facts.appendChild(li);
     }
-    // A player who's answered can't be "the first", and the You row below carries his RSVP button
+    // A player who's answered can't be "the first", and the You row below carries his RSVP button.
+    // Once the trip has started it's just the crew size: no RSVP button.
     const v = viewer();
     const youRow = !!(v && v.player && v.known);
-    const label = counts.in.length || counts.maybe.length || (v && v.status)
-        ? `${counts.in.length} in · ${counts.maybe.length} probably`
-        : 'Be the first to RSVP';
-    li.innerHTML = `${icon('users')}<span>${esc(label)}</span>${youRow ? '' : '<button type="button" class="hero-rsvp" id="hero-headcount-rsvp" data-action="rsvp">RSVP</button>'}`;
+    const asking = phase.name === 'pre';
+    const label = !asking
+        ? `${counts.in.length} in the crew`
+        : counts.in.length || counts.maybe.length || (v && v.status)
+            ? `${counts.in.length} in · ${counts.maybe.length} probably`
+            : 'Be the first to RSVP';
+    li.innerHTML = `${icon('users')}<span>${esc(label)}</span>${youRow || !asking ? '' : '<button type="button" class="hero-rsvp" id="hero-headcount-rsvp" data-action="rsvp">RSVP</button>'}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1253,7 +1533,8 @@ function renderYouRow() {
     if (!facts) return;
     let li = document.getElementById('hero-you');
     const v = viewer();
-    if (!(v && v.player && v.known)) {
+    // RSVPs are moot once the trip has started
+    if (!(v && v.player && v.known) || phase.name !== 'pre') {
         if (li) li.remove();
         return;
     }
@@ -1299,7 +1580,7 @@ function renderHeroCtas() {
     [rsvpBtn, tripBtn].forEach(b => { b.style.transition = ''; });
 }
 
-// Crew section's "Are you in?" block: hidden once the viewer has answered.
+// Crew section's "Are you in?" block: hidden once the viewer has answered, and once the trip starts.
 function renderCrewCta() {
     const cta = document.getElementById('crew-cta');
     const title = document.getElementById('crew-cta-title');
@@ -1307,7 +1588,7 @@ function renderCrewCta() {
     if (!cta) return;
     if (title && RSVP_YEAR) title.textContent = `Are you in for ${RSVP_YEAR}?`;
     const v = viewer();
-    cta.hidden = !!(v && v.status);
+    cta.hidden = phase.name !== 'pre' || !!(v && v.status);
     if (!text) return;
     text.textContent = v && v.player
         ? 'Put your name down so we get an accurate head count. It takes ten seconds.'
@@ -1559,7 +1840,7 @@ function showAccountStep(purpose, note) {
                 ? `You’re logged in as ${account.user.email || 'this account'}, but it isn’t linked to a name on the trip roster yet. Finish setting up and you’ll come right back here.`
                 : next === 'profile'
                     ? 'Log in to update your GHIN and handicap. It’s the same login as The Bookie.'
-                    : 'RSVPs need a player account. It’s the same login as The Bookie and the round tracker, so you only set it up once.';
+                    : 'RSVPs need a player account. It’s the same login you use for The Bookie and to keep score, so you only set it up once.';
         lede.textContent = note && !failed ? `${note} ${text}` : text;
     }
     const set = (id, show, href) => {
@@ -1937,189 +2218,187 @@ async function fetchRyderCupScores() {
 }
 
 // ---------------------------------------------------------------------------
-// Scoreboard modal
+// Standings pop-up: the official Cup total, round totals once posted, then the roster and
+// handicaps. (Live scores, hole by hole, live on the round tracker's board.)
 // ---------------------------------------------------------------------------
 async function renderDynamicScoreboard() {
     if (!elements.dynamicLeaderboard) return;
-    const liveCta = document.getElementById('live-board-cta');
-    if (liveCta) liveCta.hidden = !SEASON_LIVE;
 
     // Until the new season is switched on, the database still holds last year's rounds.
-    if (!supabaseInstance || !SEASON_LIVE) {
+    if (!SEASON_LIVE) {
         renderFallbackLeaderboard();
         return;
     }
 
+    // The official Cup total (hand-entered in Admin) leads, even before any round totals are posted
+    let cup = null;
+    let roundScores = [];
     try {
-        const { data: roundScores, error: rsErr } = await supabaseInstance
-            .from('player_round_scores')
-            .select('*, players(id, name, team_id, handicap)')
-            .order('round_number');
-
-        const { data: ryderData } = await supabaseInstance
-            .from('ryder_cup_scores')
-            .select('*')
-            .eq('id', 1)
-            .single();
-
-        if (rsErr) throw rsErr;
-
-        if (!roundScores || roundScores.length === 0) {
-            renderFallbackLeaderboard();
-            return;
+        if (supabaseInstance) {
+            const settle = q => Promise.resolve(q).catch(error => ({ data: null, error }));
+            const [cupRes, roundsRes] = await Promise.all([
+                settle(supabaseInstance.from('ryder_cup_scores').select('*').eq('id', 1).single()),
+                settle(supabaseInstance.from('player_round_scores').select('*, players(id, name, team_id, handicap)').order('round_number'))
+            ]);
+            if (cupRes.error && cupRes.error.code !== 'PGRST116') console.error('Cup total load failed:', cupRes.error);
+            else cup = { blue: cupRes.data ? cupRes.data.blue_score : 0, red: cupRes.data ? cupRes.data.red_score : 0 };
+            if (roundsRes.error) console.error('Round totals load failed:', roundsRes.error);
+            else roundScores = roundsRes.data || [];
         }
-
-        const blueScore = ryderData ? ryderData.blue_score : 0;
-        const redScore = ryderData ? ryderData.red_score : 0;
-
-        const roundMap = {};
-        roundScores.forEach(s => {
-            if (!roundMap[s.round_number]) roundMap[s.round_number] = [];
-            roundMap[s.round_number].push(s);
-        });
-
-        // Per-player overall totals (true strokes & true to-par against each round's course)
-        const playerTotals = {};
-        roundScores.forEach(s => {
-            if (!s.players) return;
-            const pid = s.player_id;
-            if (!playerTotals[pid]) {
-                playerTotals[pid] = { name: s.players.name, team_id: s.players.team_id, total_score: 0, total_to_par: 0, rounds_played: 0 };
-            }
-            const pars = parsForRound(s.round_number);
-            let hasPlayed = false, roundStrokes = 0, roundToPar = 0;
-            for (let i = 1; i <= 18; i++) {
-                const val = s[`h${i}`];
-                if (val !== null && val !== undefined) {
-                    hasPlayed = true;
-                    roundStrokes += val;
-                    if (pars) roundToPar += (val - pars[i - 1]);
-                }
-            }
-            if (hasPlayed) {
-                playerTotals[pid].total_score += roundStrokes;
-                playerTotals[pid].total_to_par += roundToPar;
-                playerTotals[pid].rounds_played++;
-            }
-        });
-
-        const bluePlayers = Object.values(playerTotals).filter(p => p.team_id === 1).sort((a, b) => a.total_to_par - b.total_to_par);
-        const redPlayers = Object.values(playerTotals).filter(p => p.team_id === 2).sort((a, b) => a.total_to_par - b.total_to_par);
-
-        const fmtPar = (v) => {
-            if (v === null || v === undefined) return '-';
-            if (v === 0) return 'E';
-            if (v > 0) return '+' + v;
-            return '' + v;
-        };
-
-        const teamList = (players, color, bg, border, label) => `
-            <div style="background: ${bg}; border: 1px solid ${border}; border-radius: 14px; padding: 16px;">
-                <div style="font-weight: 800; color: ${color}; margin-bottom: 12px; text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.12em;">${label}</div>
-                ${players.map(p => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line);">
-                        <span style="font-size: 0.9rem; font-weight: 600;">${esc(p.name)}</span>
-                        <div style="display: flex; gap: 12px; align-items: center; font-variant-numeric: tabular-nums;">
-                            <span style="font-weight: 800; color: ${p.total_to_par <= 0 ? 'var(--fairway)' : 'var(--red-team)'}; font-size: 0.95rem;">${fmtPar(p.total_to_par)}</span>
-                            <span style="color: var(--ink-dim); font-size: 0.85rem;">${p.total_score || '-'}</span>
-                        </div>
-                    </div>`).join('')}
-            </div>`;
-
-        let html = `
-            <div style="border: 1px solid rgba(232, 184, 107, 0.45); background: radial-gradient(120% 120% at 50% 0%, rgba(232, 184, 107, 0.12), transparent 60%), var(--surface-2); border-radius: 22px; padding: 24px; margin-bottom: 28px;">
-                <h3 style="text-align: center; font-size: 1.4rem; margin-bottom: 18px;">The ${esc(TRIP.year)} Ryder Cup</h3>
-                <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 22px;">
-                    <div style="text-align: center;">
-                        <div style="font: 800 0.85rem var(--sans); letter-spacing: 0.2em; color: var(--blue-team);">BLUE</div>
-                        <div style="font: 500 3rem/1 var(--serif); margin-top: 6px;">${fmtPoints(blueScore)}</div>
-                    </div>
-                    <div style="font: italic 500 1.3rem var(--serif); color: var(--ink-dim);">vs</div>
-                    <div style="text-align: center;">
-                        <div style="font: 800 0.85rem var(--sans); letter-spacing: 0.2em; color: var(--red-team);">RED</div>
-                        <div style="font: 500 3rem/1 var(--serif); margin-top: 6px;">${fmtPoints(redScore)}</div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
-                    ${teamList(bluePlayers, 'var(--blue-team)', 'rgba(110, 168, 255, 0.07)', 'rgba(110, 168, 255, 0.22)', 'Blue Team')}
-                    ${teamList(redPlayers, 'var(--red-team)', 'rgba(255, 123, 114, 0.07)', 'rgba(255, 123, 114, 0.22)', 'Red Team')}
-                </div>
-            </div>`;
-
-        const roundNumbers = Object.keys(roundMap).map(Number).sort((a, b) => a - b);
-        roundNumbers.forEach(rn => {
-            const points = scoringForRound(rn) === 'stableford';
-            const roundPlayers = roundMap[rn].filter(s => s.players).sort((a, b) => {
-                if (points) return (b.total_score || 0) - (a.total_score || 0); // highest points wins
-                if (a.to_par !== null && b.to_par !== null) return a.to_par - b.to_par;
-                if (a.total_score !== null && b.total_score !== null) return a.total_score - b.total_score;
-                return 0;
-            });
-            const pars = parsForRound(rn);
-            const th = 'padding: 10px 5px; color: var(--ink-dim); font-size: 0.78rem; border-bottom: 2px solid var(--line-strong);';
-
-            html += `
-                <div style="background: rgba(244, 235, 223, 0.02); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
-                    <div style="border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px;">
-                        <div style="font: 500 1.4rem var(--serif);">Round ${rn}</div>
-                        <div style="color: var(--gold); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 3px;">${esc(getRoundFormat(rn))}</div>
-                    </div>
-                    <div style="overflow-x: auto; width: 100%; border-radius: 8px;">
-                        <table style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; font-size: 0.95rem; font-variant-numeric: tabular-nums;">
-                            <thead>
-                                <tr>
-                                    <th style="padding: 12px 15px; position: sticky; left: 0; background: var(--surface); z-index: 2; text-align: left; border-bottom: 2px solid var(--line-strong);">Player</th>
-                                    ${Array.from({ length: 18 }, (_, i) => `<th style="${th}">${i + 1}${pars ? `<div style="font-weight: 500; opacity: 0.7;">${pars[i]}</div>` : ''}</th>`).join('')}
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--line-strong); font-weight: 900;">${points ? 'PTS' : 'TOT'}</th>
-                                    <th style="padding: 10px; border-bottom: 2px solid var(--line-strong); font-weight: 900;">+/-</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${roundPlayers.map((s, idx) => {
-                                    let tdsHoles = '';
-                                    for (let i = 1; i <= 18; i++) {
-                                        const score = s[`h${i}`];
-                                        tdsHoles += `<td style="padding: 10px 5px; border-bottom: 1px solid var(--line);">${score !== null && score !== undefined ? score : '-'}</td>`;
-                                    }
-                                    return `
-                                    <tr style="background: ${idx % 2 === 0 ? 'rgba(244, 235, 223, 0.015)' : 'transparent'};">
-                                        <td style="padding: 12px 15px; position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: left; border-bottom: 1px solid var(--line); font-weight: 600; white-space: nowrap;">
-                                            <span style="display: inline-block; width: 18px; text-align: center; color: var(--ink-dim); font-size: 0.8rem; margin-right: 8px;">${idx + 1}</span>${esc(s.players.name)}
-                                        </td>
-                                        ${tdsHoles}
-                                        <td style="padding: 10px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line-strong); font-weight: 800;">${s.total_score !== null ? s.total_score : '-'}</td>
-                                        <td style="padding: 10px; border-bottom: 1px solid var(--line); font-weight: 900; color: ${s.to_par !== null ? (s.to_par <= 0 ? 'var(--fairway)' : 'var(--red-team)') : 'inherit'};">${fmtPar(s.to_par)}</td>
-                                    </tr>`;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>`;
-        });
-
-        elements.dynamicLeaderboard.innerHTML = html;
     } catch (err) {
-        console.error('Leaderboard render failed:', err);
-        renderFallbackLeaderboard();
+        console.error('Standings load failed:', err);
     }
+
+    const live = `
+        <a class="standings-live" href="round_tracker.html#board">
+            <span><b>Live scores, hole by hole <span aria-hidden="true">›</span></b><small>Every match, straight from the groups’ scorecards</small></span>
+        </a>`;
+    elements.dynamicLeaderboard.innerHTML = standingsCupHTML(cup, roundScores) + live + roundTablesHTML(roundScores) + `
+        <details class="standings-roster">
+            <summary><span>Roster &amp; handicaps<small>${roster.confirmed.length ? `${roster.confirmed.length} players, ` : ''}ranked by handicap</small></span>${icon('chevron')}</summary>
+            ${rosterListHTML()}
+        </details>`;
 }
 
-function renderFallbackLeaderboard() {
+function fmtPar(v) {
+    if (v === null || v === undefined) return '-';
+    if (v === 0) return 'E';
+    if (v > 0) return '+' + v;
+    return '' + v;
+}
+
+// The Cup total card; once rounds are posted, each team's players by total to par under it.
+// `cup` is null when the total couldn't be loaded.
+function standingsCupHTML(cup, roundScores) {
+    // Per-player overall totals (true strokes & true to-par against each round's course)
+    const playerTotals = {};
+    roundScores.forEach(s => {
+        if (!s.players) return;
+        const pid = s.player_id;
+        if (!playerTotals[pid]) {
+            playerTotals[pid] = { name: s.players.name, team_id: s.players.team_id, total_score: 0, total_to_par: 0, rounds_played: 0 };
+        }
+        const pars = parsForRound(s.round_number);
+        let hasPlayed = false, roundStrokes = 0, roundToPar = 0;
+        for (let i = 1; i <= 18; i++) {
+            const val = s[`h${i}`];
+            if (val !== null && val !== undefined) {
+                hasPlayed = true;
+                roundStrokes += val;
+                if (pars) roundToPar += (val - pars[i - 1]);
+            }
+        }
+        if (hasPlayed) {
+            playerTotals[pid].total_score += roundStrokes;
+            playerTotals[pid].total_to_par += roundToPar;
+            playerTotals[pid].rounds_played++;
+        }
+    });
+    const played = Object.values(playerTotals).filter(p => p.rounds_played);
+    const bluePlayers = played.filter(p => p.team_id === 1).sort((a, b) => a.total_to_par - b.total_to_par);
+    const redPlayers = played.filter(p => p.team_id === 2).sort((a, b) => a.total_to_par - b.total_to_par);
+
+    const teamList = (players, color, bg, border, label) => `
+        <div style="background: ${bg}; border: 1px solid ${border}; border-radius: 14px; padding: 16px;">
+            <div style="font-weight: 800; color: ${color}; margin-bottom: 12px; text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.12em;">${label}</div>
+            ${players.map(p => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line);">
+                    <span style="font-size: 0.9rem; font-weight: 600;">${esc(p.name)}</span>
+                    <div style="display: flex; gap: 12px; align-items: center; font-variant-numeric: tabular-nums;">
+                        <span style="font-weight: 800; color: ${p.total_to_par <= 0 ? 'var(--fairway)' : 'var(--red-team)'}; font-size: 0.95rem;">${fmtPar(p.total_to_par)}</span>
+                        <span style="color: var(--ink-dim); font-size: 0.85rem;">${p.total_score || '-'}</span>
+                    </div>
+                </div>`).join('')}
+        </div>`;
+
+    const score = v => (cup ? fmtPoints(v) : '–');
+    return `
+        <section class="standings-cup" aria-labelledby="standings-cup-title">
+            <h3 id="standings-cup-title">The ${esc(TRIP.year)} Cup${phase.name === 'wrap' ? ' · Final' : ''}</h3>
+            <div class="standings-score">
+                <div class="side blue"><span>Blue</span><b>${score(cup && cup.blue)}</b></div>
+                <div class="vs" aria-hidden="true">vs</div>
+                <div class="side red"><span>Red</span><b>${score(cup && cup.red)}</b></div>
+            </div>
+            <p class="standings-note">${cup ? 'Official total, posted by the commissioner after each session.' : 'Couldn’t load the Cup total just now. Close this and try again.'}</p>
+            ${played.length ? `
+            <div class="standings-teams">
+                ${teamList(bluePlayers, 'var(--blue-team)', 'rgba(110, 168, 255, 0.07)', 'rgba(110, 168, 255, 0.22)', 'Blue Team')}
+                ${teamList(redPlayers, 'var(--red-team)', 'rgba(255, 123, 114, 0.07)', 'rgba(255, 123, 114, 0.22)', 'Red Team')}
+            </div>` : ''}
+        </section>`;
+}
+
+// Hole-by-hole round totals the commissioner posted (player_round_scores), one table per round
+function roundTablesHTML(roundScores) {
+    const roundMap = {};
+    roundScores.forEach(s => {
+        if (!roundMap[s.round_number]) roundMap[s.round_number] = [];
+        roundMap[s.round_number].push(s);
+    });
+
+    let html = '';
+    const roundNumbers = Object.keys(roundMap).map(Number).sort((a, b) => a - b);
+    roundNumbers.forEach(rn => {
+        const points = scoringForRound(rn) === 'stableford';
+        const roundPlayers = roundMap[rn].filter(s => s.players).sort((a, b) => {
+            if (points) return (b.total_score || 0) - (a.total_score || 0); // highest points wins
+            if (a.to_par !== null && b.to_par !== null) return a.to_par - b.to_par;
+            if (a.total_score !== null && b.total_score !== null) return a.total_score - b.total_score;
+            return 0;
+        });
+        const pars = parsForRound(rn);
+        const th = 'padding: 10px 5px; color: var(--ink-dim); font-size: 0.78rem; border-bottom: 2px solid var(--line-strong);';
+
+        html += `
+            <div style="background: rgba(244, 235, 223, 0.02); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                <div style="border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px;">
+                    <div style="font: 500 1.4rem var(--serif);">Round ${rn}</div>
+                    <div style="color: var(--gold); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 3px;">${esc(getRoundFormat(rn))}</div>
+                </div>
+                <div style="overflow-x: auto; width: 100%; border-radius: 8px;">
+                    <table style="width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; font-size: 0.95rem; font-variant-numeric: tabular-nums;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 12px 15px; position: sticky; left: 0; background: var(--surface); z-index: 2; text-align: left; border-bottom: 2px solid var(--line-strong);">Player</th>
+                                ${Array.from({ length: 18 }, (_, i) => `<th style="${th}">${i + 1}${pars ? `<div style="font-weight: 500; opacity: 0.7;">${pars[i]}</div>` : ''}</th>`).join('')}
+                                <th style="padding: 10px; border-bottom: 2px solid var(--line-strong); font-weight: 900;">${points ? 'PTS' : 'TOT'}</th>
+                                <th style="padding: 10px; border-bottom: 2px solid var(--line-strong); font-weight: 900;">+/-</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${roundPlayers.map((s, idx) => {
+                                let tdsHoles = '';
+                                for (let i = 1; i <= 18; i++) {
+                                    const score = s[`h${i}`];
+                                    tdsHoles += `<td style="padding: 10px 5px; border-bottom: 1px solid var(--line);">${score !== null && score !== undefined ? esc(score) : '-'}</td>`;
+                                }
+                                return `
+                                <tr style="background: ${idx % 2 === 0 ? 'rgba(244, 235, 223, 0.015)' : 'transparent'};">
+                                    <td style="padding: 12px 15px; position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: left; border-bottom: 1px solid var(--line); font-weight: 600; white-space: nowrap;">
+                                        <span style="display: inline-block; width: 18px; text-align: center; color: var(--ink-dim); font-size: 0.8rem; margin-right: 8px;">${idx + 1}</span>${esc(s.players.name)}
+                                    </td>
+                                    ${tdsHoles}
+                                    <td style="padding: 10px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line-strong); font-weight: 800;">${s.total_score !== null && s.total_score !== undefined ? esc(s.total_score) : '-'}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid var(--line); font-weight: 900; color: ${s.to_par !== null && s.to_par !== undefined ? (s.to_par <= 0 ? 'var(--fairway)' : 'var(--red-team)') : 'inherit'};">${fmtPar(s.to_par)}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+    });
+    return html;
+}
+
+// The confirmed roster ranked by handicap
+function rosterListHTML() {
     const sortedRoster = [...roster.confirmed].sort((a, b) => {
         if (a.handicap === null) return 1;
         if (b.handicap === null) return -1;
         return a.handicap - b.handicap;
     });
-
-    elements.dynamicLeaderboard.innerHTML = `
-        <div style="border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
-            <div>
-                <div style="font: 500 1.6rem var(--serif);">${SEASON_LIVE ? 'The Roster' : 'Pre-Tournament Rankings'}</div>
-                <div style="color: var(--gold); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">${SEASON_LIVE ? 'Confirmed Squad' : `Live scoring opens ${esc(TRIP.dates && TRIP.dates.start ? new Date(`${TRIP.dates.start}T12:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '')}`}</div>
-                ${SEASON_LIVE ? '<div style="color: var(--ink-dim); font-size: 0.85rem; margin-top: 6px; line-height: 1.45;">Match scores are on the live leaderboard above. Round totals show here once the commissioner posts them.</div>' : ''}
-            </div>
-            <div style="color: var(--ink-dim); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Ranked by handicap</div>
-        </div>
+    return `
         <div class="leaderboard-list">
             <div class="leaderboard-row header-row">
                 <div class="col-rank">Rank</div>
@@ -2136,6 +2415,20 @@ function renderFallbackLeaderboard() {
                     <div class="col-ghin" style="font-variant-numeric: tabular-nums; color: var(--ink-dim);">${esc(realGhin(player.ghin) || '-')}</div>
                 </div>`).join('')}
         </div>`;
+}
+
+// Before the season is live: the field by handicap (the database still holds last year's rounds)
+function renderFallbackLeaderboard() {
+    const opens = TRIP.dates && TRIP.dates.start ? new Date(`${TRIP.dates.start}T12:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '';
+    elements.dynamicLeaderboard.innerHTML = `
+        <div style="border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
+            <div>
+                <div style="font: 500 1.6rem var(--serif);">${phase.name === 'pre' ? 'Pre-Tournament Rankings' : 'The Roster'}</div>
+                ${phase.name === 'pre' && opens ? `<div style="color: var(--gold); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 5px;">Live scores open ${esc(opens)}</div>` : ''}
+            </div>
+            <div style="color: var(--ink-dim); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Ranked by handicap</div>
+        </div>
+        ${rosterListHTML()}`;
 }
 
 function getRoundFormat(num) {
@@ -2270,7 +2563,7 @@ function setDrawer(open) {
     if (elements.nav) elements.nav.classList.toggle('is-solid', open);
     // The drawer covers the page, so keep Tab inside it while it's open.
     const dialogOpen = !!document.querySelector('.modal.active, .lightbox.active');
-    ['main', 'footer', '.skip-link'].forEach(sel => { const n = document.querySelector(sel); if (n) n.inert = open || dialogOpen; });
+    ['main', 'footer', '.skip-link', '.preview-ribbon'].forEach(sel => { const n = document.querySelector(sel); if (n) n.inert = open || dialogOpen; });
 }
 
 function setClubhouse(open) {
@@ -2293,15 +2586,10 @@ function runAction(action) {
         openDialog(elements.leaderboardModal, '#leaderboard-close');
         renderDynamicScoreboard();
     }
-    if (action === 'start-round') {
-        // Already signed in (email or Google): go straight to the tracker
-        if (account.user) window.location.href = 'round_tracker.html';
-        else openDialog(elements.roundLoginModal, '#round-email');
-    }
 }
 
 function setupEventListeners() {
-    // Scoreboard hero image comes from config
+    // Standings pop-up hero image comes from config
     const sbHero = document.getElementById('scoreboard-hero');
     if (sbHero && CFG.scoreboardImage) sbHero.style.backgroundImage = `url('${CFG.scoreboardImage}')`;
 
@@ -2384,7 +2672,12 @@ function setupEventListeners() {
         });
     }
     // Back from The Bookie after logging in or out there: the cached page may show the old login
-    window.addEventListener('pageshow', (e) => { if (e.persisted && personalReady) ensureFreshAccount(); });
+    // (and the trip day may have moved on while it sat in the cache)
+    window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        checkPhase();
+        if (personalReady) ensureFreshAccount();
+    });
 
     const desktopNav = window.matchMedia('(min-width: 1301px)');
     const closeDrawerOnDesktop = (e) => { if (e.matches) setDrawer(false); };
@@ -2395,10 +2688,9 @@ function setupEventListeners() {
     document.getElementById('modal-close')?.addEventListener('click', closeProfile);
     document.getElementById('cancel-btn')?.addEventListener('click', closeProfile);
     document.getElementById('leaderboard-close')?.addEventListener('click', () => closeDialog(elements.leaderboardModal));
-    document.getElementById('round-login-close')?.addEventListener('click', () => closeDialog(elements.roundLoginModal));
 
     // Click on the backdrop closes a modal
-    [elements.registrationModal, elements.leaderboardModal, elements.roundLoginModal, elements.rsvpModal].forEach(modal => {
+    [elements.registrationModal, elements.leaderboardModal, elements.rsvpModal].forEach(modal => {
         if (!modal) return;
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
@@ -2437,7 +2729,6 @@ function setupEventListeners() {
         closeDialog(elements.rsvpModal);
         document.getElementById('attendees')?.scrollIntoView({ behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
     });
-    document.getElementById('round-login-form')?.addEventListener('submit', (e) => { e.preventDefault(); handleRoundLogin(); });
 
     // Lightbox
     document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
@@ -2471,7 +2762,6 @@ function setupEventListeners() {
             closeProfile();
             closeDialog(elements.rsvpModal);
             closeDialog(elements.leaderboardModal);
-            closeDialog(elements.roundLoginModal);
             setDrawer(false);
             setClubhouse(false);
         }
@@ -2514,33 +2804,6 @@ function closeLightbox() {
     setTimeout(() => {
         if (elements.lightboxImage && !elements.lightboxModal.classList.contains('active')) elements.lightboxImage.src = '';
     }, 300);
-}
-
-// ---------------------------------------------------------------------------
-// Registration + round login (Supabase)
-// ---------------------------------------------------------------------------
-async function handleRoundLogin() {
-    const email = document.getElementById('round-email').value;
-    const password = document.getElementById('round-password').value;
-    const errorEl = document.getElementById('round-login-error');
-
-    if (!supabaseInstance) {
-        alert('Supabase not configured. Check script.js');
-        return;
-    }
-
-    try {
-        const { error } = await supabaseInstance.auth.signInWithPassword({ email, password });
-        if (error) {
-            errorEl.textContent = error.message;
-            errorEl.style.display = 'block';
-        } else {
-            window.location.href = 'round_tracker.html';
-        }
-    } catch (err) {
-        errorEl.textContent = 'An unexpected error occurred.';
-        errorEl.style.display = 'block';
-    }
 }
 
 // Global initialization

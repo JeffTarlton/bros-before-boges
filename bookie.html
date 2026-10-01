@@ -156,8 +156,7 @@
                 display: none;
             }
 
-            .bookie-nav button,
-            .bookie-nav a {
+            .bookie-nav button {
                 padding: 10px 16px !important;
                 font-size: 0.9rem;
             }
@@ -213,20 +212,6 @@
                 flex-wrap: wrap;
                 overflow-x: visible;
             }
-        }
-
-        .bookie-nav a {
-            display: inline-flex;
-            align-items: center;
-            font-size: 0.85rem;
-            padding: 10px 20px;
-            min-height: 44px;
-            border-radius: 99px;
-            white-space: nowrap;
-            text-decoration: none;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: var(--accent-emerald);
         }
 
         a.bottom-nav-btn {
@@ -861,7 +846,7 @@
             <nav class="main-nav">
                 <ul>
                     <li><a href="index.html">Back to Home</a></li>
-                    <li><a href="round_tracker.html">Round Tracker</a></li>
+                    <li><a href="round_tracker.html#board">Live scores</a></li>
                     <li><a href="rules.html" class="nav-link">Rules</a></li>
                     <!-- Hidden until the login check finishes, so a signed-in player never sees "Log in" -->
                     <li hidden><button type="button" id="bookie-login-btn" class="btn-nav">Log in</button></li>
@@ -925,9 +910,6 @@
 
                 <div class="bookie-nav" role="group" aria-label="Filter bets">
                     <button class="active" data-filter="all" aria-pressed="true">All Action</button>
-                    <a href="round_tracker.html">
-                        <i class="fas fa-satellite-dish" style="margin-right: 6px;" aria-hidden="true"></i>Live Tracker
-                    </a>
                     <button data-filter="pools" aria-pressed="false">Pools & Props</button>
                     <button data-filter="h2h" aria-pressed="false">Head-to-Head</button>
                     <button data-filter="me" aria-pressed="false">My Wagers</button>
@@ -1001,9 +983,9 @@
             <i class="fas fa-list" aria-hidden="true"></i>
             <span>Action</span>
         </button>
-        <a class="bottom-nav-btn" href="round_tracker.html">
+        <a class="bottom-nav-btn" href="round_tracker.html#board">
             <i class="fas fa-satellite-dish" aria-hidden="true"></i>
-            <span>Live Play</span>
+            <span>Live scores</span>
         </a>
         <button class="bottom-nav-btn" data-filter="me" aria-pressed="false">
             <i class="fas fa-user" aria-hidden="true"></i>
@@ -1138,8 +1120,8 @@
     <div class="toast-container" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.8"></script>
-    <script src="bookie.js?v=2027.9" defer></script>
+    <script src="trip-config.js?v=2027.10"></script>
+    <script src="bookie.js?v=2027.10" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

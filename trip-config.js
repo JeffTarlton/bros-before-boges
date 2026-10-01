@@ -23,6 +23,14 @@ window.BBB = {
         // Arizona stays on MST (UTC-7) all year — no daylight saving.
         countdownTarget: '2027-04-08T07:00:00-07:00',
         countdownLabel: 'Countdown to Scottsdale',
+        // The trip's own time zone. From dates.start through dates.end the homepage switches to
+        // trip-day mode (a Today card, Live scores and Keep score up top), and after dates.end to
+        // "That's a wrap", by the date here, never the phone's own clock (the crew flies in from
+        // other time zones). timeZoneName is how the page says it, e.g. "6:45 AM (Arizona)".
+        // To check trip-day mode early, open the homepage with ?preview=2027-04-09T06:45 (read as
+        // this time zone); a ribbon marks the preview and its Exit link drops it.
+        timeZone: 'America/Phoenix',
+        timeZoneName: 'Arizona',
         hq: {
             name: 'TBA',
             note: 'Lodging is still being locked in. Scottsdale area.',
@@ -41,17 +49,17 @@ window.BBB = {
             perPerson: 1600,
             approx: true,
             excludes: 'airfare',
-            note: 'Estimated per person, plus your flight. Full breakdown once the final round and HQ are booked.',
+            note: 'Estimated per person, plus your flight. Full breakdown once HQ and tee times are booked.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
             breakdown: []
         },
         intro: [
             'The Sonoran Desert in April: 80-degree days, cool nights, and some of the best public golf in the country. This year we trade the Texas Hill Country for saguaros, Four Peaks, and firm, fast desert fairways.',
-            'Two tribal-owned clubs anchor the trip. Talking Stick sits on Salt River Pima-Maricopa land minutes from Old Town Scottsdale, and We-Ko-Pa sits out on the Fort McDowell Yavapai Nation with no homes or roads along its fairways.'
+            'Two tribal-owned clubs anchor the trip. Talking Stick sits on Salt River Pima-Maricopa land minutes from Old Town Scottsdale, and We-Ko-Pa sits out on the Fort McDowell Yavapai Nation with no homes or roads along its fairways. Saturday’s final round is back in Scottsdale on Camelback Golf Club’s Ambiente course.'
         ],
         announcement: {
-            title: 'Save the date',
-            body: 'April 8–11, 2027 in Scottsdale. Talking Stick and a 36‑hole day at We-Ko-Pa are on the schedule. The final-round course and HQ are coming soon.'
+            title: 'Final round: Camelback Ambiente',
+            body: 'Saturday’s final Cup round is set for Camelback Golf Club’s Ambiente course in Scottsdale. With Talking Stick on Thursday and 36 holes at We-Ko-Pa on Friday, all four rounds are locked in. HQ is coming soon.'
         }
     },
 
@@ -129,12 +137,11 @@ window.BBB = {
         {
             date: '2027-04-10',
             title: 'The final round',
-            text: 'The last Cup round of the trip. The course is still being decided.',
-            tag: 'Course TBA',
-            tagSoft: true,
-            media: { type: 'mystery' },
+            text: 'The last Cup round of the trip, back in Scottsdale on Camelback’s Ambiente course.',
+            tag: 'Round 4',
+            media: { type: 'image', src: 'assets/courses/camelback-ambiente/card/hole-13-bunker-mountain.jpg', alt: 'A big-walled bunker on Ambiente’s 13th hole below a rugged desert mountain' },
             slots: [
-                { when: 'R4', what: 'Course TBA', meta: 'Tee time TBA' }
+                { when: 'R4', what: 'Camelback · Ambiente', meta: 'Tee time TBA', courseId: 'camelback-ambiente' }
             ]
         },
         {
@@ -157,7 +164,8 @@ window.BBB = {
     roundCourses: {
         1: 'talking-stick-oodham',
         2: 'wekopa-cholla',
-        3: 'wekopa-saguaro'
+        3: 'wekopa-saguaro',
+        4: 'camelback-ambiente'
     },
     // 'stableford' rounds rank by points (highest wins); everything else is stroke play.
     // Round 1 stays Stableford to match the Admin score-entry math.
@@ -341,16 +349,53 @@ window.BBB = {
             credit: { name: 'We-Ko-Pa Golf Club', url: 'https://wekopa.com/saguaro-course/' }
         },
         {
-            id: 'final-round',
-            tbd: true,
-            eyebrow: 'Round 4 · Saturday, April 10',
-            name: 'The final round: TBA',
-            description: 'The last Cup session lands on a course still to be named. Suggestions (and bribes) go to the committee.',
-            when: 'Saturday, April 10'
+            id: 'camelback-ambiente',
+            anchor: 'camelback-ambiente',
+            club: 'Camelback Golf Club · Scottsdale',
+            round: 'Round 4 · <b>Sat, Apr 10</b>',
+            when: 'Saturday, April 10 · Round 4',
+            name: 'Ambiente',
+            aka: 'Formerly the Indian Bend Course',
+            tagline: 'Straight out, straight back. Last round, last chance.',
+            description: 'Camelback’s old Indian Bend course was so flat it flooded, so in 2013 Jason Straka lowered the wash and used the dirt to raise the new holes. Now it plays like a desert links: rolling fairways routed straight out and back, with native grasses where turf used to be. It’s the last Cup round of the trip, so whatever you’ve got left, use it here.',
+            designer: 'Jason Straka',
+            opened: 2013,
+            stats: [
+                { label: 'Par', value: '72' },
+                { label: 'Yards', value: '7,225', sub: 'Black tees' },
+                { label: 'Rating', value: '74.2', sub: 'Black tees' },
+                { label: 'Slope', value: '138', sub: 'Black tees' }
+            ],
+            midTees: 'Verde tees · 6,630 yds · 71.9 / 132',
+            holePars: [4, 3, 5, 4, 4, 4, 5, 3, 4, 4, 3, 4, 4, 5, 3, 5, 4, 4],
+            holeYards: [393, 185, 556, 375, 328, 448, 604, 241, 438, 361, 194, 454, 393, 580, 245, 523, 445, 462],
+            yardsTeeName: 'Black tees',
+            signatureHoles: [
+                { hole: 7, par: 5, yards: 604, blurb: 'The longest hole on the course, and it’s still 569 from the Verdes. Plan on three good ones to get there.' },
+                { hole: 13, par: 4, yards: 393, blurb: 'The resort singles this one out for its mix of low- and high-walled bunkers, and the green is tiered. Check the pin before you pick a club.' },
+                { hole: 15, par: 3, yards: 245, blurb: 'The longest par 3 on the card plays to a two-tiered green. It’s 204 even from the Verdes, and if you land on the wrong level, a three-putt is in play.' }
+            ],
+            accolades: [
+                'No. 28 in Arizona · Golfweek public-access (2026)',
+                'No. 6 in Arizona · GolfPass Golfers’ Choice (2026)',
+                'Best New Courses · Golf Digest (2013)'
+            ],
+            images: [
+                { src: 'assets/courses/camelback-ambiente/hole-10-aerial-mountains.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/hole-10-aerial-mountains.jpg', alt: 'Aerial of Ambiente No. 10 bending left along a native-grass wash, with rugged mountains beyond', w: 1800, h: 808 },
+                { src: 'assets/courses/camelback-ambiente/hole-13-bunker-mountain.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/hole-13-bunker-mountain.jpg', alt: 'Big-walled bunker on Ambiente No. 13 with a rugged desert mountain behind', w: 2400, h: 875 },
+                { src: 'assets/courses/camelback-ambiente/hole-5-green-lake.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/hole-5-green-lake.jpg', alt: 'Bunkered green on Ambiente No. 5 with a lake beyond', w: 1800, h: 808 },
+                { src: 'assets/courses/camelback-ambiente/hole-16-aerial-green.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/hole-16-aerial-green.jpg', alt: 'Aerial of Ambiente’s bunkered 16th green with a lake and fairway beyond', w: 1920, h: 1082 },
+                { src: 'assets/courses/camelback-ambiente/native-wash-green-mountains.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/native-wash-green-mountains.jpg', alt: 'Native-grass wash beside an Ambiente fairway and bunkered green beneath a mountain ridge', w: 1800, h: 541 },
+                { src: 'assets/courses/camelback-ambiente/hole-1-aerial.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/hole-1-aerial.jpg', alt: 'Aerial down Ambiente’s tree-lined opening hole with the Valley stretching to the horizon', w: 1800, h: 808 },
+                { src: 'assets/courses/camelback-ambiente/deep-bunker-steps.jpg', thumb: 'assets/courses/camelback-ambiente/thumbs/deep-bunker-steps.jpg', alt: 'Deep bunker with wooden steps in front of an Ambiente green', w: 1800, h: 1200 },
+                { src: 'assets/courses/camelback-club/clubhouse-entrance.jpg', thumb: 'assets/courses/camelback-club/thumbs/clubhouse-entrance.jpg', alt: 'Camelback Golf Club’s desert-toned clubhouse and entry drive under a big Arizona sky', w: 1800, h: 808 }
+            ],
+            heroAspect: '2 / 1',
+            credit: { name: 'Camelback Golf Club and JW Marriott Camelback Inn', url: 'https://www.camelbackgolf.com/groups' }
         }
     ],
 
-    photoCredits: 'Course photography courtesy of <a href="https://www.talkingstickgolfclub.com/" target="_blank" rel="noopener">Talking Stick Golf Club</a> and <a href="https://wekopa.com/" target="_blank" rel="noopener">We-Ko-Pa Golf Club</a>.',
+    photoCredits: 'Course photography courtesy of <a href="https://www.talkingstickgolfclub.com/" target="_blank" rel="noopener">Talking Stick Golf Club</a>, <a href="https://wekopa.com/" target="_blank" rel="noopener">We-Ko-Pa Golf Club</a>, <a href="https://www.camelbackgolf.com/" target="_blank" rel="noopener">Camelback Golf Club</a> and <a href="https://www.marriott.com/en-us/hotels/phxcb-jw-marriott-scottsdale-camelback-inn-resort-and-spa/golf/" target="_blank" rel="noopener">JW Marriott Camelback Inn</a>.',
 
     cup: {
         // Add the 2027 captains here once they're picked, e.g. ['First Last', 'First Last'].
@@ -376,7 +421,7 @@ window.BBB = {
             'Cup points on the line every round',
             'Formats and stakes posted on the Rules page before we tee off'
         ],
-        liveNote: 'Live Cup standings, updated by the scorekeepers after every session.'
+        liveNote: 'The official Cup total, updated by the commissioner after every session.'
     },
 
     // Past editions, newest first. The first entry with a score powers the animated
@@ -408,11 +453,16 @@ window.BBB = {
             courses: []
         }
     ],
-    hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Final round TBA',
+    hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Camelback Ambiente',
 
     // Hall of Fame photo wall: one album per trip, newest first. The first photo is the
     // big featured tile; `pos` nudges the crop (CSS object-position) for tall photos.
     // Albums whose `year` matches a history entry get a "View photos" link on that row.
+    // Optional shareUrl: an https link to a shared album the crew can add to (Google Photos,
+    // iCloud, …). After the trip, the homepage's "That's a wrap" card shows an "Add your photos"
+    // button for the album whose `year` matches trip.year; no shareUrl, no button. An album can
+    // have a shareUrl and no photos yet, e.g.
+    //   { id: '2027', year: 2027, label: '2027 · Scottsdale', shareUrl: 'https://photos.app.goo.gl/…', photos: [] }
     photoAlbums: [
         {
             id: '2026',

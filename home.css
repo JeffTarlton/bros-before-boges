@@ -263,7 +263,7 @@ img { max-width: 100%; display: block; }
 
 .nav-actions { display: flex; align-items: center; gap: 10px; flex: none; }
 
-/* Clubhouse dropdown (Start Round / Admin) */
+/* Clubhouse dropdown (Keep score / Admin / account) */
 .nav-menu { position: relative; }
 .nav-menu-btn svg { width: 14px; height: 14px; transition: transform 0.2s; }
 .nav-menu-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
@@ -379,6 +379,12 @@ img { max-width: 100%; display: block; }
 .drawer button small { font: 700 0.7rem var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
 .drawer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
 .drawer-actions .btn { width: 100%; }
+/* The trip-day pairs are links: keep them buttons, not drawer rows (.drawer a above) */
+.drawer .drawer-actions a.btn { justify-content: center; padding: 0 14px; border: 1px solid transparent; font: 700 0.95rem var(--sans); }
+.drawer .drawer-actions a.btn-copper { background: var(--copper); color: #1a0f08; }
+.drawer .drawer-actions a.btn-copper:hover { background: #ec8b5d; }
+.drawer .drawer-actions a.btn-line { background: rgba(14, 11, 9, 0.35); border-color: var(--line-strong); color: var(--ink); }
+.drawer .drawer-actions a.btn-line:hover { border-color: var(--gold); color: var(--gold); }
 .drawer-sub { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; }
 .drawer .drawer-sub a,
 .drawer .drawer-sub button.drawer-link {
@@ -632,7 +638,7 @@ body.drawer-open { overflow: hidden; }
 .hero-facts svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
 .hero-facts .muted { color: var(--ink-muted); margin-left: auto; font-size: 0.85rem; text-align: right; white-space: nowrap; }
 
-/* Live cup pill (only shown once the season is live) */
+/* Cup pill (only shown once the season is live); a link to Live scores, see Trip-day mode below */
 .cup-pill {
     display: inline-flex;
     align-items: center;
@@ -2215,8 +2221,6 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 .rsvp-auth .btn { width: 100%; justify-content: center; text-align: center; }
 .rsvp-auth .link-btn { margin: 4px auto 0; }
 .rsvp-auth .or-divider { margin: 14px 0 4px; }
-.round-forgot { margin-top: 14px; font-size: 0.88rem; text-align: center; }
-.round-forgot a { color: var(--gold); text-underline-offset: 3px; }
 
 .rsvp-done { text-align: center; padding: 10px 0 4px; }
 .rsvp-done h2 { margin: 18px 0 10px; outline: none; }
@@ -2399,7 +2403,7 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 /* Squad toggle always sits on its own row, so opening it doesn't move the button */
 .reel-squad-wrap { flex-basis: 100%; }
 
-/* The drawer's Scoreboard/RSVP pair is only needed when the header hides them */
+/* The drawer's main pair (Standings/RSVP, or the trip-day pair) is only needed when the header hides it */
 @media (min-width: 721px) {
     .drawer-actions { display: none; }
 }
@@ -2698,3 +2702,265 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 .rsvp-who-links { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--ink-dim); }
 .rsvp-sheet .link-btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
 .rsvp-who-links .link-btn { margin-left: 0; }
+
+
+/* --------------------------------------------------------------------------
+   Trip-day mode: before / during / after the trip, by the date in Arizona
+   (index.html's inline script, then script.js, set .phase-pre / .phase-trip / .phase-wrap on <html>)
+   -------------------------------------------------------------------------- */
+/* Until the phase is picked, nothing phase-specific shows, so a trip-day visitor never sees the
+   RSVP buttons or a countdown flash up first. (index.html picks it before the supabase-js bundle.) */
+.js:not(.phase-set) [data-phase] { visibility: hidden; }
+
+/* Cup pill: "The Cup · Blue 10½ – 9½ Red ›", a link to Live scores ("Final" after the trip) */
+a.cup-pill {
+    gap: 10px;
+    min-height: 44px;
+    padding-right: 12px;
+    color: var(--ink);
+    transition: border-color 0.2s, transform 0.25s var(--ease-out);
+}
+a.cup-pill:hover { border-color: var(--gold); transform: translateY(-2px); }
+.cup-pill-sep { color: var(--ink-dim); font-weight: 600; }
+.cup-pill-chev { width: 16px; height: 16px; flex: none; color: var(--gold); }
+.cup-pill .live { white-space: nowrap; }
+.cup-pill.is-final .live { color: var(--gold); }
+.cup-pill.is-final .live::before { background: var(--gold); animation: none; }
+@media (max-width: 380px) {
+    a.cup-pill { gap: 6px; padding: 6px 8px 6px 12px; font-size: 0.72rem; letter-spacing: 0.05em; }
+    a.cup-pill .team b { font-size: 1.12rem; }
+    /* The dot after "The Cup" goes, so two-digit half points still fit on one line */
+    a.cup-pill #cup-pill-label + .cup-pill-sep { display: none; }
+}
+
+/* Today card (during the trip) and That's a wrap (after it), in the countdown's place */
+.today { margin-bottom: 22px; }
+.today-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    font: 700 0.7rem var(--sans);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+}
+.today-eyebrow b { display: inline-flex; align-items: center; gap: 8px; color: var(--copper); font-weight: 800; }
+.today-eyebrow b::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--copper);
+    animation: pulse 1.6s ease-in-out infinite;
+}
+.today-sep { margin: 0 0.6em; }
+.today.is-wrap .today-eyebrow b { color: var(--gold); }
+.today.is-wrap .today-eyebrow b::before { background: var(--gold); animation: none; }
+.today-title { font-size: clamp(1.45rem, 2.4vw, 1.85rem); font-weight: 500; line-height: 1.1; margin-bottom: 14px; }
+.today-slots { list-style: none; display: grid; gap: 8px; }
+.today-slot { grid-template-columns: auto minmax(0, 1fr) auto; min-height: 56px; }
+.today-slot .slot-what { grid-column: 2; grid-row: 1; }
+.today-slot .slot-meta { grid-column: 2; grid-row: 2; }
+a.today-slot { color: inherit; transition: border-color 0.2s, background-color 0.2s; }
+a.today-slot:hover { border-color: var(--gold); background: rgba(232, 184, 107, 0.06); }
+a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgba(232, 184, 107, 0.45); text-underline-offset: 3px; }
+.today-slot-go { grid-column: 3; grid-row: 1 / span 2; display: grid; place-items: center; color: var(--gold); }
+.today-slot-go svg { width: 18px; height: 18px; }
+.today-next { margin-top: 12px; font-size: 0.88rem; line-height: 1.45; color: var(--ink-muted); }
+.today-next > span { font-weight: 700; color: var(--ink); }
+.today-next a { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(232, 184, 107, 0.45); text-underline-offset: 3px; }
+.today-next a:hover { color: var(--gold); }
+.today-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+/* The buttons are in the page from the start; the rest fills in once script.js has run */
+#hero-today-body:empty ~ .today-actions { margin-top: 0; }
+.today-actions .btn { flex: 1 1 0; min-width: max-content; padding: 0 16px; }
+.today-actions .btn svg { width: 16px; height: 16px; }
+
+/* One column (phones, tablets): the Today / wrap card sits right under the hero buttons and has
+   the same pair, so the hero's pair steps aside rather than showing twice on one screen */
+@media (max-width: 960px) {
+    .phase-trip .hero-ctas,
+    .phase-wrap .hero-ctas { display: none; }
+}
+/* Phones: the welcome paragraph steps aside too, so today's plan (or the wrap card and its
+   buttons) is on the first screen */
+@media (max-width: 640px) {
+    .phase-trip .hero-sub,
+    .phase-wrap .hero-sub { display: none; }
+}
+
+/* Itinerary: today's card is tagged, earlier days fold down and dim */
+.day-today {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 2;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font: 800 0.66rem var(--sans);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    background: var(--copper);
+    color: #1a0f08;
+    box-shadow: 0 0 0 4px rgba(226, 125, 79, 0.25);
+}
+.day.is-today { border-color: rgba(226, 125, 79, 0.65); box-shadow: 0 30px 60px -30px rgba(226, 125, 79, 0.45); }
+/* Only TODAY is copper on today's card */
+.day.is-today .day-tag { background: rgba(14, 11, 9, 0.6); color: var(--ink); border: 1px solid var(--line-strong); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+/* Earlier days: the photo fades back but the text stays readable (yesterday's course and tee
+   times still get looked up); titles step down to the muted ink */
+.day.is-past .day-media::after { z-index: 1; background: linear-gradient(180deg, rgba(14, 11, 9, 0.55) 0%, rgba(14, 11, 9, 0.9) 100%); transition: opacity 0.3s; }
+.day.is-past .day-media img { filter: grayscale(0.7); }
+.day.is-past:hover .day-media::after,
+.day.is-past:focus-within .day-media::after { opacity: 0.6; }
+.day.is-past .day-title,
+.day.is-past .slot-what { color: var(--ink-muted); }
+.day.is-past .slot-when { color: var(--ink-dim); }
+/* ...and their copper tags go quiet, so TODAY is the one copper tag in the list */
+.day.is-past .day-tag { background: rgba(14, 11, 9, 0.6); color: var(--ink-muted); border: 1px solid var(--line-strong); }
+/* Phones (one column): past days fold down to a strip, so today is near the top of the list */
+@media (max-width: 640px) {
+    .day.is-past .day-media { aspect-ratio: auto; height: 92px; }
+    .day.is-past .day-media.mystery .q { font-size: 3rem; }
+    .day.is-past .day-date b { font-size: 2.2rem; }
+    .day.is-past .day-text { display: none; }
+    .day.is-past .day-body { gap: 10px; padding-top: 16px; padding-bottom: 18px; }
+}
+@media (max-width: 380px) {
+    .today-slot { padding: 10px 10px 10px 12px; column-gap: 8px; }
+    .today-eyebrow { letter-spacing: 0.13em; }
+    /* "That's a wrap" over "Scottsdale 2027", rather than a dot dangling at the line end */
+    .today-where { flex-basis: 100%; margin-top: 4px; }
+    .today-where .today-sep { display: none; }
+}
+
+/* Hall of Fame: this year's row links to Live scores during the trip, Final scores after it */
+.edition-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    color: var(--gold);
+    font: 800 0.72rem var(--sans);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: underline;
+    text-decoration-color: rgba(232, 184, 107, 0.45);
+    text-underline-offset: 4px;
+}
+.edition-link:hover { color: var(--ink); }
+.edition-link svg { width: 14px; height: 14px; }
+
+/* The Cup section: Live scores under the total; the hardware card runs full width once the
+   drafted teams replace the Draft card */
+.cup-live-link {
+    grid-column: 1 / -1;
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 8px;
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.92rem;
+    text-decoration: underline;
+    text-decoration-color: rgba(232, 184, 107, 0.45);
+    text-underline-offset: 4px;
+}
+.cup-live-link:hover { color: var(--ink); }
+.cup-hardware.is-wide { grid-column: 1 / -1; }
+
+/* Standings pop-up: official Cup total, Live scores link, roster folded away */
+.standings-cup {
+    padding: 24px;
+    margin-bottom: 14px;
+    border-radius: 22px;
+    border: 1px solid rgba(232, 184, 107, 0.45);
+    background: radial-gradient(120% 120% at 50% 0%, rgba(232, 184, 107, 0.12), transparent 60%), var(--surface-2);
+}
+.standings-cup h3 { text-align: center; font-size: 1.4rem; font-weight: 500; margin-bottom: 18px; }
+.standings-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; text-align: center; }
+.standings-score .side span { font: 800 0.85rem var(--sans); letter-spacing: 0.2em; text-transform: uppercase; }
+.standings-score .blue span { color: var(--blue-team); }
+.standings-score .red span { color: var(--red-team); }
+.standings-score .side b { display: block; margin-top: 6px; font: 500 3rem/1 var(--serif); color: var(--ink); font-variant-numeric: tabular-nums lining-nums; }
+.standings-score .vs { font: italic 500 1.3rem var(--serif); color: var(--ink-dim); }
+.standings-note { margin-top: 14px; text-align: center; font-size: 0.85rem; color: var(--ink-muted); }
+.standings-teams { margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.standings-live {
+    display: flex;
+    align-items: center;
+    min-height: 56px;
+    margin-bottom: 22px;
+    padding: 12px 18px;
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: rgba(244, 235, 223, 0.03);
+    color: var(--ink);
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.standings-live:hover { border-color: var(--gold); background: rgba(232, 184, 107, 0.06); }
+.standings-live b { display: block; color: var(--gold); font-weight: 700; }
+.standings-live small { display: block; margin-top: 2px; font-size: 0.85rem; color: var(--ink-dim); }
+.standings-roster { border: 1px solid var(--line); border-radius: 14px; background: rgba(244, 235, 223, 0.02); }
+.standings-roster summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 12px 18px;
+    font-weight: 700;
+}
+.standings-roster summary::-webkit-details-marker { display: none; }
+.standings-roster summary:focus-visible { outline-offset: -3px; border-radius: 13px; }
+.standings-roster summary small { display: block; margin-top: 2px; font-size: 0.85rem; font-weight: 500; color: var(--ink-dim); }
+.standings-roster summary svg { width: 18px; height: 18px; flex: none; margin-left: auto; color: var(--ink-dim); transition: transform 0.25s; }
+.standings-roster[open] summary svg { transform: rotate(180deg); color: var(--gold); }
+.standings-roster .leaderboard-list { padding: 0 12px 14px; }
+@media (max-width: 640px) {
+    .standings-cup { padding: 20px 14px; }
+    .standings-score .side b { font-size: 2.6rem; }
+    .standings-live { padding: 10px 14px; }
+    .standings-roster summary { padding: 10px 14px; }
+    .standings-roster .leaderboard-list { padding: 0 6px 10px; }
+}
+
+/* ?preview=… ribbon, so a preview can't pass for the real thing */
+.preview-ribbon {
+    position: fixed;
+    left: 50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 5px 5px 5px 14px;
+    border-radius: 22px;
+    border: 1px dashed var(--gold);
+    background: rgba(14, 11, 9, 0.94);
+    color: var(--ink);
+    font: 600 0.78rem/1.3 var(--sans);
+    box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.85);
+}
+.preview-ribbon b { color: var(--gold); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.preview-ribbon-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--gold); }
+.preview-ribbon a {
+    position: relative;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--gold);
+    color: var(--bg);
+    font-weight: 800;
+}
+.preview-ribbon a::after { content: ''; position: absolute; inset: -4px; }

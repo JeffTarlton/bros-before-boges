@@ -20,7 +20,9 @@ const CAME_FROM_AUTH_LINK = /(^|[#&])(access_token|error_code|error)=/.test(wind
 
 // Other pages send people here to log in (?next=rsvp etc.). Once their login is linked to
 // a roster name they go straight back. `mode` opens the log-in or sign-up form on arrival.
-const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', admin: 'admin.html' };
+// `round` (keep score) and `board` (live scores) both go to the tracker, but someone who only
+// came to watch lands back on the scores, not on "Who is this phone scoring?".
+const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', board: 'round_tracker.html#board', admin: 'admin.html' };
 const NEXT = NEXT_PAGES[LINK_PARAMS.get('next')] ? LINK_PARAMS.get('next') : null;
 const START_MODE = ['login', 'register'].includes(LINK_PARAMS.get('mode')) ? LINK_PARAMS.get('mode') : null;
 const NEW_PLAYER = '__new';
@@ -65,6 +67,10 @@ const WALL = Object.assign({
         title: 'Keep score',
         text: 'Log in to start scoring a round. It’s the same player account you use to RSVP.'
     },
+    board: {
+        title: 'Live scores',
+        text: 'Log in to follow every match hole by hole. It’s the same player account you use to RSVP.'
+    },
     admin: {
         title: 'Commissioner login',
         text: 'Log in with your admin account.'
@@ -96,6 +102,9 @@ const busyWagers = new Set(); // bets with an action still saving: a second tap 
 let rsvpOut = null; // players whose latest RSVP for this trip is "out" (left out of the challenge list)
 let modalReturnFocus = null;
 let resetPending = OPENED_FROM_RESET_LINK; // don't leave the page before the new password is saved
+// "Settle up" on the homepage links to #ledger-panel, but the ledger only shows once the login
+// check and the board load finish, so the browser's own jump to it misses
+let openLedgerOnLoad = window.location.hash === '#ledger-panel';
 // 'checking' until the login check decides, then 'out', 'in' (logged in, can't bet yet),
 // 'dashboard', or 'leaving' (on the way back to ?next=)
 let wallState = 'checking';
@@ -723,8 +732,8 @@ async function loadSession() {
         return false;
     }
 
-    // The round tracker and Admin only need a login, not a roster name
-    if ((NEXT === 'round' || NEXT === 'admin') && !resetPending) {
+    // Keeping score, live scores and Admin only need a login, not a roster name
+    if (['round', 'board', 'admin'].includes(NEXT) && !resetPending) {
         goToNextPage();
         return true;
     }
@@ -783,6 +792,10 @@ async function loadSession() {
     showDashboard();
     showBoardSkeleton();
     await refreshBoard();
+    if (openLedgerOnLoad) {
+        openLedgerOnLoad = false;
+        document.getElementById('ledger-panel').scrollIntoView({ block: 'start' });
+    }
     return true;
 }
 
@@ -967,7 +980,7 @@ function friendlyAuthError(err) {
     const msg = (err && err.message) || String(err);
     if (/invalid login credentials/i.test(msg)) return 'That email and password don’t match. Try again, or tap “Forgot password?”.';
     if (/email not confirmed/i.test(msg)) return 'Confirm your email first: open the link we sent you, then log in here. Link expired? Tap “Forgot password?” below for a fresh one.';
-    if (/already registered/i.test(msg)) return 'That email already has a login (maybe from the Round Tracker or Admin). Log in with it instead, then pick your name to link it.';
+    if (/already registered/i.test(msg)) return 'That email already has a login (maybe from keeping score or Admin). Log in with it instead, then pick your name to link it.';
     if (/password should be at least/i.test(msg)) return 'Pick a password with at least 6 characters.';
     if (isMissingFunction(err)) return 'This part of the site is still being set up. Try again in a few minutes, or text the commissioner.';
     return msg;
@@ -2225,7 +2238,7 @@ async function handleAutoSettle(wager) {
         });
         const shared = Object.keys(byRound).filter(k => ids.every(pid => byRound[k].cards[pid])).sort().reverse();
         if (!shared.length) {
-            showToast('Auto-settle needs a round you’ve both finished (all 18 holes in the Live Tracker). Settle it by hand instead.', 'error');
+            showToast('Auto-settle needs a round you’ve both finished (all 18 holes in Live scores). Settle it by hand instead.', 'error');
             return;
         }
 

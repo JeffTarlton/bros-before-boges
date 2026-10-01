@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Round Tracker | Bros before Boges</title>
+    <title>Keep score &amp; live scores · Bros before Boges</title>
     <link rel="stylesheet" href="style.css?v=2027.9">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -537,7 +537,7 @@
                     <li><a href="index.html">Home</a></li>
                     <li><a href="bookie.html">The Bookie</a></li>
                     <li><a href="rules.html">Rules</a></li>
-                    <li><a href="bookie.html?next=round&amp;mode=login" id="nav-login" hidden>Log In</a></li>
+                    <li><a href="bookie.html?next=round&amp;mode=login" id="nav-login" hidden>Log in</a></li>
                 </ul>
             </nav>
             <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
@@ -551,7 +551,7 @@
     <main class="tracker" id="tracker">
         <!-- Setup: pick the round and who this phone scores -->
         <section class="view" id="view-setup" aria-labelledby="setup-title" hidden>
-            <h2 id="setup-title">Keep <span class="accent">Score</span></h2>
+            <h2 id="setup-title">Keep <span class="accent">score</span></h2>
             <p class="muted small" style="margin-bottom: 14px;">One phone per group. Pick the round and your group, then score hole by hole. Everything saves on this phone first, so a dead zone won’t lose a score.</p>
             <div id="setup-body"></div>
         </section>
@@ -569,7 +569,7 @@
 
         <!-- Board: every match, open to everyone -->
         <section class="view" id="view-board" aria-labelledby="board-title" hidden>
-            <h2 id="board-title">Live <span class="accent">Leaderboard</span></h2>
+            <h2 id="board-title">Live <span class="accent">scores</span></h2>
             <div id="board-body"><p class="muted">Loading…</p></div>
         </section>
     </main>
@@ -582,11 +582,11 @@
         </div>
     </div>
 
-    <nav class="bottom-nav tracker-nav" aria-label="Round Tracker">
-        <a class="bottom-nav-btn" href="#setup" data-view="setup"><span class="ico" aria-hidden="true">⛳</span><span>Keep Score</span></a>
+    <nav class="bottom-nav tracker-nav" aria-label="Keep score and live scores">
+        <a class="bottom-nav-btn" href="#setup" data-view="setup"><span class="ico" aria-hidden="true">⛳</span><span>Keep score</span></a>
         <a class="bottom-nav-btn" href="#score" data-view="score" hidden><span class="ico" aria-hidden="true">⛳</span><span>Score</span></a>
         <a class="bottom-nav-btn" href="#card" data-view="card" hidden><span class="ico" aria-hidden="true">📋</span><span>Card</span></a>
-        <a class="bottom-nav-btn" href="#board" data-view="board"><span class="ico" aria-hidden="true">🏆</span><span>Leaderboard</span></a>
+        <a class="bottom-nav-btn" href="#board" data-view="board"><span class="ico" aria-hidden="true">🏆</span><span>Live scores</span></a>
         <a class="bottom-nav-btn" href="bookie.html"><span class="ico" aria-hidden="true">💵</span><span>Bookie</span></a>
     </nav>
 
@@ -594,9 +594,9 @@
     <div id="sync-live" class="sr-only" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.8"></script>
+    <script src="trip-config.js?v=2027.10"></script>
     <script src="scoring.js?v=2027.9"></script>
-    <script src="round_tracker.js?v=2027.9"></script>
+    <script src="round_tracker.js?v=2027.10"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

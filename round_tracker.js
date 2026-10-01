@@ -8,7 +8,8 @@
 //   retries until it gets through, so a dead zone or a Safari reload never loses a score.
 //   localStorage is the source of truth for the outbox: every change re-reads it first, so two
 //   tabs on one phone can't erase each other's unsent scores.
-// - Coming back (reload, another app, the Bookie) reopens the same group on the same hole.
+// - Coming back (reload, another app, Back from the Bookie) reopens the same group on the same hole.
+//   Links from other pages open Live scores (#board); the Score tab there goes back to the hole.
 // - Formats come from trip-config.js `roundPlay`; the math lives in scoring.js.
 const SUPABASE_URL = 'https://gxpwgrdyizruzfczzqwn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
@@ -596,7 +597,7 @@ async function refreshSession() {
             reloadOutbox();
             Object.keys(S.outbox).forEach(k => { if (S.outbox[k].roundId === sess.roundId) delete S.outbox[k]; });
             saveOutbox();
-            showToast('That round was removed from the database. Start scoring again from Keep Score.', 'error');
+            showToast('That round was removed from the database. Start scoring again from Keep score.', 'error');
             endSession(true);
             return;
         }
@@ -800,6 +801,10 @@ function route() {
     const act = document.activeElement;
     const focusWasInView = S.view && (!act || act === document.body || ($(`view-${S.view}`) && $(`view-${S.view}`).contains(act)));
     S.view = view;
+    // The tab (and a home-screen bookmark) names the screen: watching or entering scores
+    document.title = `${view === 'board' ? 'Live scores' : 'Keep score'} · ${(CFG.trip && CFG.trip.name) || 'Bros before Boges'}`;
+    // ...and the header's Log in comes back to it (a spectator shouldn't land on the scoring setup)
+    $('nav-login').href = `bookie.html?next=${view === 'board' ? 'board' : 'round'}&mode=login`;
     VIEWS.forEach(v => { $(`view-${v}`).hidden = v !== view; });
     document.querySelectorAll('.tracker-nav [data-view]').forEach(a => {
         const v = a.dataset.view;
@@ -855,7 +860,7 @@ async function renderSetup() {
                 <p style="margin-bottom: 14px;">Log in to keep score. It’s the same login as The Bookie and your RSVP.</p>
                 <a class="t-btn gold block" href="bookie.html?next=round&amp;mode=login">Log in to keep score</a>
             </div>
-            <a class="t-btn block" href="#board">See the live leaderboard</a>`;
+            <a class="t-btn block" href="#board">See live scores</a>`;
         return;
     }
     if (S.loadError && (!S.players.length || !S.courses.length || !S.me)) {
@@ -863,11 +868,11 @@ async function renderSetup() {
         return;
     }
     if (S.me && S.me.status === 'potential') {
-        body.innerHTML = `${waiting}<div class="notice">The commissioner still needs to confirm you for the trip before you can keep score. You can still follow the <a href="#board">leaderboard</a>.</div>`;
+        body.innerHTML = `${waiting}<div class="notice">The commissioner still needs to confirm you for the trip before you can keep score. You can still follow the <a href="#board">live scores</a>.</div>`;
         return;
     }
     if (!S.me || S.me.user_id !== S.authUser.id) {
-        body.innerHTML = `${waiting}<div class="notice">Your login isn’t linked to your name on the roster yet, so it can’t keep score. <a href="bookie.html">Open The Bookie</a> and pick your name, then come back.</div><a class="t-btn block" href="#board">See the live leaderboard</a>`;
+        body.innerHTML = `${waiting}<div class="notice">Your login isn’t linked to your name on the roster yet, so it can’t keep score. <a href="bookie.html">Open The Bookie</a> and pick your name, then come back.</div><a class="t-btn block" href="#board">See live scores</a>`;
         return;
     }
     if (!S.setup) S.setup = defaultSetup();
@@ -1076,7 +1081,7 @@ function renderScore() {
         <p class="muted small legend">A gold dot on a score means it hasn’t reached the database yet. It keeps trying.</p>
         <div class="btn-row" style="margin-top: 14px; justify-content: space-between;">
             <a class="t-btn small ghost" href="#setup">Change group</a>
-            <a class="t-btn small ghost" href="#board">Leaderboard</a>
+            <a class="t-btn small ghost" href="#board">Live scores</a>
         </div>`;
     if (armLeft > 0) {
         setTimeout(() => {
@@ -1364,7 +1369,7 @@ function renderBoard() {
     if (B.error[n]) html += `<div class="notice error">Couldn’t update just now${isNetworkError(B.error[n]) ? ' (no signal)' : ''}. Showing the last scores that loaded.</div>`;
 
     if (!data.rows.length) {
-        html += `<div class="panel"><p class="muted">No scores for Round ${n} yet.${S.authUser ? ' They show up here as groups enter them.' : ' If a round is under way, <a href="bookie.html?next=round&amp;mode=login">log in</a> to see it.'}</p></div>`;
+        html += `<div class="panel"><p class="muted">No scores for Round ${n} yet.${S.authUser ? ' They show up here as groups enter them.' : ' If a round is under way, <a href="bookie.html?next=board&amp;mode=login">log in</a> to see it.'}</p></div>`;
     }
 
     if (matches.length && format.key !== 'stroke' && data.rows.length) {
@@ -1443,9 +1448,9 @@ function renderBoard() {
 
 function boardErrorHTML(err) {
     if (!S.authUser && !isNetworkError(err)) {
-        return `<div class="notice">Log in to see live scores. <a href="bookie.html?next=round&amp;mode=login">Log in</a></div>`;
+        return `<div class="notice">Log in to see live scores. <a href="bookie.html?next=board&amp;mode=login">Log in</a></div>`;
     }
-    return `<div class="notice error">Couldn’t load the leaderboard${isNetworkError(err) ? ' (no signal)' : ''}.</div><button type="button" class="t-btn block" data-action="board-refresh">Try again</button>`;
+    return `<div class="notice error">Couldn’t load live scores${isNetworkError(err) ? ' (no signal)' : ''}.</div><button type="button" class="t-btn block" data-action="board-refresh">Try again</button>`;
 }
 
 // ==========================================
