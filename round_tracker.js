@@ -23,6 +23,7 @@ const OUTBOX_KEY = 'bbb_tracker_outbox';
 const REFRESH_MS = 45000;
 const BOARD_STALE_MS = 30000;
 const NEXT_ARM_MS = 700; // how long a freshly shown next-hole button ignores taps
+const NEXT_ARM_COVER_MS = 1500; // ...when it's pinned over a player's buttons (a short phone)
 // Rounds before this date belong to earlier trips
 const WINDOW_START = (CFG.bookie && CFG.bookie.seasonStart) || (CFG.trip && CFG.trip.dates && CFG.trip.dates.start) || '2000-01-01';
 
@@ -44,6 +45,7 @@ const S = {
     board: { round: null, data: {}, loading: {}, error: {}, at: {}, tried: {} },
     keypad: null,
     nextShown: { key: null, at: 0 }, // which hole's next button is showing, and since when
+    legendOn: false,     // the gold-dot legend is showing (a send failed or is slow, and scores are still waiting)
     ready: false,        // login and roster checked
     droppedStale: null,  // a group left open from an earlier day
     warnedOtherPhone: false
@@ -298,6 +300,38 @@ function pendingFor(roundId, pid, hole) {
 function pendingCount() {
     return Object.keys(S.outbox).length;
 }
+// Unsent scores in the round this phone is scoring (what the gold dots mark)
+function roundPending() {
+    return !!S.sess && Object.values(S.outbox).some(o => o.roundId === S.sess.roundId);
+}
+// The gold-dot legend shows once a score couldn't go straight up (no signal, logged out, refused,
+// or a send that's still hanging after a few seconds on one bar) and stays until this round's
+// scores are all sent, so a normal quick save never flashes it
+const LEGEND_AFTER_MS = 4000;
+let legendTimer = null;
+function legendShown() {
+    clearTimeout(legendTimer);
+    if (!roundPending()) { S.legendOn = false; return false; }
+    if (S.legendOn) return true;
+    // Before start-up has checked the login and the database, "no client yet" means nothing
+    if (['offline', 'auth', 'error'].includes(S.sync) || (S.ready && (!sb || !S.authUser))) {
+        S.legendOn = true;
+        return true;
+    }
+    const oldest = Math.min(...Object.values(S.outbox).filter(o => o.roundId === S.sess.roundId).map(o => o.at || 0));
+    const wait = LEGEND_AFTER_MS - (Date.now() - oldest);
+    if (wait <= 0) { S.legendOn = true; return true; }
+    // A hung request triggers no redraw: look again when the oldest score has waited long enough
+    legendTimer = setTimeout(applyLegend, wait + 50);
+    return false;
+}
+function applyLegend() {
+    const on = legendShown();
+    document.querySelectorAll('[data-legend]').forEach(el => {
+        el.classList.toggle('off', !on);
+        el.setAttribute('aria-hidden', String(!on));
+    });
+}
 
 // The groups this phone enters: a two-man side sharing a ball is one row; everyone else is one row each
 function unitsOf(sess) {
@@ -349,6 +383,11 @@ function unitPoints(holes, pars) {
     return holes.reduce((s, v, i) => s + SC.quotaPoints(v, pars[i]), 0);
 }
 const ptsText = n => `${n} pt${n === 1 ? '' : 's'}`;
+// The score's name for screen readers (on screen it's the circle or square around the digit)
+const KIND_WORDS = { ace: 'hole in one', albatross: 'albatross', eagle: 'eagle', birdie: 'birdie', par: 'par', bogey: 'bogey', double: 'double bogey', worse: 'triple bogey or worse' };
+const kindText = kind => (KIND_WORDS[kind] ? ` (${KIND_WORDS[kind]})` : '');
+// The digit the circle or square is drawn around (a 10+ gets a smaller digit to clear the inner ring)
+const digitHTML = v => `<span class="digit${v >= 10 ? ' two' : ''}">${v}</span>`;
 
 // Matches that involve anyone this phone scores
 function trackedMatches(sess) {
@@ -529,6 +568,8 @@ function renderSyncOnly() {
     const text = syncText();
     if (live && text !== lastAnnounced) { live.textContent = text; lastAnnounced = text; }
     if (!pendingCount()) document.querySelectorAll('[data-waiting]').forEach(n => n.remove());
+    // The gold-dot legend shows only while there are gold dots to explain
+    applyLegend();
     if (!S.sess) return;
     // Unsent marks on the score buttons and card cells
     document.querySelectorAll('[data-pend-ids]').forEach(el => {
@@ -993,14 +1034,18 @@ function holeStatusLines() {
     }).join('');
 }
 
+// "2 pts · E thru 1 · 4" as HTML parts: on a narrow row the later parts drop out whole
 function unitSubline(unit) {
     const sess = S.sess;
     const format = formatOf(sess.roundNumber);
     const holes = unitHoles(unit);
     const t = SC.totals(holes, sess.pars);
     if (!t.thru) return 'No scores yet';
-    const line = `${SC.fmtToPar(t.toPar)} thru ${t.thru} · ${t.strokes}`;
-    return format.key === 'points' ? `${ptsText(unitPoints(holes, sess.pars))} · ${line}` : line;
+    const toPar = SC.fmtToPar(t.toPar);
+    const segs = format.key === 'points'
+        ? [ptsText(unitPoints(holes, sess.pars)), `· ${toPar}`, `thru ${t.thru}`, `· ${t.strokes}`]
+        : [toPar, `thru ${t.thru}`, `· ${t.strokes}`];
+    return segs.map(s => `<span class="seg">${escHtml(s)}</span>`).join(' ');
 }
 
 // Re-render the Score view, keeping keyboard focus on the same control
@@ -1042,11 +1087,11 @@ function renderScore() {
             <div class="unit${u.team ? ` t${u.team}` : ''}">
                 <div style="min-width: 0;">
                     <div class="unit-name">${escHtml(name)}</div>
-                    <div class="unit-sub">${escHtml(unitSubline(u))}</div>
+                    <div class="unit-sub">${unitSubline(u)}</div>
                 </div>
                 <div class="stepper">
                     <button type="button" class="step minus" data-action="minus" data-unit="${i}" aria-label="One stroke fewer for ${escHtml(unitName(u))} on hole ${h}"${v === 1 ? ' disabled' : ''}>−</button>
-                    <button type="button" class="score-value${v !== null ? ` set ${kind}` : ''}${pend ? ' pend' : ''}" data-action="keypad" data-unit="${i}" data-pend-ids="${escHtml(u.ids.join(','))}" data-pend-hole="${h}" aria-label="${escHtml(unitName(u))}: ${v !== null ? `${v} on hole ${h}` : `no score on hole ${h}`}. Pick a score." title="${pend ? 'Not sent yet' : ''}">${v !== null ? v : '·'}</button>
+                    <button type="button" class="score-value${v !== null ? ` set ${kind}` : ''}${pend ? ' pend' : ''}" data-action="keypad" data-unit="${i}" data-pend-ids="${escHtml(u.ids.join(','))}" data-pend-hole="${h}" aria-label="${escHtml(unitName(u))}: ${v !== null ? `${v}${kindText(kind)} on hole ${h}` : `no score on hole ${h}`}. Pick a score." title="${pend ? 'Not sent yet' : ''}">${v !== null ? digitHTML(v) : '·'}</button>
                     <button type="button" class="step plus" data-action="plus" data-unit="${i}" aria-label="One stroke more for ${escHtml(unitName(u))} on hole ${h}"${cap && v !== null && v >= cap ? ' disabled' : ''}>+</button>
                 </div>
             </div>`;
@@ -1061,12 +1106,13 @@ function renderScore() {
     else if (allIn && h === HOLES) next = '<a class="t-btn gold block" href="#card">All 18 in. Check the card →</a>';
     // The button appears right under the thumb as the last score goes in: ignore taps for a moment
     const nextKey = next ? `${sess.roundNumber}:${h}` : null;
-    if (nextKey !== S.nextShown.key) S.nextShown = { key: nextKey, at: Date.now() };
-    const armLeft = nextKey ? NEXT_ARM_MS - (Date.now() - S.nextShown.at) : 0;
+    if (nextKey !== S.nextShown.key) S.nextShown = { key: nextKey, at: Date.now(), cover: false };
 
+    const roundLine = `Round ${sess.roundNumber}${sess.courseName ? ` · ${sess.courseName}` : ''}`;
+    const legendOn = legendShown();
     body.innerHTML = `
         <div class="score-top">
-            <div class="eyebrow">Round ${sess.roundNumber}${sess.courseName ? ` · ${escHtml(sess.courseName)}` : ''}</div>
+            <div class="eyebrow" title="${escHtml(roundLine)}">${escHtml(roundLine)}</div>
             <div data-sync>${syncChipHTML()}</div>
         </div>
         <div class="hole-head">
@@ -1077,17 +1123,25 @@ function renderScore() {
         <div class="hole-strip" role="group" aria-label="Jump to a hole">${strip}</div>
         <div class="status-lines">${holeStatusLines()}</div>
         ${rows || '<p class="muted">Nobody to score. Tap Change group to pick your group.</p>'}
-        <div class="next-bar${armLeft > 0 ? ' arming' : ''}">${next}</div>
-        <p class="muted small legend">A gold dot on a score means it hasn’t reached the database yet. It keeps trying.</p>
+        <div class="next-bar${nextKey && armLeft() > 0 ? ' arming' : ''}">${next}</div>
+        <p class="legend${legendOn ? '' : ' off'}" data-legend aria-hidden="${!legendOn}"><span class="legend-dot" aria-hidden="true"></span><span>Gold dot = not sent yet. It keeps trying.</span></p>
         <div class="btn-row" style="margin-top: 14px; justify-content: space-between;">
             <a class="t-btn small ghost" href="#setup">Change group</a>
             <a class="t-btn small ghost" href="#board">Live scores</a>
         </div>`;
-    if (armLeft > 0) {
-        setTimeout(() => {
-            const bar = $('score-body').querySelector('.next-bar');
-            if (bar && S.nextShown.key === nextKey) bar.classList.remove('arming');
-        }, armLeft);
+    if (nextKey) {
+        const bar = body.querySelector('.next-bar');
+        S.nextShown.cover = barCoversSteppers(bar);
+        const left = armLeft();
+        bar.classList.toggle('arming', left > 0);
+        if (left > 0) {
+            setTimeout(() => {
+                // Re-armed since (another tap on a stepper): that redraw set its own, later timer
+                if (S.nextShown.key !== nextKey || armLeft() > 15) return;
+                const now = $('score-body').querySelector('.next-bar');
+                if (now) now.classList.remove('arming');
+            }, left);
+        }
     }
     // Keep the current hole visible in the strip, without scrolling the page
     centerInStrip(body.querySelector('.hole-strip'), '[aria-current="true"]');
@@ -1139,7 +1193,27 @@ function stepScore(unitIndex, delta) {
     if (next === v) return;
     setScore(unit, h, next);
     if (navigator.vibrate) navigator.vibrate(10);
+    rearmNext();
     renderScore();
+}
+
+// Still fixing a score on a finished hole: the Hole N+1 button ignores taps again for a moment, so
+// a run of taps on a stepper near it can't end on it
+function rearmNext() {
+    if (S.nextShown.key) S.nextShown.at = Date.now();
+}
+// How much longer the Hole N+1 button ignores taps (longer while it's pinned over a player's buttons,
+// where the taps that reach it are meant for the stepper underneath)
+function armLeft() {
+    return (S.nextShown.cover ? NEXT_ARM_COVER_MS : NEXT_ARM_MS) - (Date.now() - S.nextShown.at);
+}
+function barCoversSteppers(bar) {
+    if (!bar) return false;
+    const b = bar.getBoundingClientRect();
+    return [...$('score-body').querySelectorAll('.unit .stepper')].some(s => {
+        const r = s.getBoundingClientRect();
+        return r.bottom > b.top + 1 && r.top < b.bottom - 1;
+    });
 }
 
 // ---------- Keypad
@@ -1189,6 +1263,7 @@ function pickFromKeypad(value) {
     closeKeypad();
     if (!unit) return;
     setScore(unit, S.sess.hole, value === '' ? null : Number(value));
+    rearmNext();
     renderScore();
     const again = document.querySelector(`#score-body [data-action="keypad"][data-unit="${k.unitIndex}"]`);
     if (again) again.focus({ preventScroll: true });
@@ -1205,6 +1280,16 @@ function renderCard() {
     }
     const format = formatOf(sess.roundNumber);
     const units = unitsOf(sess);
+    // First names keep the name column narrow, so the hole cells get the room ("David O." when two
+    // players share a first name; a pair shows one name per line). The full name is in the title and
+    // in every cell's label.
+    const firsts = units.filter(u => u.ids.length === 1).map(u => firstName(nameOf(u.ids[0])));
+    const cardName = u => {
+        if (u.ids.length > 1) return u.ids.map(id => `<span class="pair">${escHtml(firstName(nameOf(id)))}</span>`).join('');
+        const full = nameOf(u.ids[0]);
+        const first = firstName(full);
+        return escHtml(firsts.filter(f => f === first).length > 1 ? shortName(full) : first);
+    };
     const table = (from, to, label) => {
         const holes = Array.from({ length: to - from + 1 }, (_, i) => from + i);
         const parSum = holes.reduce((s, h) => s + sess.pars[h - 1], 0);
@@ -1219,9 +1304,10 @@ function renderCard() {
                             const cells = holes.map(h => {
                                 const v = unitValue(u, h);
                                 if (v !== null) sum += v;
-                                return `<td><button type="button" data-action="card-hole" data-hole="${h}" data-pend-ids="${escHtml(u.ids.join(','))}" data-pend-hole="${h}" class="${SC.scoreName(v, sess.pars[h - 1])}${unitPending(u, h) ? ' pend' : ''}" aria-label="${escHtml(unitName(u))}, hole ${h}: ${v !== null ? v : 'no score'}">${v !== null ? v : '·'}</button></td>`;
+                                const kind = SC.scoreName(v, sess.pars[h - 1]);
+                                return `<td><button type="button" data-action="card-hole" data-hole="${h}" data-pend-ids="${escHtml(u.ids.join(','))}" data-pend-hole="${h}" class="${kind}${unitPending(u, h) ? ' pend' : ''}" aria-label="${escHtml(unitName(u))}, hole ${h}: ${v !== null ? `${v}${kindText(kind)}` : 'no score'}">${v !== null ? digitHTML(v) : '·'}</button></td>`;
                             }).join('');
-                            return `<tr><th class="name" scope="row">${escHtml(unitName(u, true))}</th>${cells}<td class="sum">${sum || '–'}</td></tr>`;
+                            return `<tr><th class="name" scope="row" title="${escHtml(unitName(u))}">${cardName(u)}</th>${cells}<td class="sum">${sum || '–'}</td></tr>`;
                         }).join('')}
                     </tbody>
                 </table>
@@ -1243,6 +1329,7 @@ function renderCard() {
         <p class="muted small" style="margin-bottom: 10px;">Tap any score to fix it. A gold dot means it hasn’t reached the database yet.</p>
         ${table(1, 9, 'Front')}
         ${table(10, 18, 'Back')}
+        <p class="card-key"><span class="k birdie"><span class="digit" aria-hidden="true"></span>birdie</span><span class="k eagle"><span class="digit" aria-hidden="true"></span>eagle+</span><span class="k bogey"><span class="digit" aria-hidden="true"></span>bogey</span><span class="k double"><span class="digit" aria-hidden="true"></span>double+</span></p>
         <div class="status-lines">${totalsList}</div>
         <div class="status-lines">${holeStatusLines()}</div>
         <div class="panel" style="margin-top: 14px;">
