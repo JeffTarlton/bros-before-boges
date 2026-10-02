@@ -494,8 +494,11 @@
         .answer-none { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6); }
         .answer-new { background: rgba(96, 165, 250, 0.18); color: #93c5fd; margin-left: 6px; }
 
+        .rsvp-answer { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+        .rsvp-sunday { font-size: 0.8rem; font-weight: 700; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
         .rsvp-note { max-width: 260px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.8); white-space: pre-wrap; overflow-wrap: anywhere; }
         .rsvp-muted { color: rgba(255, 255, 255, 0.45); font-size: 0.85rem; }
+        .rsvp-when { white-space: nowrap; }
         .rsvp-history summary { cursor: pointer; color: var(--admin-accent); font-size: 0.85rem; }
         .rsvp-history ul { margin: 8px 0 0; padding-left: 16px; font-size: 0.8rem; color: rgba(255, 255, 255, 0.7); line-height: 1.6; }
         .rsvp-message { padding: 30px; text-align: center; color: rgba(255, 255, 255, 0.6); }
@@ -541,6 +544,7 @@
         }
 
         .rsvp-approved a.admin-btn { display: inline-flex; align-items: center; text-decoration: none; }
+        .rsvp-approved li > span b { overflow-wrap: anywhere; }
 
         .rsvp-approved .rsvp-dismiss {
             flex: 0 0 auto;
@@ -614,12 +618,38 @@
 
         /* Desktop roster: room for full names; a handicap needs only a few characters */
         @media (min-width: 1025px) {
-            #tab-roster .admin-table td[data-label="Name"] { min-width: 190px; }
-            #tab-roster .admin-table td[data-label="Handicap"] { width: 110px; }
+            #tab-roster .admin-table td[data-label="Name"] { min-width: 165px; }
+            #tab-roster .admin-table td[data-label="Email"] { min-width: 150px; }
+            #tab-roster .admin-table td[data-label="GHIN"] { min-width: 100px; }
+            #tab-roster .admin-table td[data-label="Handicap"] { width: 90px; }
+            /* One line, never split at a hyphen; a very long one ends in "…" (the full one is in the button's
+               title and its screen-reader text) so it can't squeeze the Name column */
+            #tab-roster .venmo-handle {
+                display: block;
+                max-width: 110px;
+                overflow: hidden;
+                font-size: 0.8rem;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
 
-            /* RSVPs: eight columns fit the panel without a sideways scrollbar */
+            /* Roster: seven columns, with room left for typing emails (and full names in the Name box) */
+            #tab-roster .admin-table th,
+            #tab-roster .admin-table td { padding-left: 6px; padding-right: 6px; }
+            #tab-roster .admin-table .edit-input { padding-left: 9px; padding-right: 9px; }
+            #tab-roster .admin-table .cell-btn { padding-left: 9px; padding-right: 9px; }
+
+            /* RSVPs: eight columns fit the panel without a sideways scrollbar, with room for notes */
             #tab-rsvps .admin-table th,
-            #tab-rsvps .admin-table td { padding-left: 12px; padding-right: 12px; }
+            #tab-rsvps .admin-table td { padding-left: 8px; padding-right: 8px; }
+            #tab-rsvps .admin-table .cell-btn { padding-left: 9px; padding-right: 9px; }
+            /* A very long login email wraps (at the @ first) rather than taking the notes' room */
+            #tab-rsvps .admin-table td[data-label="Account"] { min-width: 114px; max-width: 150px; }
+            #tab-rsvps .acct-email { overflow-wrap: anywhere; }
+            /* Notes are only visible here: never squeezed to a sliver */
+            #tab-rsvps .admin-table td[data-label="Note"] { min-width: 110px; }
+            /* "Sep 29, 11:13 AM" may break after the date (nowhere else) to make room */
+            #tab-rsvps .rsvp-when { white-space: normal; }
 
             /* Score Entry: Total and To Par stay pinned beside the name while the holes scroll.
                admin.js measures the columns and sets the offsets (pinScoreEntryTotals). */
@@ -779,6 +809,182 @@
         .toast-close:hover,
         .toast-close:focus-visible { color: #fff; background: rgba(255, 255, 255, 0.08); }
 
+        /* ── Payments: Paid (RSVPs), Venmo (roster), who's signed in as each name ── */
+        .cell-btn {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
+            max-width: 100%;
+            margin: 0;
+            padding: 6px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            line-height: 1.25;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .cell-btn:hover { border-color: var(--admin-accent); background: rgba(16, 185, 129, 0.1); }
+        .cell-btn:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+        .cell-btn.is-empty { border-style: dashed; color: var(--admin-accent); }
+        .venmo-handle { overflow-wrap: anywhere; }
+
+        .answer-claim { background: rgba(251, 191, 36, 0.18); color: #fbbf24; margin-left: 6px; }
+        .acct { display: grid; gap: 2px; min-width: 0; }
+        .acct-email { font-size: 0.85rem; overflow-wrap: break-word; }
+        .acct-warn,
+        .login-line.is-warn { color: #fbbf24; }
+        .acct-warn { font-size: 0.75rem; font-weight: 700; }
+        .login-line { margin-top: 6px; font-size: 0.85rem; line-height: 1.45; color: rgba(255, 255, 255, 0.7); overflow-wrap: anywhere; }
+        .login-line b { color: #fff; }
+        .rsvp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .rsvp-actions .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 6px 14px; font-size: 0.8rem; }
+        .pot-who { flex: 1 1 260px; min-width: 0; }
+
+        /* "Being set up" (or couldn't load) above the column it explains */
+        .setup-note {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin: 0 0 18px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+
+        .setup-note[hidden] { display: none; }
+        .setup-note.is-error { border-color: rgba(239, 68, 68, 0.45); color: #fecaca; }
+        .setup-note .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 8px 16px; font-size: 0.85rem; }
+
+        /* RSVP-by date: the date big on top like the counts, read as "RSVPs due Nov 30" */
+        .rsvp-pill-due { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+        .rsvp-pill-due.is-past b { color: #fbbf24; }
+
+        /* Sheets: trip payments and Venmo usernames (a bottom sheet on phones) */
+        .sheet .sheet-box { position: relative; max-width: 480px; padding: 32px 28px 28px; }
+        .sheet .sheet-box h3 { padding-right: 40px; }
+        .sheet .sheet-box h3:focus { outline: none; }
+        .sheet .modal-sub { margin-bottom: 16px; color: rgba(255, 255, 255, 0.65); }
+        .sheet .admin-input { margin: 0; }
+        .sheet-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.6rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .sheet-close:hover,
+        .sheet-close:focus-visible { color: #fff; background: rgba(255, 255, 255, 0.08); outline: 2px solid var(--admin-gold); outline-offset: 0; }
+        .pay-total { margin: 0 0 12px; font-weight: 700; color: #fff; }
+        .pay-total span { font-weight: 500; color: rgba(255, 255, 255, 0.6); }
+        .pay-list { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 8px; }
+        .pay-list li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 8px 8px 14px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pay-item { flex: 1; min-width: 0; font-size: 0.9rem; }
+        .pay-item b { color: #fff; }
+        .pay-item-date { color: rgba(255, 255, 255, 0.65); }
+        .pay-item-trip { color: rgba(255, 255, 255, 0.65); font-size: 0.8rem; font-weight: 700; }
+        .pay-item-note { margin-top: 2px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.75); overflow-wrap: anywhere; }
+        .pay-del {
+            flex: 0 0 auto;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0 12px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #fca5a5;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .pay-del:hover,
+        .pay-del:focus-visible { background: rgba(239, 68, 68, 0.15); color: #fecaca; outline: 2px solid var(--admin-gold); outline-offset: 0; }
+        .pay-del:disabled { opacity: 0.5; cursor: wait; }
+        .pay-list[hidden],
+        .pay-other[hidden] { display: none; }
+        .pay-other { margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        .pay-other h4 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.05rem; color: #fff; }
+        .pay-other .field-hint { margin: 4px 0 12px; }
+        .pay-other .pay-list { margin-bottom: 0; }
+        .pay-form h4 { margin: 0 0 12px; font-family: 'Outfit', sans-serif; font-size: 1.05rem; color: #fff; }
+        .pay-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 12px; }
+        .pay-form .modal-field,
+        #venmo-form .modal-field { margin-bottom: 14px; }
+        .money-wrap { position: relative; }
+        .money-wrap > span {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.55);
+            font-weight: 700;
+            pointer-events: none;
+        }
+
+        .money-wrap > .admin-input { padding-left: 30px; }
+        .sheet input[type="date"] { color-scheme: dark; min-height: 52px; }
+        .field-hint { margin: 6px 0 0; font-size: 0.8rem; line-height: 1.45; color: rgba(255, 255, 255, 0.6); }
+        .field-hint.is-warn { color: #fbbf24; font-weight: 600; }
+        .field-hint:empty { display: none; }
+        .sheet-error { margin: 0 0 4px; color: #fca5a5; font-size: 0.9rem; font-weight: 600; line-height: 1.4; }
+        .sheet .modal-actions { margin-top: 18px; }
+        .venmo-check-wrap { margin: 0 0 12px; display: grid; gap: 2px; }
+        .venmo-check-wrap[hidden] { display: none; }
+        .venmo-check-wrap a {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 44px;
+            color: var(--admin-accent);
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .venmo-check-wrap a:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+
+        @media (max-width: 600px) {
+            .sheet { align-items: flex-end; }
+            .sheet .sheet-box {
+                max-width: none;
+                max-height: 90vh;
+                border-radius: 20px 20px 0 0;
+                padding: 26px 16px calc(20px + env(safe-area-inset-bottom));
+            }
+
+            .pay-form-row { grid-template-columns: minmax(0, 1fr); }
+        }
+
         @media (max-width: 1024px) {
             .rsvp-note { max-width: none; text-align: right; }
             .dashboard.active {
@@ -858,6 +1064,18 @@
             }
 
             #tab-roster .admin-table .edit-input { width: 100%; text-align: left; }
+
+            /* RSVP cards: a long name and its badge wrap (badge under the name) instead of overflowing */
+            #tab-rsvps .admin-table td[data-label="Player"] { flex-wrap: wrap; justify-content: flex-end; gap: 4px 6px; }
+            #tab-rsvps .admin-table td[data-label="Player"]::before { margin-right: auto; }
+
+            /* Payments cells in the cards: the value on the right, like the other rows */
+            /* A long login email and its warning wrap inside the card (anywhere, not only at the @) */
+            .admin-table .acct { justify-items: end; text-align: right; grid-template-columns: minmax(0, 1fr); max-width: 100%; }
+            .admin-table .acct-email { overflow-wrap: anywhere; }
+            .admin-table .rsvp-answer { justify-content: flex-end; }
+            .admin-table .rsvp-actions { justify-content: flex-end; }
+            .admin-table .cell-btn { align-items: flex-end; text-align: right; }
 
             /* Score Entry cards: name and totals on top, the 18 holes in a 6-wide grid */
             .score-entry-table tr[data-player-id] {
@@ -1025,6 +1243,8 @@
                             style="width: auto; margin-top: 0; padding: 10px 20px;">+ Add
                             Player</button>
                     </div>
+                    <!-- Venmo usernames: why the column has nothing to show yet -->
+                    <div class="setup-note" id="roster-pay-note" hidden></div>
                     <div class="table-responsive" style="overflow-x: auto; width: 100%;">
                         <table class="admin-table">
                             <thead>
@@ -1033,6 +1253,7 @@
                                     <th>Email</th>
                                     <th>GHIN</th>
                                     <th>Handicap</th>
+                                    <th>Venmo</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -1040,7 +1261,7 @@
                             <tbody id="roster-tbody">
                                 <!-- Populated by JS -->
                                 <tr>
-                                    <td colspan="6"
+                                    <td colspan="7"
                                         style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
                                         Loading roster data...
                                     </td>
@@ -1054,7 +1275,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
                         <div style="flex: 1; min-width: 240px;">
                             <h2>RSVPs <span id="rsvp-admin-year" style="color: var(--admin-accent);"></span></h2>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Each player’s latest answer, from their own login. Notes are only visible here. New sign-ups stay off the public head count until you approve them.</p>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Each player’s latest answer, from their own login. Notes are only visible here. New sign-ups stay off the public head count until you approve them. Paid is what you’ve recorded toward the trip; each player sees only his own.</p>
                         </div>
                         <div class="rsvp-tools">
                             <button type="button" id="rsvp-invite-btn" class="admin-btn secondary">Copy invite link</button>
@@ -1063,6 +1284,8 @@
                         </div>
                     </div>
                     <div class="rsvp-summary" id="rsvp-summary"></div>
+                    <!-- Trip payments: why the Paid column has nothing to show yet -->
+                    <div class="setup-note" id="rsvp-pay-note" hidden></div>
                     <div class="rsvp-filters" id="rsvp-filters" role="toolbar" aria-label="Filter RSVPs">
                         <button type="button" data-rsvp-filter="all" aria-pressed="true">Everyone</button>
                         <button type="button" data-rsvp-filter="in" aria-pressed="false">In</button>
@@ -1086,9 +1309,9 @@
                                     <th>Player</th>
                                     <th>Answer</th>
                                     <th>Answered</th>
-                                    <th>Sunday</th>
                                     <th>Note</th>
                                     <th>Account</th>
+                                    <th>Paid</th>
                                     <th>History</th>
                                     <th></th>
                                 </tr>
@@ -1166,6 +1389,11 @@
                         Players who signed up (or you added here) but aren’t confirmed yet. They stay off the head
                         count and out of The Bookie until approved. Approve here takes effect when you press Save
                         Changes; Approve on the RSVPs tab is instant.
+                    </p>
+                    <p style="color: var(--text-muted); margin: -18px 0 30px; font-size: 0.9rem;">
+                        <b style="color: #fbbf24;">Claimed name</b> or <b style="color: #fbbf24;">Check login</b>: someone
+                        signed in as this name (usually by picking it from the roster), but his login isn’t the email on
+                        that roster row. Check the login shown, then press Approve this login or Not him. Both save right away.
                     </p>
 
                     <div class="glass-panel" style="padding: 20px; margin-bottom: 30px; display: flex; gap: 10px;">
@@ -1304,6 +1532,81 @@
         </div>
     </div>
 
+    <!-- Trip payments for one player (RSVPs tab, Paid column). Adds and deletes save right away. -->
+    <div id="pay-sheet" class="modal-overlay sheet" role="dialog" aria-modal="true" aria-labelledby="pay-sheet-title" aria-describedby="pay-sheet-sub">
+        <div class="modal-box sheet-box">
+            <button type="button" class="sheet-close" data-sheet-close aria-label="Close">×</button>
+            <h3 id="pay-sheet-title">Trip payments</h3>
+            <p class="modal-sub" id="pay-sheet-sub"></p>
+            <p class="pay-total" id="pay-sheet-total"></p>
+            <ul class="pay-list" id="pay-sheet-list" aria-label="Payments recorded"></ul>
+            <form id="pay-form" class="pay-form" novalidate>
+                <h4>Add a payment</h4>
+                <div class="pay-form-row">
+                    <div class="modal-field">
+                        <label for="pay-amount">Amount</label>
+                        <div class="money-wrap">
+                            <span aria-hidden="true">$</span>
+                            <input type="text" id="pay-amount" class="admin-input" inputmode="decimal" autocomplete="off"
+                                placeholder="800" aria-describedby="pay-error">
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label for="pay-date">Paid on</label>
+                        <input type="date" id="pay-date" class="admin-input" min="2020-01-01" aria-describedby="pay-error">
+                    </div>
+                </div>
+                <div class="modal-field">
+                    <label for="pay-note">Note (optional)</label>
+                    <input type="text" id="pay-note" class="admin-input" maxlength="200" autocomplete="off"
+                        placeholder="e.g. Deposit (Venmo)" aria-describedby="pay-note-hint pay-error">
+                    <p class="field-hint is-warn" id="pay-note-hint">The player can see this note.</p>
+                </div>
+                <p class="sheet-error" id="pay-error" role="alert" hidden></p>
+                <div class="modal-actions">
+                    <button type="button" class="admin-btn secondary" data-sheet-close>Done</button>
+                    <button type="submit" class="admin-btn" id="pay-add-btn">Add payment</button>
+                </div>
+            </form>
+            <!-- Payments recorded for other trip years: not in this year's total, kept as the record of those trips -->
+            <div class="pay-other" id="pay-sheet-other" hidden>
+                <h4 id="pay-sheet-other-title">Other trips</h4>
+                <p class="field-hint" id="pay-sheet-other-hint"></p>
+                <ul class="pay-list" id="pay-sheet-other-list" aria-labelledby="pay-sheet-other-title"></ul>
+            </div>
+            <p class="sr-only" id="pay-sheet-status" role="status"></p>
+        </div>
+    </div>
+
+    <!-- One player's Venmo username (Confirmed Roster, Venmo column). Saves right away. -->
+    <div id="venmo-sheet" class="modal-overlay sheet" role="dialog" aria-modal="true" aria-labelledby="venmo-sheet-title" aria-describedby="venmo-sheet-sub">
+        <div class="modal-box sheet-box">
+            <button type="button" class="sheet-close" data-sheet-close aria-label="Close">×</button>
+            <h3 id="venmo-sheet-title">Venmo</h3>
+            <p class="modal-sub" id="venmo-sheet-sub"></p>
+            <form id="venmo-form" novalidate>
+                <div class="modal-field">
+                    <label for="venmo-input">Username</label>
+                    <div class="money-wrap">
+                        <span aria-hidden="true">@</span>
+                        <input type="text" id="venmo-input" class="admin-input" autocomplete="off" autocapitalize="none"
+                            spellcheck="false" maxlength="120" placeholder="Jeff-Tarlton" aria-describedby="venmo-hint venmo-error">
+                    </div>
+                    <p class="field-hint" id="venmo-hint">5 to 30 letters, numbers, hyphens or underscores. Saves right away, not with Save Changes. Empty removes it.</p>
+                </div>
+                <p class="venmo-check-wrap" id="venmo-check-wrap" hidden>
+                    <a id="venmo-check" target="_blank" rel="noopener noreferrer">Check <span id="venmo-check-handle"></span> on Venmo <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
+                    <span class="field-hint">It should show his name and photo.</span>
+                </p>
+                <p class="sheet-error" id="venmo-error" role="alert" hidden></p>
+                <div class="modal-actions">
+                    <button type="button" class="admin-btn secondary" data-sheet-close>Cancel</button>
+                    <button type="submit" class="admin-btn" id="venmo-save-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="toast-container" style="top: 20px; bottom: auto; align-items: flex-end;"></div>
 
@@ -1311,7 +1614,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.12"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.11"></script>
+    <script src="admin.js?v=2027.12"></script>
 </body>
 
 </html>

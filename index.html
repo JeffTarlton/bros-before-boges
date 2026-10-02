@@ -38,7 +38,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.10">
-    <link rel="stylesheet" href="home.css?v=2027.13">
+    <link rel="stylesheet" href="home.css?v=2027.14">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -509,7 +509,7 @@
         </div>
     </div>
 
-    <!-- ============================== GOLF PROFILE (GHIN / handicap) ============================== -->
+    <!-- ============================== GOLF PROFILE (GHIN / handicap / Venmo) ============================== -->
     <div id="registration-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="registration-title">
         <div class="modal-content glass-panel" style="max-width: 560px;">
             <button type="button" class="modal-x" id="modal-close" aria-label="Close golf profile">
@@ -538,6 +538,17 @@
                             <span>Plus handicap (+)</span>
                         </label>
                         <p class="field-hint" id="handicap-hint">No official handicap? Give your best guess; the captains can adjust.</p>
+                    </div>
+                    <!-- Venmo (payments_2027.sql): saved on its own, with set_my_venmo. script.js fills it from the
+                         player's own player_venmo row and turns it on; until that SQL has run it stays off and the
+                         hint says "Venmo is being set up." "Check it" shows once the username looks right. -->
+                    <div class="form-group venmo-group" id="venmo-group">
+                        <label for="venmo-handle">Venmo <span class="req">Optional</span></label>
+                        <input type="text" id="venmo-handle" name="venmo" class="field-input" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="100" placeholder="@your-username" aria-describedby="venmo-hint" disabled>
+                        <div class="venmo-foot">
+                            <p class="field-hint" id="venmo-hint">So the crew can pay you after the trip. Only signed-in crew can see it.</p>
+                            <a class="venmo-check" id="venmo-check" href="https://venmo.com/" target="_blank" rel="noopener noreferrer" hidden>Check it<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg><span class="sr-only" id="venmo-check-sr"></span></a>
+                        </div>
                     </div>
                 </div>
                 <p class="form-error" id="profile-error" role="alert" hidden></p>
@@ -595,7 +606,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.13"></script>
+    <script src="script.js?v=2027.14"></script>
 </body>
 
 </html>

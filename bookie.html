@@ -701,8 +701,243 @@
         }
 
         /* Long names wrap on a small phone: a faint line keeps one payment from running into the next */
-        .bet-by-bet .settle-up-row + .settle-up-row {
+        .bet-by-bet .settle-up-row + .settle-up-row,
+        .bet-by-bet .settle-up-row + .settle-up-line,
+        .bet-by-bet .settle-up-line + .settle-up-row,
+        .bet-by-bet .settle-up-line + .settle-up-line {
             border-top: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+
+        /* Settle up: Venmo links and "Paid" (bookie.js). A payment with buttons under it is one
+           line with them, divided from the next as a plain row is. */
+        .settle-up-line {
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .settle-up-line > .settle-up-row {
+            border-bottom: 0;
+            padding-bottom: 6px;
+        }
+
+        .bet-by-bet .settle-up-line {
+            padding-bottom: 8px;
+            border-bottom: 0;
+        }
+
+        .bet-by-bet .settle-up-line .pay-actions,
+        .bet-by-bet .settle-up-line .pay-note {
+            padding-left: 12px;
+        }
+
+        .pay-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pay-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 8px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .pay-btn.venmo-pay {
+            background: rgba(16, 185, 129, 0.14);
+            border-color: rgba(16, 185, 129, 0.6);
+            color: var(--accent-emerald);
+        }
+
+        /* The one being paid asks, more quietly */
+        .pay-btn.venmo-request {
+            background: none;
+            border-style: dashed;
+            border-color: rgba(255, 255, 255, 0.22);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .pay-btn[disabled],
+        .pay-undo-btn[disabled] {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .pay-btn:not([disabled]):hover,
+            .pay-undo-btn:not([disabled]):hover {
+                border-color: rgba(255, 255, 255, 0.32);
+            }
+
+            .pay-btn.venmo-pay:hover {
+                background: rgba(16, 185, 129, 0.22);
+                border-color: var(--accent-emerald);
+            }
+        }
+
+        .pay-handle {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            overflow-wrap: anywhere;
+        }
+
+        .settle-up p.pay-note,
+        .settle-up p.venmo-tip,
+        .settle-up p.bet-by-bet-note {
+            margin: 8px 0 0;
+            line-height: 1.45;
+        }
+
+        .settle-up p.venmo-tip {
+            margin-bottom: 4px;
+        }
+
+        .settle-up p.settle-up-status {
+            margin: 0 0 8px;
+            font-style: italic;
+        }
+
+        .settle-up p.settle-up-done {
+            color: var(--accent-emerald);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* "Add your Venmo in your golf profile…" */
+        .settle-up-nudge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            margin: 0 0 8px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px dashed rgba(251, 191, 36, 0.45);
+            background: rgba(251, 191, 36, 0.06);
+            color: var(--accent-gold);
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1.35;
+            text-decoration: none;
+        }
+
+        .settle-up-nudge i {
+            flex: none;
+        }
+
+        /* A bet-by-bet payment that's been paid: greyed */
+        .settle-up-row.paid {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .pay-paid-tag {
+            color: var(--accent-emerald);
+            font-weight: 600;
+        }
+
+        .pay-of {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Paid: the payments marked paid, greyed, each with Undo */
+        .paid-list {
+            margin-top: 14px;
+        }
+
+        .paid-head {
+            margin: 0 0 2px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .paid-list ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .paid-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-height: 44px;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .paid-what {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .paid-what i {
+            margin-right: 2px;
+            color: var(--accent-emerald);
+            font-size: 0.75rem;
+        }
+
+        .paid-row.mine .paid-what {
+            color: var(--text-main);
+        }
+
+        .paid-meta {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .pay-undo-btn {
+            flex: none;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 6px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: none;
+            color: var(--text-muted);
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* A player's breakdown: payments marked paid after the net, then what's left */
+        .ledger-bets ul.ledger-paid {
+            margin-top: 6px;
+        }
+
+        .ledger-paid-line .ledger-bet-amt {
+            color: var(--text-muted);
+        }
+
+        .ledger-bets-net.ledger-left {
+            margin-top: 2px;
+        }
+
+        #my-net-left {
+            font-weight: 400;
         }
 
         /* Ledger rows: each one opens to the bets behind its net */
@@ -849,7 +1084,8 @@
             border: 0;
         }
 
-        #ledger-title:focus:not(:focus-visible) {
+        #ledger-title:focus:not(:focus-visible),
+        #settle-up-title:focus:not(:focus-visible) {
             outline: none;
         }
 
@@ -1350,7 +1586,7 @@
                         <h2 class="section-title" style="margin-bottom: 0;"><span class="dash-title-board">The <span class="text-stroke">Board</span></span><span id="dash-title-filter" class="dash-title-filter">My <span class="text-stroke">Bets</span></span></h2>
                         <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
                         <!-- Your net for the trip; tapping it goes to the Ledger (bookie.js fills it in) -->
-                        <button type="button" id="my-net-btn" class="my-net-btn" hidden><span><span id="my-net-label">Your net</span>: <strong id="my-net-amount">Even</strong><span class="sr-only">. Show the Ledger</span></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+                        <button type="button" id="my-net-btn" class="my-net-btn" hidden><span><span id="my-net-label">Your net</span>: <strong id="my-net-amount">Even</strong><span id="my-net-left" hidden></span><span class="sr-only">. Show the Ledger</span></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" id="refresh-board-btn" class="refresh-btn" aria-label="Refresh the board"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>Refresh</span></button>
@@ -1583,7 +1819,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.12"></script>
-    <script src="bookie.js?v=2027.14" defer></script>
+    <script src="bookie.js?v=2027.15" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

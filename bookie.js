@@ -125,6 +125,24 @@ let commentsLoaded = false;
 // 'dashboard', or 'leaving' (on the way back to ?next=)
 let wallState = 'checking';
 
+// Venmo usernames and Settle up's "Paid" marks (payments_2027.sql), loaded with the board for the
+// player on the dashboard (always a confirmed one, so the database lets him read them). Until that
+// script has run the tables aren't there: Settle up says "being set up" and works as before.
+const payData = {
+    state: 'idle',     // 'idle' (not loaded yet), 'ready', 'setup' (not set up yet), 'error' (didn't load), 'off' (not a confirmed player)
+    owner: null,        // the player they were loaded for
+    handles: new Map(), // player id -> Venmo username (checked, lowercase)
+    marks: {},          // trip year -> that year's Paid marks
+    busy: new Set(),    // marks and undos still saving: a second tap does nothing
+    seq: 0,             // only the latest load counts
+    recent: [],         // marks this page saved: {id, year, from, to, cents, at} (the 2-minute duplicate rule)
+    lineOf: new Map(),  // mark id -> the bet whose bet-by-bet line it was marked from (this visit)
+    lastError: null,    // why the last load failed
+    firstWait: false    // the first load: Settle up waits for the marks (PAY_WAIT_MS at most)
+};
+const PAY_WAIT_MS = 4000; // how long the first Ledger waits for the Paid marks before showing without them
+const PAY_DUP_MS = 120000; // mark_paid treats the same payer, payee and amount within 2 minutes as one mark
+
 // Escape text from the database before it goes into innerHTML.
 function escHtml(value) {
     return String(value === null || value === undefined ? '' : value)
@@ -387,13 +405,18 @@ function setupEventListeners() {
     const myNetBtn = document.getElementById('my-net-btn');
     if (myNetBtn) myNetBtn.addEventListener('click', goToLedger);
 
-    // Ledger: a row opens to its bets; Settle up copies for the group text or lists bet by bet
+    // Ledger: a row opens to its bets; Settle up copies for the group text or lists bet by bet,
+    // and marks payments paid (or undoes a mark)
     ledgerContainer.addEventListener('click', (e) => {
         const row = e.target.closest('[data-ledger-row]');
         if (row) return toggleLedgerRow(row);
         const betByBet = e.target.closest('#bet-by-bet-btn');
         if (betByBet) return toggleBetByBet(betByBet);
-        if (e.target.closest('#copy-settle-up-btn')) shareSettleUp();
+        if (e.target.closest('#copy-settle-up-btn')) return shareSettleUp();
+        const markBtn = e.target.closest('[data-pay-mark]');
+        if (markBtn) return markPaid(markBtn);
+        const undoBtn = e.target.closest('[data-pay-undo]');
+        if (undoBtn) return undoPaid(undoBtn);
     });
     watchLedgerForFab();
 
@@ -458,7 +481,7 @@ function setupMobileGestures() {
         if (ptrIndicator.classList.contains('active') && !isRefreshing) {
             isRefreshing = true;
             if (navigator.vibrate) navigator.vibrate(50);
-            await refreshBoard();
+            await refreshBoard({ recheck: true });
             if (loadError) showToast('Couldn’t refresh. Check your signal and try again.', 'error');
             setTimeout(() => {
                 ptrIndicator.classList.remove('active');
@@ -621,18 +644,50 @@ async function findLinkedPlayer(userId) {
     return data && data.length ? data[0] : null;
 }
 
-// Link a login to an unclaimed roster spot. Returns true only if a row actually changed.
-async function claimPlayer(playerId, userId) {
+// Link a login to an unclaimed roster spot. Returns the row as linked ({ id, name, status, email }),
+// or null if nothing changed. Once payments_2027.sql has run, a name whose roster email isn't this
+// login's comes back 'potential': it waits for the commissioner, who gets an email to check it's him.
+async function claimPlayer(playerId, user) {
     const { data, error } = await supabaseClient
         .from('players')
-        .update({ user_id: userId })
+        .update({ user_id: user.id })
         .eq('id', playerId)
         .is('user_id', null)
-        .select('id');
-    return !error && !!data && data.length > 0;
+        .select('id, name, status, email');
+    if (error || !data || !data.length) return null;
+    const row = data[0];
+    if (row.status === 'potential' && !sameEmail(row.email, user.email)) {
+        // Awaited: a return trip (?next=) can leave the page right after this
+        await sendAlert(`BBB: ${row.name} was claimed by ${user.email || 'a login with no email'} (needs approval)`, {
+            name: row.name,
+            login_email: user.email || '—',
+            next_step: 'Check it’s really him, then approve him in Admin → RSVPs (link below). If it isn’t him, unlink that login there.',
+            admin_link: 'https://bros-before-boges.vercel.app/admin#rsvps'
+        });
+    }
+    return row;
+}
+
+// Emails compared the way the database does (trimmed, any case); a blank one never matches
+const normEmail = s => String(s || '').trim().toLowerCase();
+const sameEmail = (a, b) => !!normEmail(a) && normEmail(a) === normEmail(b);
+
+// A roster name this login picked whose roster email isn't the login's: payments_2027.sql holds it
+// for the commissioner, and until he approves it can't RSVP or bet. (A new guy's own sign-up has
+// his email on it, so it isn't one.) Before that script runs there's no such thing.
+async function isHeldPick(player, user) {
+    if (sameEmail(player.email, user && user.email)) return false;
+    try {
+        const { data, error } = await supabaseClient.rpc('payments_me');
+        if (error || !data) return false;
+        return data.player_id === player.id && data.status === 'potential' && data.own_ok === false;
+    } catch (e) {
+        return false;
+    }
 }
 
 const isMissingFunction = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
+const isMissingTable = err => /PGRST205|42P01|could not find the table/i.test(`${err && err.code} ${err && err.message}`);
 
 // The roster spot (or new-player name) saved at sign-up is used once. After it's linked, or
 // can never work, it's cleared, so a sign-up the commissioner removes isn't re-added on
@@ -664,7 +719,7 @@ async function claimFromSignup(user) {
     }
     const pid = meta.player_id;
     if (!pid) return null;
-    if (await claimPlayer(pid, user.id)) return findLinkedPlayer(user.id);
+    if (await claimPlayer(pid, user)) return findLinkedPlayer(user.id);
     // Not claimed. If that spot is gone or now someone else's, retrying can't help: say why.
     const { data, error } = await supabaseClient.from('players').select('user_id').eq('id', pid).limit(1);
     if (!error && data && (!data.length || data[0].user_id)) {
@@ -684,7 +739,7 @@ async function claimByEmail(user) {
     const { data, error } = await supabaseClient.from('players').select('id, email, user_id').is('user_id', null);
     if (error || !data) return null;
     const match = data.find(p => normName(p.email) === email);
-    if (!match || !(await claimPlayer(match.id, user.id))) return null;
+    if (!match || !(await claimPlayer(match.id, user))) return null;
     return findLinkedPlayer(user.id);
 }
 
@@ -735,6 +790,7 @@ async function linkSelectedName() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return showWall();
+        let claimed = null;
         if (isNew) {
             try {
                 await joinRoster(name, session.user.email);
@@ -742,12 +798,21 @@ async function linkSelectedName() {
                 showToast(friendlyAuthError(err), 'error');
                 return;
             }
-        } else if (!(await claimPlayer(select.value, session.user.id))) {
-            showToast(`Couldn’t link ${name}: it’s linked to another login or reserved for the commissioner. Text the commissioner.`, 'error');
-            await showLinkPicker(session.user);
-            return;
+        } else {
+            claimed = await claimPlayer(select.value, session.user);
+            if (!claimed) {
+                showToast(`Couldn’t link ${name}: it’s linked to another login or reserved for the commissioner. Text the commissioner.`, 'error');
+                await showLinkPicker(session.user);
+                return;
+            }
         }
-        showToast(isNew ? `You’re on the list, ${name.split(' ')[0]}.` : `Linked. Welcome, ${name.split(' ')[0]}.`, 'success');
+        // Someone else's name (his email isn't this login's) waits for the commissioner: the wall
+        // that loads next says why
+        if (claimed && claimed.status === 'potential' && !sameEmail(claimed.email, session.user.email)) {
+            showToast('Linked. The commissioner checks it’s really you first.', 'info');
+        } else {
+            showToast(isNew ? `You’re on the list, ${name.split(' ')[0]}.` : `Linked. Welcome, ${name.split(' ')[0]}.`, 'success');
+        }
         await loadSession();
     } finally {
         btn.disabled = false;
@@ -806,7 +871,10 @@ async function loadSession() {
     // Awaited: the redirect below would otherwise cancel the request
     if (hasSignupChoice(session.user)) await forgetSignupChoice(session.user);
 
-    if (NEXT && !resetPending) {
+    // Someone else's roster name (his email isn't this login's) waits for the commissioner and
+    // can't RSVP yet, so it stays here to say so instead of going on to the RSVP
+    const held = player.status === 'potential' && await isHeldPick(player, session.user);
+    if (NEXT && !resetPending && !held) {
         goToNextPage();
         return true;
     }
@@ -814,7 +882,7 @@ async function loadSession() {
     // New guys can RSVP right away, but betting waits until the commissioner confirms them.
     if (player.status === 'potential') {
         currentUser = null;
-        showWall('', true, { pending: true, name: String(player.name).split(' ')[0] });
+        showWall('', true, { pending: true, held, name: String(player.name).split(' ')[0], fullName: String(player.name) });
         return false;
     }
 
@@ -943,7 +1011,10 @@ function showWall(note, signedIn, opts) {
     // Logged in but not able to bet yet (unlinked or awaiting the commissioner): don't say "log in".
     // After a failed email link the note says what to do, so the "set up your account" line goes.
     const icon = NEXT ? 'trip' : 'bookie';
-    if (opts.pending) {
+    if (opts.pending && opts.held) {
+        // A roster name picked with a different email than the one on the roster
+        setWallCopy(`Almost there, ${opts.name}`, `The commissioner checks it’s really you first, since your login email isn’t the one on the roster for ${opts.fullName}. Once he confirms you, you can RSVP and ${ACCOUNT_MODE ? 'update your golf profile' : 'bet'}. Picked the wrong name? Text the commissioner to unlink it.`, icon);
+    } else if (opts.pending) {
         setWallCopy(`You’re signed up, ${opts.name}`, 'You can RSVP now. Betting opens once the commissioner confirms you for the trip.', icon);
     } else if (signedIn) {
         setWallCopy(WALL.unlinkedTitle, WALL.unlinkedText, icon);
@@ -966,7 +1037,7 @@ function showWall(note, signedIn, opts) {
     wallBackLink.hidden = !NEXT;
     const linkBox = document.getElementById('link-roster');
     if (!signedIn || opts.pending) linkBox.hidden = true;
-    document.getElementById('wall-rsvp-link').hidden = !opts.pending;
+    document.getElementById('wall-rsvp-link').hidden = !opts.pending || !!opts.held;
     setNavLogin(signedIn);
 }
 
@@ -1110,10 +1181,12 @@ async function registerAccount(playerId, email, password, newName) {
     // Email confirmation is on: the roster spot is linked on their first login
     if (!authData.session) return 'confirm';
 
-    if (!(await claimPlayer(match.id, authData.session.user.id))) {
+    const claimed = await claimPlayer(match.id, authData.session.user);
+    if (!claimed) {
         throw new Error(`Your login was created, but ${match.name}’s roster spot couldn’t be linked. Ask the commissioner to link it.`);
     }
-    return 'linked';
+    // Someone else's email on that name: it waits for the commissioner
+    return claimed.status === 'potential' && !sameEmail(claimed.email, email) ? 'held' : 'linked';
 }
 
 async function handleAuthSubmit(e) {
@@ -1146,7 +1219,8 @@ async function handleAuthSubmit(e) {
                 setAuthMessage(`Almost done: check ${email} for “Confirm your email” from Bros before Boges. Tap the link in it and you’ll be logged in${NEXT === 'rsvp' ? ' and taken straight to the RSVP' : ''}. Nothing after a few minutes? Check spam, or ask the commissioner.`, false);
                 return;
             }
-            showToast('Account created. You’re in.', 'success');
+            if (result === 'held') showToast('Account created. The commissioner checks it’s really you first.', 'info');
+            else showToast('Account created. You’re in.', 'success');
             // The name picked at sign-up has been used: clear it now, whichever page comes next
             const { data: { session: newSession } } = await supabaseClient.auth.getSession();
             if (newSession) await forgetSignupChoice(newSession.user);
@@ -1267,9 +1341,27 @@ async function fetchBaseData() {
     }
 }
 
-async function refreshBoard() {
+// opts.recheck: look for the Venmo and Paid tables again even if they weren't there (the Refresh
+// button and pull-to-refresh; other refreshes don't ask again on this visit)
+async function refreshBoard(opts) {
     await fetchBaseData();
-    renderDashboard();
+    // Venmo usernames and Paid marks load next, without holding up the board, the Ledger or whoever
+    // is waiting on them: the Ledger shows the last marks that loaded and re-renders when the new
+    // ones land. The first time there are none yet, so Settle up waits for them (a few seconds at
+    // most) rather than flash a payment that's already been made.
+    if (payState() === 'idle' && !payData.firstWait) {
+        payData.firstWait = true;
+        pause(PAY_WAIT_MS).then(() => {
+            payData.firstWait = false;
+            if (payState() === 'idle') renderLedger();
+        });
+    }
+    const paidMarks = loadPayments({ recheck: !!(opts && opts.recheck) });
+    renderCupCard();
+    renderWagers();
+    renderLedger();
+    updateNotificationBadges();
+    paidMarks.then(result => { if (result !== 'stale' && result !== 'skipped') renderLedger(); });
     lastRefresh = Date.now();
     if (betLinkPending && wallState === 'dashboard') openBetLink(); // a ?bet= link the first load couldn't show
 }
@@ -1281,7 +1373,7 @@ async function refreshNow(btn) {
     const icon = btn.querySelector('i');
     if (icon) icon.classList.add('fa-spin');
     try {
-        await refreshBoard();
+        await refreshBoard({ recheck: true });
         if (loadError) showToast('Couldn’t refresh. Check your signal and try again.', 'error');
     } finally {
         btn.removeAttribute('aria-busy');
@@ -1386,13 +1478,6 @@ async function logBetNote(wagerId, message) {
 // ==========================================
 // Rendering
 // ==========================================
-function renderDashboard() {
-    renderCupCard();
-    renderWagers();
-    renderLedger();
-    updateNotificationBadges();
-}
-
 // The page heading on a phone names the list you're in, since the chips for All bets and My Bets
 // give way to the bottom bar there ("The Board" on wider screens, where the chips show it)
 const FILTER_TITLES = { pools: ['Pools & ', 'Props'], h2h: ['Head-to-', 'Head'], me: ['My ', 'Bets'], past: ['Past ', 'Trips'] };
@@ -2699,10 +2784,14 @@ function seasonYear(wager) {
 // The bets the ledger adds up: this trip's, or with Past Trips on, the last trip before it
 function ledgerView() {
     if (currentFilter !== 'past') return { past: false, year: TRIP_YEAR, wagers: allWagers.filter(isCurrentSeason) };
-    const past = allWagers.filter(w => !isCurrentSeason(w));
-    const years = past.map(seasonYear).filter(Boolean);
-    const year = years.length ? Math.max(...years) : TRIP_YEAR - 1;
-    return { past: true, year, wagers: past.filter(w => seasonYear(w) === year) };
+    const year = pastLedgerYear();
+    return { past: true, year, wagers: allWagers.filter(w => !isCurrentSeason(w) && seasonYear(w) === year) };
+}
+
+// The trip Past Trips shows: the latest one before this one that had bets
+function pastLedgerYear() {
+    const years = allWagers.filter(w => !isCurrentSeason(w)).map(seasonYear).filter(Boolean);
+    return years.length ? Math.max(...years) : TRIP_YEAR - 1;
 }
 
 // "Zac" in a text to the group, or "David O." when someone else on the roster is a David too
@@ -2749,8 +2838,9 @@ const ledgerOpenRows = new Set();
 const betByBetOpen = { now: false, past: true };
 let settleUpText = ''; // the netted payments, written for the group text
 
-// A ledger row: the player and their net, opening to one line per settled bet, then the net
-function ledgerRowHTML(b, bets, mine, index) {
+// A ledger row: the player and their net, opening to one line per settled bet, then the net.
+// Payments marked paid come after it, with what's left to settle, so the lines still add up.
+function ledgerRowHTML(b, bets, mine, index, marks, left) {
     const name = `${escHtml(b.name)}${mine ? ' (You)' : ''}`;
     const net = `<span class="ledger-net" style="color: ${netColor(b.balance)};">${fmtNet(b.balance)}</span>`;
     if (!bets.length) {
@@ -2767,6 +2857,20 @@ function ledgerRowHTML(b, bets, mine, index) {
                         <span class="ledger-bet-amt" style="color: ${netColor(x.amount, true)};">${fmtMoney(x.amount, true)}</span>
                     </li>`;
     }).join('');
+    // "Paid Jeff" / "From Westin", oldest first
+    const paid = marks && marks.length ? `
+                <ul class="ledger-paid" aria-label="${mine ? 'Your payments' : `${escHtml(b.name)}’s payments`}">${marks.map(m => {
+                    const other = m.from === b.id ? m.to : m.from;
+                    const otherName = isMe(other) ? 'you' : escHtml(shortName(other));
+                    const when = shortDate(m.at);
+                    return `
+                    <li class="ledger-bet ledger-paid-line">
+                        <span class="ledger-bet-what">${m.from === b.id ? 'Paid' : 'From'} ${otherName}<span class="ledger-bet-side">Marked paid${when ? ` ${when}` : ''}</span></span>
+                        <span class="ledger-bet-amt">${fmtMoney(m.cents / 100)}</span>
+                    </li>`;
+                }).join('')}
+                </ul>
+                <div class="ledger-bets-net ledger-left"><span>Left to settle</span><span style="color: ${netColor(left, true)};">${fmtNet(left)}</span></div>` : '';
     return `
         <div class="ledger-row${mine ? ' mine' : ''}">
             <button type="button" class="ledger-row-head" aria-expanded="${open}" aria-controls="${panelId}" data-ledger-row="${escHtml(b.id)}" data-focus-key="row:${escHtml(b.id)}">
@@ -2775,52 +2879,63 @@ function ledgerRowHTML(b, bets, mine, index) {
             <div class="ledger-bets" id="${panelId}"${open ? '' : ' hidden'}>
                 <ul aria-label="${mine ? 'Your bets' : `${escHtml(b.name)}’s bets`}">${lines}
                 </ul>
-                <div class="ledger-bets-net"><span>${mine ? 'Your net' : 'Net'}</span><span style="color: ${netColor(b.balance, true)};">${fmtNet(b.balance)}</span></div>
+                <div class="ledger-bets-net"><span>${mine ? 'Your net' : 'Net'}</span><span style="color: ${netColor(b.balance, true)};">${fmtNet(b.balance)}</span></div>${paid}
             </div>
         </div>`;
 }
 
-// Settle up, paid bet by bet instead of netted: each bet's payments under its terms, yours first
-function betByBetHTML(payments, me) {
+// Settle up, paid bet by bet instead of netted: each bet's payments under its terms, yours first.
+// Payments marked paid take their lines off (greyed "Paid", or what's left on one). The Venmo tip
+// shows here only if the netted list above didn't already show it.
+function betByBetHTML(payments, me, view, marks, links, tipShown) {
+    const { left, unmatched } = coverBetByBet(payments, marks);
     const mine = p => p.from === me || p.to === me;
     const groups = [];
-    payments.forEach(p => {
+    payments.forEach((p, i) => {
         let g = groups[groups.length - 1];
         if (!g || g.wager !== p.wager) groups.push(g = { wager: p.wager, payments: [] });
-        g.payments.push(p);
+        g.payments.push(Object.assign({ left: left[i] }, p));
     });
     const ordered = groups.filter(g => g.payments.some(mine)).concat(groups.filter(g => !g.payments.some(mine)));
-    return ordered.map(g => {
+    const firstLink = links.length;
+    const html = ordered.map(g => {
         const w = g.wager;
         const kind = w.type === 'h2h' ? 'Head-to-head' : otherSideText(w, null).replace(/^./, c => c.toUpperCase());
         return `
                     <div class="bet-by-bet-bet">
                         <div class="bet-by-bet-terms">${escHtml(w.description)}<span class="ledger-bet-side">${kind}</span></div>
-                        ${g.payments.map(p => `
-                        <div class="settle-up-row${mine(p) ? ' mine' : ''}">
-                            <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
-                            <span style="white-space: nowrap;">${fmtMoney(p.amount)}</span>
-                        </div>`).join('')}
+                        ${g.payments.map(p => payLineHTML(p, view, links, { left: p.left, key: `bet:${w.id}:`, wager: w.id, noVenmo: unmatched > 0 })).join('')}
                     </div>`;
     }).join('');
+    // Marks made from the netted list can pay people who never bet each other. Then these lines
+    // aren't what's owed any more: no Venmo links on them, only Paid for a bet paid on its own.
+    const offList = unmatched > 0
+        ? '<p class="bet-by-bet-note">Some payments were marked paid from the netted list, so these lines don’t show what’s still owed. Pay by the netted list above. Mark paid and Got it here are only for a bet that was paid on its own.</p>'
+        : '';
+    return offList + (!tipShown && links.slice(firstLink).some(l => l.txn === 'pay') ? VENMO_TIP : '') + html;
 }
 
 // The netted payments for the group text: one line when it's short, one payment a line when it
-// isn't, then why someone might pay a person they didn't bet with, and where their bets are
-function settleUpMessage(view, payments) {
+// isn't, then why someone might pay a person they didn't bet with, and where their bets are.
+// Payments already marked paid are left out (and counted).
+function settleUpMessage(view, payments, paidCount) {
     if (!payments.length) return '';
     const lines = payments.map(p => `${shortName(p.from)} → ${shortName(p.to)} ${fmtMoney(p.amount)}`);
-    const head = `BBB ${view.year} settle up:`;
+    const head = `BBB ${view.year} settle up${paidCount ? ` (${paidCount} already paid)` : ''}:`;
     const list = lines.length > 4 ? `${head}\n${lines.join('\n')}` : `${head} ${lines.join(' · ')}`;
     const link = location.origin + location.pathname;
-    const why = view.past
+    let why = view.past
         ? `Netted across every ${view.year} bet, so it’s only right if nobody has paid any of them yet. If some are paid, use the bet-by-bet list under Past Trips on the Bookie: ${link}`
         : `Payments are netted across every bet so there are fewer Venmos. You might pay someone you didn’t bet with, but every total is right. Tap your name in the Bookie’s Ledger to see your bets: ${link}`;
+    if (view.past && paidCount) {
+        why = `Netted across every ${view.year} bet, less the payments marked paid on the Bookie, so it’s only right if every payment made so far is marked there. If not, use the bet-by-bet list under Past Trips on the Bookie: ${link}`;
+    }
     return `${list}\n\n${why}`;
 }
 
-// "Your net: +$15" under "Logged in as" (the same view as the ledger: last trip's on Past Trips)
-function renderMyNet(view, balance) {
+// "Your net: +$15" under "Logged in as" (the same view as the ledger: last trip's on Past Trips).
+// With payments of yours marked paid it adds what's left: "· $5 to collect", "· squared up".
+function renderMyNet(view, balance, left) {
     const btn = document.getElementById('my-net-btn');
     if (!btn) return;
     btn.hidden = balance === null;
@@ -2829,6 +2944,13 @@ function renderMyNet(view, balance) {
     const amount = document.getElementById('my-net-amount');
     amount.textContent = fmtNet(balance);
     amount.style.color = netColor(balance);
+    const leftEl = document.getElementById('my-net-left');
+    if (leftEl) {
+        const cents = left === null || left === undefined ? null : Math.round(left * 100);
+        leftEl.textContent = cents === null ? ''
+            : ` · ${cents === 0 ? 'squared up' : (cents > 0 ? `${fmtMoney(cents / 100)} to collect` : `${fmtMoney(-cents / 100)} to pay`)}`;
+        leftEl.hidden = cents === null;
+    }
 }
 
 function renderLedger() {
@@ -2857,10 +2979,15 @@ function renderLedger() {
     const balances = computeBalances(view.wagers);
     const bets = betsByPlayer(view.wagers);
     dbPlayers.forEach(p => { if (!(p.id in balances)) balances[p.id] = 0; });
+    // The nets and Big Winner are what the bets did; what's still owed is that less the payments
+    // marked paid for this trip
+    const marks = payState() === 'ready' ? (payData.marks[view.year] || []) : [];
+    const owed = owedAfter(balances, marks);
+    const marksOf = id => marks.filter(m => m.from === id || m.to === id);
     // This trip, you're always on the ledger ("Even" until you bet). A past trip only lists you
     // if you were in its bets, so a newcomer isn't told he finished last year even.
     const listMe = !view.past || !!(bets[me] || []).length;
-    renderMyNet(view, listMe ? (balances[me] || 0) : null);
+    renderMyNet(view, listMe ? (balances[me] || 0) : null, marksOf(me).length ? (owed[me] || 0) : null);
 
     const sorted = Object.keys(balances)
         .map(id => ({ id, name: getPlayerName(id), balance: balances[id] }))
@@ -2872,7 +2999,7 @@ function renderLedger() {
         const mine = b.id === me;
         const theirs = bets[b.id] || [];
         if (b.balance === 0 && !theirs.length && !(mine && listMe)) return;
-        ledgerHtml += ledgerRowHTML(b, theirs, mine, i);
+        ledgerHtml += ledgerRowHTML(b, theirs, mine, i, marksOf(b.id), owed[b.id] || 0);
         if (theirs.length) rowCount++;
     });
     if (rowCount) {
@@ -2908,44 +3035,554 @@ function renderLedger() {
         ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">${view.past ? `No settled bets from the ${view.year} trip` : 'No settled bets yet'}</div>`;
     }
 
-    // Settle up: the fewest payments that square everyone, yours first. The group-text version
-    // keeps the plain order (biggest first), since it's for everyone.
-    const payments = settleUpPayments(balances);
-    settleUpText = settleUpMessage(view, payments);
-    if (payments.length) {
-        const mine = p => p.from === me || p.to === me;
-        payments.sort((a, b) => mine(b) - mine(a));
-        const lastYear = view.year === TRIP_YEAR - 1 ? 'Last year’s' : `The ${view.year}`;
-        const bbbKey = view.past ? 'past' : 'now';
-        const bbbOpen = betByBetOpen[bbbKey];
-        ledgerHtml += `
+    // Settle up: the fewest payments that square everyone after what's been paid, yours first.
+    // The group-text version keeps the plain order (biggest first), since it's for everyone.
+    // On the first load it waits (a few seconds at most) for the Paid marks.
+    const marksPending = payState() === 'idle' && payData.firstWait;
+    const payments = settleUpPayments(owed);
+    settleUpText = marksPending ? '' : settleUpMessage(view, payments, marks.length);
+    const links = []; // Venmo links in this render: their addresses go on once the HTML is in
+    if (!marksPending && (payments.length || marks.length)) ledgerHtml += settleUpHTML(view, payments, marks, links);
+
+    ledgerContainer.innerHTML = ledgerHtml;
+    fillVenmoLinks(ledgerContainer, links);
+    const refocus = focusKey && [...ledgerContainer.querySelectorAll('[data-focus-key]')].find(el => el.dataset.focusKey === focusKey);
+    if (refocus) refocus.focus({ preventScroll: true });
+    // The bets above may have grown or shrunk: the + button and the panel's fade follow
+    queueFabSync();
+    syncLedgerFade();
+}
+
+// The Settle up section: the netted payments (Venmo and Paid buttons on yours), then the payments
+// marked paid, then Copy for the group text and the bet-by-bet list
+function settleUpHTML(view, payments, marks, links) {
+    const me = currentUser.id;
+    const state = payState();
+    const mine = p => p.from === me || p.to === me;
+    payments.sort((a, b) => mine(b) - mine(a));
+    const lastYear = view.year === TRIP_YEAR - 1 ? 'Last year’s' : `The ${view.year}`;
+    const pastLine = view.past ? `<p class="settle-up-past">${lastYear} settle up, for anyone still holding out.</p>` : '';
+    const paidList = paidListHTML(marks);
+    if (!payments.length) {
+        return `
             <div class="settle-up">
-                ${view.past ? `<p class="settle-up-past">${lastYear} settle up, for anyone still holding out.</p>` : ''}
-                <h4>Settle up</h4>
+                ${pastLine}
+                <h4 id="settle-up-title" tabindex="-1" data-focus-key="settle-up">Settle up</h4>
+                <p class="settle-up-done"><i class="fas fa-check-circle" aria-hidden="true"></i> Everyone’s squared up.</p>
+                ${paidList}
+            </div>`;
+    }
+    const bbbKey = view.past ? 'past' : 'now';
+    const bbbOpen = betByBetOpen[bbbKey];
+    // Netting a past trip only works if the payments made so far are all accounted for
+    const caveat = !view.past ? ''
+        : state === 'ready'
+            ? `<p class="settle-up-caveat">That’s only right if every ${view.year} payment made so far is marked paid here. Paid one that isn’t marked? Mark it, or use the bet-by-bet payments below.</p>`
+            : `<p class="settle-up-caveat">That’s only right if nobody has paid any ${view.year} bets yet. If some are paid, use the bet-by-bet payments below and skip the ones already paid.</p>`;
+    const status = {
+        setup: 'Venmo and Paid tracking are being set up.',
+        error: 'Couldn’t load who’s already paid. Check your signal and tap Refresh.',
+        idle: 'Checking who’s already paid…'
+    }[state];
+    const statusLine = status ? `<p class="settle-up-status">${status}</p>` : '';
+    // No Venmo of your own yet: the golf profile is where it goes
+    const nudge = state === 'ready' && !payData.handles.has(me)
+        ? '<a class="settle-up-nudge" href="index.html#profile"><i class="fas fa-user-plus" aria-hidden="true"></i><span>Add your Venmo in your golf profile so people can pay you.</span></a>'
+        : '';
+    const firstLink = links.length;
+    const rows = payments.map(p => payLineHTML(p, view, links, { key: 'net:' })).join('');
+    const tip = links.slice(firstLink).some(l => l.txn === 'pay') ? VENMO_TIP : '';
+    const betByBet = betByBetHTML(betByBetPayments(view.wagers), me, view, marks, links, !!tip);
+    return `
+            <div class="settle-up">
+                ${pastLine}
+                <h4 id="settle-up-title" tabindex="-1" data-focus-key="settle-up">Settle up</h4>
                 <p>Payments are netted across every bet so there are fewer Venmos. You might pay someone you didn’t bet with, but every total is right.</p>
-                ${view.past ? `<p class="settle-up-caveat">That’s only right if nobody has paid any ${view.year} bets yet. If some are paid, use the bet-by-bet payments below and skip the ones already paid.</p>` : ''}
-                ${payments.map(p => `
-                    <div class="settle-up-row${mine(p) ? ' mine' : ''}">
-                        <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
-                        <span style="white-space: nowrap;">${fmtMoney(p.amount)}</span>
-                    </div>`).join('')}
+                ${caveat}${statusLine}${nudge}
+                ${rows}${tip}${paidList}
                 <div class="settle-up-actions">
                     <button type="button" class="settle-up-btn" id="copy-settle-up-btn" data-focus-key="copy"><i class="fas fa-copy" aria-hidden="true"></i>Copy for the group text</button>
                     <button type="button" class="settle-up-btn settle-up-toggle" id="bet-by-bet-btn" aria-expanded="${bbbOpen}" aria-controls="bet-by-bet-list" data-focus-key="bet-by-bet" data-view="${bbbKey}">${bbbOpen ? 'Hide' : 'Show'} bet-by-bet payments</button>
                 </div>
                 <div class="bet-by-bet" id="bet-by-bet-list"${bbbOpen ? '' : ' hidden'}>
                     <p>Or skip the netting and pay one bet at a time, instead of the list above:</p>
-                    ${betByBetHTML(betByBetPayments(view.wagers), me)}
+                    ${betByBet}
                 </div>
             </div>`;
-    }
+}
 
-    ledgerContainer.innerHTML = ledgerHtml;
-    const refocus = focusKey && [...ledgerContainer.querySelectorAll('[data-focus-key]')].find(el => el.dataset.focusKey === focusKey);
-    if (refocus) refocus.focus({ preventScroll: true });
-    // The bets above may have grown or shrunk: the + button and the panel's fade follow
-    queueFabSync();
-    syncLedgerFade();
+// One Settle up payment ("You → Jeff Tarlton  $20") and under it, for the two players on it (or
+// an admin), Venmo and the Paid button. opts.left: the cents still owed on it, for a bet-by-bet
+// line that marks have paid in part (greyed "Paid" once it's all paid). opts.key keeps the focus
+// keys of the netted list and the bet-by-bet list apart.
+function payLineHTML(p, view, links, opts) {
+    const me = currentUser.id;
+    const cents = Math.round(p.amount * 100);
+    const left = opts.left === undefined ? cents : opts.left;
+    const mine = p.from === me || p.to === me;
+    let amount = fmtMoney(p.amount);
+    if (left <= 0) amount = `<span class="pay-paid-tag"><i class="fas fa-check" aria-hidden="true"></i> Paid</span> <s>${amount}</s>`;
+    else if (left < cents) amount = `${fmtMoney(left / 100)} left <span class="pay-of">of ${amount}</span>`;
+    const row = `
+                        <div class="settle-up-row${mine ? ' mine' : ''}${left <= 0 ? ' paid' : ''}">
+                            <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
+                            <span style="white-space: nowrap;">${amount}</span>
+                        </div>`;
+    const actions = left > 0
+        ? payActionsHTML({ from: p.from, to: p.to, cents: left, wager: opts.wager, noVenmo: !!opts.noVenmo }, view, links, opts.key || '')
+        : '';
+    return actions ? `<div class="settle-up-line">${row}${actions}</div>` : row;
+}
+
+// ==========================================
+// Venmo and Paid marks (payments_2027.sql)
+// ==========================================
+const VENMO_TIP = '<p class="venmo-tip"><i class="fas fa-info-circle" aria-hidden="true"></i> Opens Venmo with the amount filled in. Check it’s the right person before you pay.</p>';
+
+// Settle up shows Venmo and Paid only for the player they were loaded for
+function payState() {
+    return currentUser && payData.owner === currentUser.id ? payData.state : 'idle';
+}
+
+// A Venmo username: 5 to 30 letters, numbers, hyphens or underscores, without the @ (Venmo ignores
+// case). Anything else gets no link.
+function venmoHandle(raw) {
+    const h = String(raw || '').trim().replace(/^@/, '').toLowerCase();
+    return /^[a-z0-9_-]{5,30}$/.test(h) ? h : null;
+}
+
+// Venmo with the amount filled in: txn 'pay' to the player being paid, or 'charge' (a request) to
+// the one paying. The note goes first and stays neutral; it's private on Venmo.
+function venmoUrl(handle, txn, cents, year) {
+    const h = venmoHandle(handle);
+    if (!h || !(cents > 0) || !['pay', 'charge'].includes(txn)) return null;
+    const url = new URL(`https://venmo.com/${encodeURIComponent(h)}`);
+    url.search = new URLSearchParams({ note: `BBB ${year} settle up`, txn, amount: (cents / 100).toFixed(2), audience: 'private' }).toString();
+    return url.href;
+}
+
+// The link goes into the page without an address; fillVenmoLinks puts it on (never pasted into HTML)
+function venmoLinkHTML(links, spec, label, ariaLabel, cls, focusKey) {
+    links.push(spec);
+    return `<a class="pay-btn ${cls}" data-venmo-link="${links.length - 1}" data-focus-key="${escHtml(focusKey)}" rel="noreferrer" referrerpolicy="no-referrer" aria-label="${escHtml(ariaLabel)}">${label}</a>`;
+}
+
+function fillVenmoLinks(root, links) {
+    root.querySelectorAll('a[data-venmo-link]').forEach(a => {
+        const spec = links[Number(a.dataset.venmoLink)];
+        const url = spec && venmoUrl(spec.handle, spec.txn, spec.cents, spec.year);
+        if (url) a.href = url;
+        else a.remove();
+    });
+}
+
+// Can this player see Paid marks on the site (a confirmed name with a login)? "I paid him" needs
+// that, so he can check it and undo it; otherwise the commissioner marks it.
+function onSite(id) {
+    const p = dbPlayers.find(x => x.id === id);
+    return !!p && !!p.user_id && (!p.status || p.status === 'confirmed');
+}
+
+const payKey = (year, p) => `${year}:${p.from}>${p.to}:${p.cents}`;
+
+// Under one payment: "Pay $20 on Venmo ›" for the one paying (when the other has a Venmo), "Request
+// on Venmo" for the one being paid, and Paid: "Mark paid" for the one paying (if the other can see
+// it on the site), "Got it" for the one being paid, "Mark paid (admin)" for an admin. Nobody else
+// gets buttons. p.noVenmo: Paid buttons only (a bet-by-bet line that may not be owed any more).
+// p.wager: the bet of a bet-by-bet line, so its mark shows on that line.
+function payActionsHTML(p, view, links, keyPrefix) {
+    if (payState() !== 'ready') return '';
+    const me = currentUser.id;
+    const admin = !!currentUser.is_admin;
+    const payer = p.from === me;
+    const payee = p.to === me;
+    if (!payer && !payee && !admin) return '';
+    const amount = fmtMoney(p.cents / 100);
+    const key = payKey(view.year, p);
+    const parts = [];
+    let handle = '';
+    if (p.noVenmo) {
+        // no Venmo links
+    } else if (payer && payData.handles.has(p.to)) {
+        handle = payData.handles.get(p.to);
+        parts.push(venmoLinkHTML(links, { handle, txn: 'pay', cents: p.cents, year: view.year },
+            `Pay ${amount} on Venmo<span aria-hidden="true"> ›</span>`, `Pay ${amount} on Venmo to ${getPlayerName(p.to)} (@${handle})`,
+            'venmo-pay', `venmo:${keyPrefix}${key}`));
+    } else if (payee && payData.handles.has(p.from)) {
+        handle = payData.handles.get(p.from);
+        parts.push(venmoLinkHTML(links, { handle, txn: 'charge', cents: p.cents, year: view.year },
+            'Request on Venmo', `Request on Venmo: ${amount} from ${getPlayerName(p.from)} (@${handle})`,
+            'venmo-request', `venmo:${keyPrefix}${key}`));
+    }
+    const busy = payData.busy.has(`mark:${key}`) ? ' disabled aria-busy="true"' : '';
+    const button = (label, aria, cls) => `<button type="button" class="pay-btn pay-mark${cls || ''}" data-pay-mark data-from="${escHtml(p.from)}" data-to="${escHtml(p.to)}" data-cents="${p.cents}" data-year="${view.year}"${p.wager ? ` data-wager="${escHtml(p.wager)}"` : ''} data-focus-key="${escHtml(`mark:${keyPrefix}${key}`)}" aria-label="${escHtml(aria)}"${busy}>${label}</button>`;
+    let note = '';
+    if (payee) {
+        parts.push(button('Got it', `Got it: ${getPlayerName(p.from)} paid you ${amount}`));
+    } else if (payer && !admin && !onSite(p.to)) {
+        note = `<p class="pay-note">${escHtml(firstName(p.to))} isn’t on the site yet, so once you’ve paid, ask the commissioner to mark it paid.</p>`;
+    } else if (payer) {
+        parts.push(button('Mark paid', `Mark paid: you paid ${getPlayerName(p.to)} ${amount}`));
+    } else {
+        parts.push(button('Mark paid (admin)', `Mark paid (admin): ${getPlayerName(p.from)} paid ${getPlayerName(p.to)} ${amount}`, ' admin-override'));
+    }
+    if (handle) parts.push(`<span class="pay-handle">@${escHtml(handle)}</span>`);
+    return (parts.length ? `<div class="pay-actions">${parts.join('')}</div>` : '') + note;
+}
+
+// What's still owed: each player's net from the bets, plus what he's paid, less what he's been
+// paid (in cents). Settle up nets this again, so a payment that followed the bet-by-bet list (or
+// any other) still leaves everyone's total right.
+function owedAfter(balances, marks) {
+    const cents = {};
+    Object.keys(balances).forEach(id => { cents[id] = Math.round(balances[id] * 100); });
+    marks.forEach(m => {
+        cents[m.from] = (cents[m.from] || 0) + m.cents;
+        cents[m.to] = (cents[m.to] || 0) - m.cents;
+    });
+    const owed = {};
+    Object.keys(cents).forEach(id => { owed[id] = cents[id] / 100; });
+    return owed;
+}
+
+// Which bet-by-bet payments the marks cover. A mark pays off its own payer → payee lines: the line
+// it was marked from on this page, else the first one of exactly its amount, then the oldest bets.
+// Returns the cents left on each line, and the cents of marks that don't line up with any line
+// (they followed the netted list instead).
+function coverBetByBet(lines, marks) {
+    const full = lines.map(p => Math.round(p.amount * 100));
+    const left = full.slice();
+    const rest = [];
+    const exact = (m, p, j) => p.from === m.from && p.to === m.to && left[j] === full[j] && full[j] === m.cents;
+    const byAge = marks.slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    // Marks made from a bet-by-bet line on this page first, so each lands on the line that was tapped
+    const pinned = byAge.filter(m => payData.lineOf.has(m.id));
+    pinned.concat(byAge.filter(m => !payData.lineOf.has(m.id))).forEach(m => {
+        const bet = payData.lineOf.get(m.id);
+        let i = bet ? lines.findIndex((p, j) => p.wager && p.wager.id === bet && exact(m, p, j)) : -1;
+        if (i < 0) i = lines.findIndex((p, j) => exact(m, p, j));
+        if (i >= 0) left[i] = 0;
+        else rest.push({ m, cents: m.cents });
+    });
+    let unmatched = 0;
+    rest.forEach(r => {
+        lines.forEach((p, j) => {
+            if (!r.cents || !left[j] || p.from !== r.m.from || p.to !== r.m.to) return;
+            const take = Math.min(left[j], r.cents);
+            left[j] -= take;
+            r.cents -= take;
+        });
+        unmatched += r.cents;
+    });
+    return { left, unmatched };
+}
+
+// "Oct 2"
+function shortDate(iso) {
+    const d = new Date(iso);
+    if (!iso || isNaN(d)) return '';
+    try {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (e) {
+        return '';
+    }
+}
+
+// The payments marked paid this trip, newest first: "Zac → Kelly $10 · marked by Kelly · Sep 21",
+// with Undo for either of the two players or an admin
+function paidListHTML(marks) {
+    if (!marks.length) return '';
+    const me = currentUser.id;
+    const admin = !!currentUser.is_admin;
+    const name = id => (id === me ? 'you' : escHtml(shortName(id)));
+    const rows = marks.slice().sort((a, b) => String(b.at).localeCompare(String(a.at))).map(m => {
+        const party = m.from === me || m.to === me;
+        const when = shortDate(m.at);
+        const meta = `${m.by ? ` · marked by ${name(m.by)}` : ''}${when ? ` · ${when}` : ''}`;
+        const plain = `${m.from === me ? 'you' : getPlayerName(m.from)} paid ${m.to === me ? 'you' : getPlayerName(m.to)} ${fmtMoney(m.cents / 100)}`;
+        const busy = payData.busy.has(`undo:${m.id}`) ? ' disabled aria-busy="true"' : '';
+        const undo = party || admin
+            ? `<button type="button" class="pay-undo-btn${party ? '' : ' admin-override'}" data-pay-undo="${escHtml(m.id)}" data-focus-key="${escHtml(`undo:${m.id}`)}" aria-label="${escHtml(`${party ? 'Undo' : 'Undo (admin)'}: ${capFirst(plain)}`)}"${busy}>${party ? 'Undo' : 'Undo (admin)'}</button>`
+            : '';
+        return `
+                    <li class="paid-row${party ? ' mine' : ''}">
+                        <span class="paid-what"><i class="fas fa-check" aria-hidden="true"></i> ${capFirst(name(m.from))} → ${name(m.to)} ${fmtMoney(m.cents / 100)}<span class="paid-meta">${meta}</span></span>${undo}
+                    </li>`;
+    }).join('');
+    return `
+                <div class="paid-list">
+                    <h5 class="paid-head" id="paid-head">Paid</h5>
+                    <ul aria-labelledby="paid-head">${rows}
+                    </ul>
+                </div>`;
+}
+
+// One trip's mark, tidied: amounts in cents, anything malformed dropped
+function cleanMark(r) {
+    const cents = Math.round(Number(r && r.amount) * 100);
+    if (!r || typeof r.id !== 'string' || typeof r.from_player !== 'string' || typeof r.to_player !== 'string' || !(cents > 0)) return null;
+    return { id: r.id, from: r.from_player, to: r.to_player, cents, by: r.marked_by || null, at: r.created_at || '' };
+}
+
+// Venmo usernames and the Paid marks for this trip and the one Past Trips shows. Before
+// payments_2027.sql has run the tables aren't there: "being set up", and the later refreshes of
+// this visit don't ask again (opts.recheck does). A load that fails on a weak signal keeps the last
+// ones that loaded, as the board does. Returns 'ready' (fresh marks), 'setup', 'error', 'off',
+// 'stale' (a newer load took over) or 'skipped'.
+async function loadPayments(opts) {
+    if (!currentUser || !supabaseClient) return 'skipped';
+    const owner = currentUser.id;
+    if (payState() === 'setup' && !(opts && opts.recheck)) return 'skipped';
+    const seq = ++payData.seq;
+    // Only confirmed players (and admins) can see them, so nobody else is offered the buttons
+    if (currentUser.status && currentUser.status !== 'confirmed' && !currentUser.is_admin) {
+        Object.assign(payData, { state: 'off', owner, handles: new Map(), marks: {} });
+        return 'off';
+    }
+    const years = [...new Set([TRIP_YEAR, pastLedgerYear()])];
+    try {
+        const [venmo, ...byYear] = await Promise.all([
+            supabaseClient.from('player_venmo').select('player_id, handle'),
+            ...years.map(y => supabaseClient.from('bookie_payments')
+                .select('id, trip_year, from_player, to_player, amount, marked_by, created_at')
+                .eq('trip_year', y)
+                .order('created_at'))
+        ]);
+        if (seq !== payData.seq) return 'stale'; // a newer load is under way
+        const failed = [venmo, ...byYear].map(r => r.error).filter(Boolean);
+        if (failed.some(e => isMissingTable(e) || isMissingFunction(e))) {
+            Object.assign(payData, { state: 'setup', owner, handles: new Map(), marks: {} });
+            return 'setup';
+        }
+        if (failed.length) throw failed[0];
+        const handles = new Map();
+        (venmo.data || []).forEach(r => {
+            const h = r && venmoHandle(r.handle);
+            if (h && typeof r.player_id === 'string') handles.set(r.player_id, h);
+        });
+        const marks = {};
+        years.forEach((y, i) => { marks[y] = (byYear[i].data || []).map(cleanMark).filter(Boolean); });
+        Object.assign(payData, { state: 'ready', owner, handles, marks });
+        return 'ready';
+    } catch (err) {
+        if (seq !== payData.seq) return 'stale';
+        console.warn('Venmo usernames and Paid marks didn’t load:', err);
+        payData.lastError = err;
+        if (payData.owner !== owner || payData.state !== 'ready') {
+            Object.assign(payData, { state: 'error', owner, handles: new Map(), marks: {} });
+        }
+        return 'error';
+    }
+}
+
+// After a Paid mark or undo: just the marks and the Ledger
+async function reloadPayments() {
+    await loadPayments({ recheck: true });
+    renderLedger();
+}
+
+// The marks as they are right now, before a mark is saved (the page may be old: the other player
+// may have marked it from his phone since). A newer load under way is redone, so this one counts.
+async function freshPayments() {
+    for (let i = 0; i < 3; i++) {
+        payData.lastError = null;
+        const result = await loadPayments({ recheck: true });
+        if (result !== 'stale') return result;
+    }
+    return 'stale';
+}
+
+// A mark the database just saved (or undid) goes into the page's own copy straight away, so a
+// reload that fails on a weak signal can't put the payment back on Settle up
+function keepMark(row, year) {
+    const m = cleanMark(row);
+    if (!m || payState() !== 'ready') return null;
+    const list = payData.marks[year] || (payData.marks[year] = []);
+    if (!list.some(x => x.id === m.id)) list.push(m);
+    return m;
+}
+function dropMark(id) {
+    Object.keys(payData.marks).forEach(y => { payData.marks[y] = payData.marks[y].filter(m => m.id !== id); });
+    payData.recent = payData.recent.filter(r => r.id !== id);
+}
+
+// A mark or undo that didn't save: say why (the database's messages are written to be shown),
+// then show what's actually saved
+async function payActionFailed(err) {
+    if (isMissingFunction(err) || isMissingTable(err)) {
+        payData.state = 'setup';
+        renderLedger();
+        showToast('Venmo and Paid tracking are being set up. Try again later.', 'info');
+        return;
+    }
+    const msg = (err && err.message) || String(err);
+    if (isNetworkError(err)) showToast('No signal. That may not have gone through. Check Settle up once you have a bar or two.', 'error');
+    else showToast(['28000', '42501', '22023', 'P0002', '54000'].includes(err && err.code) ? msg : `Couldn’t save that: ${msg}`, 'error');
+    await reloadPayments();
+}
+
+// Put focus on a control in the Ledger by its focus key (after it re-renders)
+function focusLedgerKey(...keys) {
+    const all = [...ledgerContainer.querySelectorAll('[data-focus-key]')];
+    const el = keys.map(k => all.find(x => x.dataset.focusKey === k)).find(Boolean);
+    if (el) el.focus({ preventScroll: true });
+}
+
+// Is there a Paid button with this focus key in the Ledger as it is now?
+function ledgerHasMark(focusKey) {
+    return !!focusKey && [...ledgerContainer.querySelectorAll('[data-pay-mark]')].some(el => el.dataset.focusKey === focusKey);
+}
+
+// mark_paid takes the same payer, payee and amount within 2 minutes as the same mark (a double tap,
+// or both players tapping at once), so a second bet of the same amount between the same two has to
+// wait. Was one marked from this page in the last 2 minutes (and is it still marked)?
+function recentSameMark(year, from, to, cents) {
+    const now = Date.now();
+    payData.recent = payData.recent.filter(r => now - r.at < PAY_DUP_MS);
+    return payData.recent.find(r => r.year === year && r.from === from && r.to === to && r.cents === cents
+        && (payData.marks[year] || []).some(m => m.id === r.id)) || null;
+}
+function sameAmountWait(from, to, cents, by) {
+    const me = currentUser && currentUser.id;
+    const who = id => (id === me ? 'you' : firstName(id));
+    const amount = fmtMoney(cents / 100);
+    return `${amount} from ${who(from)} to ${who(to)} was just marked paid${by && by !== me ? ` by ${firstName(by)}` : ''}. A second ${amount} between the same two players can only be marked 2 minutes after the first, so mark this one again in a couple of minutes.`;
+}
+
+// "Mark paid" / "Got it" / "Mark paid (admin)"
+async function markPaid(btn) {
+    if (!currentUser || payState() !== 'ready') return;
+    const { from, to } = btn.dataset;
+    const year = Number(btn.dataset.year);
+    const cents = Number(btn.dataset.cents);
+    if (!from || !to || !Number.isInteger(cents) || cents <= 0 || !year) return;
+    const key = `mark:${payKey(year, { from, to, cents })}`;
+    if (payData.busy.has(key)) return;
+    const focusKey = btn.dataset.focusKey;
+    const wagerId = btn.dataset.wager || null;
+    const me = currentUser.id;
+    const amount = fmtMoney(cents / 100);
+    const fromName = getPlayerName(from);
+    const toName = getPlayerName(to);
+    const recent = recentSameMark(year, from, to, cents);
+    if (recent) {
+        showToast(sameAmountWait(from, to, cents, me), 'info');
+        return;
+    }
+    const party = from === me || to === me;
+    const question = from === me ? `Mark that you paid ${toName} ${amount}?`
+        : (to === me ? `Mark that ${fromName} paid you ${amount}?`
+            : `Admin override: this is ${fromName} and ${toName}’s payment.\n\nMark that ${fromName} paid ${toName} ${amount}?`);
+    const after = party ? 'It comes off Settle up for both of you, and either of you can undo it.'
+        : 'It comes off Settle up for both of them, and either of them can undo it.';
+    if (!confirm(`${question}\n\n${after}`)) return;
+
+    const hadFocus = ledgerContainer.contains(document.activeElement);
+    payData.busy.add(key);
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    let rendered = false; // the Ledger re-rendered while this button was locked
+    try {
+        // This page may be old: the other player may have marked this one from his phone since it
+        // loaded, and marking it again would tell him to pay it back. So check what's marked now.
+        const before = new Set((payData.marks[year] || []).map(m => m.id));
+        const check = await freshPayments();
+        renderLedger();
+        rendered = true;
+        if (check !== 'ready') {
+            const err = payData.lastError;
+            if (check === 'setup') showToast('Venmo and Paid tracking are being set up. Try again later.', 'info');
+            else if (check === 'error' && isNetworkError(err)) showToast('No signal, so nothing was marked. Try again once you have a bar or two.', 'error');
+            else showToast(`Couldn’t check who’s already paid, so nothing was marked${err && err.message ? `: ${err.message}` : '. Tap Refresh and try again.'}`, 'error');
+            if (hadFocus) focusLedgerKey(focusKey, 'settle-up');
+            return;
+        }
+        if (!ledgerHasMark(focusKey)) {
+            // It changed: someone marked this one (or another payment that changes it) meanwhile
+            const fresh = (payData.marks[year] || []).filter(m => !before.has(m.id));
+            const same = fresh.find(m => m.from === from && m.to === to && m.cents === cents);
+            showToast(same
+                ? `Already marked paid${same.by ? ` by ${same.by === me ? 'you' : firstName(same.by)}` : ''}. Settle up is up to date.`
+                : 'Settle up just changed: another payment was marked. Check it, and tap again if this one still needs marking.', 'info');
+            if (hadFocus) focusLedgerKey(same ? `undo:${same.id}` : 'settle-up', 'settle-up');
+            return;
+        }
+        const { data, error } = await supabaseClient.rpc('mark_paid', { p_trip_year: year, p_from: from, p_to: to, p_amount: cents / 100 });
+        if (error) throw error;
+        const saved = keepMark(data, year);
+        if (saved && !data.duplicate) {
+            payData.recent.push({ id: saved.id, year, from, to, cents, at: Date.now() });
+            if (wagerId) payData.lineOf.set(saved.id, wagerId);
+        }
+        payData.busy.delete(key);
+        await reloadPayments();
+        // A duplicate that leaves this line open: it was a second bet of the same amount, and the
+        // database took it for the first one
+        const wait = !!(data && data.duplicate && ledgerHasMark(focusKey));
+        if (hadFocus) {
+            if (wait) focusLedgerKey(focusKey, 'settle-up');
+            else if (data && data.id) focusLedgerKey(`undo:${data.id}`, 'settle-up'); // to its line under Paid
+        }
+        if (wait) showToast(sameAmountWait(from, to, cents, data.marked_by), 'info');
+        else showToast(data && data.duplicate ? 'That one was already marked paid.'
+            : `${to === me ? 'Got it' : 'Marked paid'}. It’s off Settle up, under Paid.`, 'success');
+    } catch (err) {
+        payData.busy.delete(key);
+        await payActionFailed(err);
+        if (hadFocus) focusLedgerKey(focusKey, 'settle-up');
+    } finally {
+        const locked = payData.busy.has(key);
+        payData.busy.delete(key);
+        if (btn.isConnected) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+        // Its copies in the re-rendered Ledger were drawn locked: unlock them
+        if (locked && rendered) {
+            ledgerContainer.querySelectorAll('[data-pay-mark]').forEach(el => {
+                if (`mark:${payKey(Number(el.dataset.year), { from: el.dataset.from, to: el.dataset.to, cents: Number(el.dataset.cents) })}` !== key) return;
+                el.disabled = false;
+                el.removeAttribute('aria-busy');
+            });
+        }
+    }
+}
+
+// Undo a Paid mark (either player on it, or an admin): it goes back on Settle up
+async function undoPaid(btn) {
+    if (!currentUser || payState() !== 'ready') return;
+    const id = btn.dataset.payUndo;
+    const mark = Object.values(payData.marks).flat().find(m => m.id === id);
+    if (!mark) return;
+    const key = `undo:${id}`;
+    if (payData.busy.has(key)) return;
+    const me = currentUser.id;
+    const party = mark.from === me || mark.to === me;
+    const what = `${mark.from === me ? 'you' : getPlayerName(mark.from)} paid ${mark.to === me ? 'you' : getPlayerName(mark.to)} ${fmtMoney(mark.cents / 100)}`;
+    const override = party ? '' : `Admin override: this is ${getPlayerName(mark.from)} and ${getPlayerName(mark.to)}’s payment.\n\n`;
+    if (!confirm(`${override}Undo the Paid mark (${capFirst(what)})? It goes back on Settle up.`)) return;
+
+    const hadFocus = ledgerContainer.contains(document.activeElement);
+    payData.busy.add(key);
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    try {
+        const { error } = await supabaseClient.rpc('undo_paid', { p_id: id });
+        // Already undone (the other player beat you to it): the same outcome
+        const gone = error && error.code === 'P0002';
+        if (error && !gone) throw error;
+        // Off the page's own copy too, so a reload that fails can't put it back under Paid
+        dropMark(id);
+        payData.lineOf.delete(id);
+        payData.busy.delete(key);
+        await reloadPayments();
+        if (hadFocus) focusLedgerKey('settle-up');
+        showToast(gone ? 'That Paid mark was already undone.' : 'Paid mark undone. It’s back on Settle up.', 'success');
+    } catch (err) {
+        payData.busy.delete(key);
+        await payActionFailed(err);
+        if (hadFocus) focusLedgerKey(key, 'settle-up');
+    } finally {
+        payData.busy.delete(key);
+        if (btn.isConnected) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+    }
 }
 
 function toggleLedgerRow(btn) {
@@ -2973,6 +3610,13 @@ function toggleBetByBet(btn) {
 async function shareSettleUp() {
     const text = settleUpText;
     if (!text) return;
+    // Until the Paid marks have loaded, the text could ask for payments already made
+    const state = payState();
+    if (state === 'idle' || state === 'error') {
+        showToast(state === 'idle' ? 'Still checking who’s already paid. Try again in a moment.'
+            : 'Couldn’t load who’s already paid, so that could list payments already made. Check your signal and tap Refresh.', 'info');
+        return;
+    }
     if (navigator.share && isPhone()) {
         try {
             await navigator.share({ text });

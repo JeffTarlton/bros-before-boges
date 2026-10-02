@@ -70,6 +70,17 @@ let saveProblem = null; // what's blocking the last Save attempt, shown above th
 let leavingPage = false; // set once Logout is confirmed, so the unload prompt doesn't ask twice
 const EDITOR_TABS = ['tab-roster', 'tab-drafting', 'tab-matchups', 'tab-potential'];
 
+// payments_2027.sql's data (see "Payments" near the end). Each part's state is 'idle', 'loading', 'ok',
+// 'missing' (the script hasn't run yet: "Being set up") or 'error'. These save right away through the
+// admin-only functions, never with Save Changes.
+const payData = {
+    trip: { state: 'idle', rows: [], error: '', job: 0, reading: false },              // trip_payments, every year
+    venmo: { state: 'idle', byPlayer: new Map(), error: '', job: 0, reading: false },  // player_venmo
+    logins: { state: 'idle', byPlayer: new Map(), error: '', job: 0, reading: false }  // admin_roster_logins()
+};
+let rsvpLoading = false; // an RSVP load is running (it draws the table itself when it's done)
+let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
+
 // Each sidebar section has an address (admin#rsvps), so a refresh or a bookmark opens it again
 const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential'];
 
@@ -305,7 +316,12 @@ function setupEventListeners() {
     document.getElementById('rsvp-admin-tbody')?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-approve]');
         if (btn) approvePlayer(btn.dataset.approve, btn);
+        const release = e.target.closest('[data-release]');
+        if (release) releaseClaim(release.dataset.release, release);
+        const paid = e.target.closest('[data-pay]');
+        if (paid) openPaySheet(paid.dataset.pay, paid);
     });
+    setupPaymentListeners();
     document.getElementById('rsvp-approved')?.addEventListener('click', (e) => {
         const dismiss = e.target.closest('[data-dismiss-approved]');
         if (dismiss) {
@@ -528,6 +544,7 @@ function showDashboard() {
     renderSaveBar(); // the add buttons stay off until the roster is in
     loadRoster();
     loadMatchups();
+    loadPaymentExtras(); // Venmo usernames, trip payments, who's signed in as each name
     // admin#rsvps, admin#score-entry…: open the section the address names
     const tab = tabFromHash();
     if (tab) openTab(tab, { fromHash: true });
@@ -693,14 +710,14 @@ function renderRosterTable() {
 
     const problem = loadProblem(['roster']);
     if (problem) {
-        elements.rosterTbody.innerHTML = `<tr><td colspan="6" class="load-cell">${loadProblemHtml(problem)}</td></tr>`;
+        elements.rosterTbody.innerHTML = `<tr><td colspan="7" class="load-cell">${loadProblemHtml(problem)}</td></tr>`;
         return;
     }
 
     const confirmedPlayers = players.filter(p => p.status !== 'potential');
 
     if (confirmedPlayers.length === 0) {
-        elements.rosterTbody.innerHTML = `<tr><td colspan="6" class="load-cell" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>`;
+        elements.rosterTbody.innerHTML = `<tr><td colspan="7" class="load-cell" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>`;
         return;
     }
 
@@ -715,6 +732,7 @@ function renderRosterTable() {
             <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${escHtml(player.email || '')}" placeholder="Email" aria-label="${who} email"></td>
             <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${escHtml(player.ghin || '')}" placeholder="GHIN" aria-label="${who} GHIN"></td>
             <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${escHtml(player.handicap !== null ? player.handicap : 0)}" placeholder="HCP" aria-label="${who} handicap"></td>
+            <td data-label="Venmo" data-venmo-cell>${venmoCellHtml(player)}</td>
             <td data-label="Status"><span class="status-badge status-confirmed">${escHtml(player.status || 'confirmed')}</span></td>
             <td data-label="Actions">
                 <details class="row-menu">
@@ -838,6 +856,8 @@ function deletePlayerQuestion(p) {
 // Marks him for deletion (written on Save). Returns whether he was marked.
 function removePlayer(index) {
     const p = players[index];
+    // The database keeps trip payments: a player who has any can't be deleted (payments_2027.sql)
+    if (p && tripPaymentsBlockRemoval(p)) return false;
     if (!p || !confirm(deletePlayerQuestion(p))) return false;
     players.splice(index, 1);
     renderRosterTable();
@@ -1128,15 +1148,28 @@ function renderPotentialUI() {
     potentialPlayers.forEach((p) => {
         const realIndex = players.indexOf(p);
         const who = escHtml(p.name);
+        // Who's signed in as him (payments_2027.sql's admin_roster_logins), once that's loaded
+        const login = loginFor(p);
+        const held = isHeldPick(p);
+        const badge = !p.user_id ? ''
+            : !login ? ' <span class="answer-badge answer-new">Has an account</span>'
+            : held ? ` ${heldBadgeHtml(p)}`
+            : ' <span class="answer-badge answer-new">New sign-up</span>';
+        const btnStyle = 'width: auto; min-height: 44px; padding: 5px 15px; margin: 0; font-size: 0.8rem;';
+        const loginText = login ? escHtml(login.login_email || 'a login with no email') : '';
         const div = document.createElement('div');
         div.className = 'glass-panel';
         div.style = "padding: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;";
-        // Approve here is a staged edit like the rest of this page: it lands with Save Changes
+        // Approve here is a staged edit like the rest of this page: it lands with Save Changes. A name
+        // somebody picked with another email can only be approved by naming that login, right away
+        // (the database refuses a plain status change for it, and deleting it).
         div.innerHTML = `
-            <span style="font-weight: 600;">${who}${p.user_id ? ' <span class="answer-badge answer-new">Has an account</span>' : ''}</span>
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                    <button type="button" class="admin-btn" style="width: auto; min-height: 44px; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Approve (Save to apply)<span class="sr-only">: ${who}</span></button>
-                    <button type="button" class="admin-btn secondary" style="width: auto; min-height: 44px; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Delete<span class="sr-only"> ${who}</span></button>
+            <div class="pot-who"><span style="font-weight: 600;">${who}${badge}</span>${login ? loginLineHtml(login) : ''}</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">${held ? `
+                    <button type="button" class="admin-btn" style="${btnStyle}" data-approve-pick="${escHtml(p.id)}">Approve this login<span class="sr-only">: ${loginText} as ${who}</span></button>
+                    <button type="button" class="admin-btn secondary" style="${btnStyle}" data-release="${escHtml(p.id)}">Not him<span class="sr-only">: unlink ${loginText} from ${who}</span></button>` : `
+                    <button type="button" class="admin-btn" style="${btnStyle}" onclick="promotePlayer(${realIndex})">Approve (Save to apply)<span class="sr-only">: ${who}</span></button>
+                    <button type="button" class="admin-btn secondary" style="${btnStyle}" onclick="removePlayer(${realIndex})">Delete<span class="sr-only"> ${who}</span></button>`}
                 </div>
         `;
         elements.potentialList.appendChild(div);
@@ -2098,6 +2131,11 @@ async function loadRsvpAdmin() {
     if (yearEl) yearEl.textContent = rsvpTripYear();
     if (!supabaseInstance || !tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="rsvp-message">Loading RSVPs…</td></tr>';
+    rsvpLoading = true;
+    // Who's signed in as each name, and the trip payments (Paid): fetched alongside, and drawn in
+    // when they land (payments_2027.sql; until it has run they say "Being set up")
+    loadRosterLogins();
+    loadTripPayments();
     // The roster is re-read here too, so players who signed up after this page opened show
     // up (with Approve). It's kept apart from the roster tab so unsaved edits there survive.
     const [rsvpResult, rosterResult] = await Promise.all([
@@ -2118,11 +2156,17 @@ async function loadRsvpAdmin() {
             originalPlayers.push(JSON.parse(JSON.stringify(p)));
             players.push(JSON.parse(JSON.stringify(p)));
         });
-        if (added.length) {
+        // Players already here whose login or status changed since (somebody picked a name, so it's
+        // waiting for approval; or it was approved or unlinked elsewhere) move to the right list too.
+        // Only where this page hasn't edited the status: both copies get the same values, so Save
+        // sees no change and never writes them.
+        const relinked = syncLinkStatus(rosterResult.data);
+        if (added.length || relinked) {
             renderRosterTable();
             renderPotentialUI();
             renderDraftingUI();
             checkChanges();
+            if (added.length) loadVenmo(); // a new sign-up may have added his own
         }
     }
     if (error) {
@@ -2138,7 +2182,30 @@ async function loadRsvpAdmin() {
         // admin_rsvps sends newest first; the history view wants oldest first
         rsvpRows = (data || []).slice().sort((a, b) => (a.created_at > b.created_at ? 1 : a.created_at < b.created_at ? -1 : 0));
     }
+    rsvpLoading = false;
+    rsvpLoaded = true;
     renderRsvpAdmin();
+}
+
+// Copies status and user_id from a fresh roster read into the page's two copies of each player, where
+// this page hasn't changed them (an unsaved Approve or a player marked for removal is left alone).
+// Returns how many players changed.
+function syncLinkStatus(freshRows) {
+    let changed = 0;
+    freshRows.forEach(f => {
+        const o = originalPlayers.find(x => x.id === f.id);
+        const p = players.find(x => x.id === f.id);
+        if (!o || !p) return;
+        const same = (a, b) => (a === undefined ? null : a) === (b === undefined ? null : b);
+        if (!same(p.status, o.status) || !same(p.user_id, o.user_id)) return; // edited here: keep the edit
+        if (same(f.status, o.status) && same(f.user_id, o.user_id)) return;
+        [o, p].forEach(row => {
+            if ('status' in f) row.status = f.status;
+            if ('user_id' in f) row.user_id = f.user_id;
+        });
+        changed++;
+    });
+    return changed;
 }
 
 function rsvpKeyForName(name) {
@@ -2279,7 +2346,7 @@ function copyRsvpReminder() {
 }
 
 // Players approved on this visit, each with a ready-made note to tell him
-let rsvpJustApproved = []; // { id, name, email }
+let rsvpJustApproved = []; // { id, name, email, fixEmail (a login to put on his roster row, or '') }
 
 function renderApprovedNotes(focusId) {
     const list = document.getElementById('rsvp-approved');
@@ -2291,7 +2358,11 @@ function renderApprovedNotes(focusId) {
         const action = a.email
             ? `<a class="admin-btn" data-let-know="${escHtml(a.id)}" href="${escHtml(`mailto:${a.email}?subject=${encodeURIComponent(`You're confirmed for BBB ${year}`)}&body=${encodeURIComponent(approvalMessage())}`)}">Let him know<span class="sr-only"> by email: ${who}</span></a>`
             : `<button type="button" class="admin-btn" data-let-know="${escHtml(a.id)}" data-copy-approval>Copy a note for him<span class="sr-only">: ${who}</span></button>`;
-        return `<li><span><b>${who}</b> is confirmed: he’s on the head count and The Bookie is open to him.</span>${action}` +
+        // Approved a login that isn't his roster email: put it on his row, so the two match from now on
+        const fix = a.fixEmail
+            ? ` His roster email still isn’t that login: put <b>${emailHtml(a.fixEmail)}</b> in his Email on Confirmed Roster, then Save.`
+            : '';
+        return `<li><span><b>${who}</b> is confirmed: he’s on the head count and The Bookie is open to him.${fix}</span>${action}` +
             `<button type="button" class="rsvp-dismiss" data-dismiss-approved="${escHtml(a.id)}" aria-label="Dismiss the note about ${who}">×</button></li>`;
     }).join('');
     if (focusId) {
@@ -2336,8 +2407,10 @@ function renderRsvpAdmin() {
             answerPill('out', 'Out'),
             pill('No reply yet', count(e => e.answer === 'none')),
             pill('Sunday round', count(e => e.latest && e.latest.sunday_round && e.answer !== 'out')),
-            pill('Needs approval', count(e => e.needsApproval))
-        ].join('');
+            pill('Needs approval', count(e => e.needsApproval)),
+            paidPillHtml(pill),
+            rsvpDuePillHtml()
+        ].filter(Boolean).join('');
     }
 
     // "No reply yet": a reminder for the group text
@@ -2362,32 +2435,43 @@ function renderRsvpAdmin() {
 
     tbody.innerHTML = shown.map(e => {
         const p = e.player;
+        // A name somebody picked from the roster with a login that isn't his roster email
+        const held = !!(p && e.isNew && isHeldPick(p));
         const tag = !p ? '<span class="answer-badge answer-none">Not on roster</span>'
+            : held ? heldBadgeHtml(p)
             : e.isNew ? `<span class="answer-badge answer-new">${p.user_id ? 'New sign-up' : 'Not confirmed'}</span>` : '';
         // Email him straight from the list when the roster has his address
         const email = p ? mailableEmail(p.email) : '';
         const name = email
             ? `<a class="rsvp-name-link" href="mailto:${escHtml(email)}" title="Email ${escHtml(e.name)}">${escHtml(e.name)}</a>`
             : escHtml(e.name);
+        // The Sunday round goes with the answer ("In + Sunday", as in the history), which leaves the
+        // Note column room to be read
+        const sunday = !!(e.latest && e.latest.sunday_round && e.answer !== 'out');
         const answer = e.latest
-            ? `<span class="answer-badge answer-${e.answer}">${RSVP_ANSWERS[e.answer]}</span>`
+            ? `<span class="rsvp-answer"><span class="answer-badge answer-${e.answer}">${RSVP_ANSWERS[e.answer]}</span>${sunday ? ' <span class="rsvp-sunday">+ Sunday</span>' : ''}</span>`
             : '<span class="answer-badge answer-none">No reply</span>';
         const history = e.history.length > 1
             ? `<details class="rsvp-history"><summary>${answerCount(e)} answers</summary><ul>${e.history.slice().reverse().map(h =>
                 `<li>${escHtml(RSVP_ANSWERS[h.status] || h.status)}${h.sunday_round ? ' + Sunday' : ''} · ${escHtml(fmtWhen(h.created_at))}${h.note ? ` · “${escHtml(h.note)}”` : ''}</li>`).join('')}</ul></details>`
             : `<span class="rsvp-muted">${e.history.length ? '1 answer' : '—'}</span>`;
-        const account = !p ? '—' : p.user_id ? 'Yes' : '<span class="rsvp-muted">No account yet</span>';
-        const action = e.needsApproval
-            ? `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; min-height: 44px; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve<span class="sr-only"> ${escHtml(e.name)}</span></button>`
-            : '';
+        // With admin_roster_logins: the email he signs in with, and a flag when it isn't his roster email
+        const account = !p ? '—' : p.user_id ? accountCellHtml(p) : '<span class="rsvp-muted">No account yet</span>';
+        const pickLogin = held ? escHtml(loginFor(p).login_email || 'a login with no email') : '';
+        const action = !e.needsApproval ? ''
+            : held ? `<div class="rsvp-actions">
+                <button type="button" class="admin-btn" data-approve="${escHtml(p.id)}">Approve this login<span class="sr-only">: ${pickLogin} as ${escHtml(e.name)}</span></button>
+                <button type="button" class="admin-btn secondary" data-release="${escHtml(p.id)}">Not him<span class="sr-only">: unlink ${pickLogin} from ${escHtml(e.name)}</span></button>
+            </div>`
+            : `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; min-height: 44px; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve<span class="sr-only"> ${escHtml(e.name)}</span></button>`;
         return `
         <tr>
             <td data-label="Player" style="font-weight: 600;">${name} ${tag}</td>
             <td data-label="Answer">${answer}</td>
-            <td data-label="Answered"><span class="rsvp-muted" style="white-space: nowrap;">${e.latest ? escHtml(fmtWhen(e.latest.created_at)) : '—'}</span></td>
-            <td data-label="Sunday">${e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : '<span class="rsvp-muted">—</span>'}</td>
+            <td data-label="Answered"><span class="rsvp-muted rsvp-when">${e.latest ? escHtml(fmtWhen(e.latest.created_at)).replace(/ /g, '&nbsp;').replace(',&nbsp;', ', ') : '—'}</span></td>
             <td data-label="Note"><div class="rsvp-note">${e.latest && e.latest.note ? escHtml(e.latest.note) : '<span class="rsvp-muted">—</span>'}</div></td>
             <td data-label="Account">${account}</td>
+            <td data-label="Paid">${paidCellHtml(p, e.name)}</td>
             <td data-label="History">${history}</td>
             <td data-label="${action ? 'Approve' : ''}">${action}</td>
         </tr>`;
@@ -2399,21 +2483,34 @@ function renderRsvpAdmin() {
 // the players table's update policies.
 async function approvePlayer(id, btn) {
     const p = rsvpRoster.find(x => x.id === id);
+    // A name somebody picked whose login isn't his roster email: approved by naming that login
+    if (p && isHeldPick(p)) return approvePick(id, btn);
     if (!p || !confirm(`Confirm ${p.name} for the trip? They'll show on the site's head count and can use The Bookie.`)) return;
     btn.disabled = true;
     const { error } = await supabaseInstance.rpc('approve_player', { p_player_id: id });
     if (error) {
         btn.disabled = false;
         window.showToast('Couldn’t approve: ' + escHtml(error.message), 'error');
+        // payments_2027.sql wants the login behind a picked name checked first: fetch who's signed
+        // in as each name, so this row turns into Approve (naming the login) / Not him
+        if (/check who this is/i.test(error.message || '')) loadRosterLogins();
         return;
     }
+    markApproved(id, p, mailableEmail(p.email));
+}
+
+// The page's copies after an approval (approve_player or admin_approve_pick), and the note to tell him
+function markApproved(id, p, email, fixEmail = '') {
     p.status = 'confirmed';
     // Keep the roster tab in step (Save treats a player missing from only one of its two
     // lists as deleted). Approving someone marked for removal, not yet saved, cancels that.
-    [players, originalPlayers].forEach(list => {
+    [players, originalPlayers, rsvpRoster].forEach(list => {
         const row = list.find(x => x.id === id);
         if (row) row.status = 'confirmed';
     });
+    dropStaleReads(payData.logins, loadRosterLogins);
+    const login = payData.logins.byPlayer.get(id);
+    if (login) Object.assign(login, { status: 'confirmed', status_before_pick: null });
     if (!originalPlayers.some(x => x.id === id)) originalPlayers.push(JSON.parse(JSON.stringify(p)));
     if (!players.some(x => x.id === id)) {
         // Put him back where he was, so the page doesn't think the roster changed
@@ -2423,7 +2520,7 @@ async function approvePlayer(id, btn) {
     }
     // A note to tell him, kept above the list until dismissed (focus goes there: his row's
     // Approve button is gone)
-    rsvpJustApproved = rsvpJustApproved.filter(a => a.id !== id).concat([{ id, name: p.name, email: mailableEmail(p.email) }]);
+    rsvpJustApproved = rsvpJustApproved.filter(a => a.id !== id).concat([{ id, name: p.name, email, fixEmail }]);
     renderRosterTable();
     renderPotentialUI();
     renderDraftingUI();
@@ -2445,8 +2542,12 @@ function csvCell(value) {
 function exportRsvpCsv() {
     if (rsvpLoadError) return window.showToast(escHtml(rsvpLoadError), 'error');
     const header = ['Name', 'Answer', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has account', 'Times answered'];
+    // What each player has paid toward the trip, once trip payments are set up (a number, in dollars)
+    const withPaid = payData.trip.state === 'ok';
+    if (withPaid) header.push(`Paid toward trip (${paymentsYear()})`);
     const rows = rsvpEntries().map(e => {
         const p = e.player || {};
+        const paid = withPaid ? [e.player && p.id ? paidCentsOf(p.id) / 100 : ''] : [];
         return [
             e.name,
             e.latest ? RSVP_ANSWERS[e.answer] : 'No reply',
@@ -2458,7 +2559,8 @@ function exportRsvpCsv() {
             p.handicap === null || p.handicap === undefined || p.handicap === '' ? '' : Number(p.handicap),
             e.player ? (p.status || 'confirmed') : 'not on roster',
             p.user_id ? 'Yes' : 'No',
-            answerCount(e)
+            answerCount(e),
+            ...paid
         ];
     });
     const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
@@ -2470,4 +2572,792 @@ function exportRsvpCsv() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// RSVP-by date (trip-config rsvp.lockBy, a day in the trip's time zone), with the counts:
+// "RSVPs due Nov 30", then "RSVPs were due Nov 30" once that day is over there
+function rsvpDuePillHtml() {
+    const cfg = window.BBB || {};
+    const by = String((cfg.rsvp && cfg.rsvp.lockBy) || '').trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(by);
+    if (!m) return '';
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return '';
+    const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const passed = tripToday() > by;
+    return `<div class="rsvp-pill rsvp-pill-due${passed ? ' is-past' : ''}">RSVPs ${passed ? 'were due' : 'due'}<b>${escHtml(day)}</b></div>`;
+}
+
+// Today as 'YYYY-MM-DD' where the trip is (trip.timeZone, Arizona: UTC-7 all year)
+function tripToday() {
+    const tz = (window.BBB && window.BBB.trip && window.BBB.trip.timeZone) || 'America/Phoenix';
+    try {
+        const p = {};
+        new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+            .formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+        return `${p.year}-${p.month}-${p.day}`;
+    } catch (e) {
+        return new Date(Date.now() - 7 * 3600000).toISOString().slice(0, 10);
+    }
+}
+
+// ==========================================
+// Payments (payments_2027.sql): trip payments (RSVPs, Paid), Venmo usernames (Confirmed Roster,
+// Venmo), and which login is behind each roster name (approving a name somebody picked).
+// Until that script has run, its tables and functions aren't there: the new columns say "Being set
+// up" and everything else works as it did. Nothing here goes through Save Changes.
+// ==========================================
+const PAY_SETUP_TEXT = 'Venmo and Paid tracking are being set up.';
+const VENMO_RULE = 'A Venmo username is 5 to 30 letters, numbers, hyphens or underscores, like @Jeff-Tarlton.';
+
+// The table or function isn't there yet (the script hasn't run)
+function isSetupMissing(error) {
+    const text = `${(error && error.code) || ''} ${(error && error.message) || ''}`;
+    return /PGRST205|PGRST202|42P01|could not find the (table|function)/i.test(text);
+}
+
+function paymentsYear() {
+    const cfg = window.BBB || {};
+    return Number((cfg.trip && cfg.trip.year) || rsvpTripYear());
+}
+
+function loadPaymentExtras() {
+    if (!supabaseInstance) return Promise.resolve();
+    return Promise.all([loadVenmo(), loadRosterLogins(), loadTripPayments()]);
+}
+
+// One load of one part; a newer load of the same part (or a save here, see dropStaleReads) wins over
+// a slower older one
+async function loadPayPart(part, fetchRows, keep) {
+    if (!supabaseInstance) return;
+    const job = ++part.job;
+    part.reading = true;
+    if (part.state !== 'ok') part.state = 'loading';
+    let res;
+    try {
+        res = await fetchRows();
+    } catch (e) {
+        res = { data: null, error: e };
+    }
+    if (job !== part.job) return;
+    part.reading = false;
+    if (!res || res.error || !Array.isArray(res.data)) {
+        const error = (res && res.error) || new Error('Nothing came back.');
+        part.state = isSetupMissing(error) ? 'missing' : 'error';
+        part.error = plainError(error);
+    } else {
+        part.state = 'ok';
+        part.error = '';
+        keep(res.data);
+    }
+}
+
+async function loadTripPayments() {
+    await loadPayPart(payData.trip,
+        () => supabaseInstance.from('trip_payments').select('id, trip_year, player_id, amount, paid_on, note, created_by, created_at'),
+        rows => { payData.trip.rows = rows.slice().sort(byPaidOn); });
+    paymentsChanged('trip');
+}
+
+async function loadVenmo() {
+    await loadPayPart(payData.venmo,
+        () => supabaseInstance.from('player_venmo').select('player_id, handle, updated_at, updated_by'),
+        rows => { payData.venmo.byPlayer = new Map(rows.map(r => [r.player_id, r])); });
+    paymentsChanged('venmo');
+}
+
+async function loadRosterLogins() {
+    await loadPayPart(payData.logins,
+        () => supabaseInstance.rpc('admin_roster_logins'),
+        rows => { payData.logins.byPlayer = new Map(rows.map(r => [r.player_id, r])); });
+    paymentsChanged('logins');
+}
+
+// A save here just changed this part's rows on screen. A read that was already on its way was asked
+// before the save, so it would put the old rows back (a new payment vanishing, a deleted one coming
+// back): drop it, and if one was running, read again now, so whatever else it was fetching still lands.
+function dropStaleReads(part, reload) {
+    const wasReading = !!part.reading;
+    part.job++;
+    part.reading = false;
+    if (wasReading) reload();
+}
+
+function byPaidOn(a, b) {
+    return String(a.paid_on).localeCompare(String(b.paid_on)) || String(a.created_at).localeCompare(String(b.created_at));
+}
+
+// Redraw what a part feeds, keeping keyboard focus on the same button if it was on one
+function paymentsChanged(part) {
+    renderPayNotes();
+    if (part === 'venmo') {
+        refreshVenmoCells();
+        return;
+    }
+    if (part === 'logins' && players.some(p => p.status === 'potential' && p.user_id)) {
+        keepFocusIn(elements.potentialList, renderPotentialUI);
+    }
+    if (rsvpLoaded && !rsvpLoading) keepFocusIn(document.getElementById('rsvp-admin-tbody'), renderRsvpAdmin);
+    if (part === 'trip' && paySheet.playerId) renderPaySheet();
+}
+
+function focusKey(el) {
+    const attr = ['data-pay', 'data-approve', 'data-release', 'data-approve-pick', 'data-venmo', 'data-pay-delete']
+        .find(a => el && el.hasAttribute && el.hasAttribute(a));
+    return attr ? `[${attr}="${CSS.escape(el.getAttribute(attr))}"]` : null;
+}
+
+function keepFocusIn(container, render) {
+    const had = container && container.contains(document.activeElement) ? focusKey(document.activeElement) : null;
+    render();
+    const again = had && container.querySelector(had);
+    if (again) again.focus();
+}
+
+// "Being set up" (or what failed, with Retry) above the column it explains
+function renderPayNotes() {
+    const note = (id, parts, what) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const failed = parts.filter(p => p.state === 'error');
+        let html = '';
+        if (failed.length) html = `<span>Couldn’t load ${what}: ${escHtml(failed[0].error)}</span><button type="button" class="admin-btn secondary" data-retry-pay>Retry</button>`;
+        else if (parts.some(p => p.state === 'missing')) html = `<span>${PAY_SETUP_TEXT}</span>`;
+        el.classList.toggle('is-error', !!failed.length);
+        // A failed load is announced; "being set up" is just there to read
+        if (failed.length) el.setAttribute('role', 'alert');
+        else el.removeAttribute('role');
+        if (el.dataset.html !== html) {
+            el.dataset.html = html;
+            el.innerHTML = html;
+        }
+        el.hidden = !html;
+    };
+    note('roster-pay-note', [payData.venmo], 'Venmo usernames');
+    note('rsvp-pay-note', [payData.trip, payData.logins], 'trip payments and logins');
+}
+
+function retryPaymentLoads() {
+    if (payData.venmo.state === 'error') loadVenmo();
+    if (payData.trip.state === 'error') loadTripPayments();
+    if (payData.logins.state === 'error') loadRosterLogins();
+}
+
+// ---- Money and dates ----
+
+function centsOf(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+// "$800", or "$812.50" when there are cents
+function money(cents) {
+    const hasCents = cents % 100 !== 0;
+    return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+// 'YYYY-MM-DD' -> "Sep 1, 2026"
+function fmtDay(ymd) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ''));
+    if (!m) return String(ymd || '');
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+// This computer's date, 'YYYY-MM-DD' (what "today" means to the person typing)
+function localDate(addDays = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + addDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function tripPaymentsOf(playerId) {
+    const year = paymentsYear();
+    return payData.trip.rows.filter(r => r.player_id === playerId && Number(r.trip_year) === year);
+}
+
+function paidCentsOf(playerId) {
+    return tripPaymentsOf(playerId).reduce((sum, r) => sum + centsOf(r.amount), 0);
+}
+
+// trip-config's per-person cost, if it has one
+function tripCost() {
+    const cost = (window.BBB && window.BBB.trip && window.BBB.trip.cost) || {};
+    const n = Number(cost.perPerson);
+    return Number.isFinite(n) && n > 0 ? { cents: Math.round(n * 100), approx: !!cost.approx } : null;
+}
+
+function findRosterPlayer(id) {
+    return rsvpRoster.find(x => x.id === id) || players.find(x => x.id === id) || originalPlayers.find(x => x.id === id) || null;
+}
+
+// ---- Who's signed in as each name ----
+
+// admin_roster_logins' row for a linked name, or null (not linked, or the list isn't in)
+function loginFor(player) {
+    if (!player || !player.id || !player.user_id || payData.logins.state !== 'ok') return null;
+    return payData.logins.byPlayer.get(player.id) || null;
+}
+
+// Waiting for approval, and the login isn't the email on his roster row: somebody picked this name
+// from the roster (or the emails differ). The database only approves it with the login named.
+function isHeldPick(player) {
+    const login = loginFor(player);
+    return !!login && player.status === 'potential' && !login.email_match;
+}
+
+// The badge for such a name: "Claimed name" when the database recorded the pick, "Check login" when
+// it didn't (e.g. a pick from before payments_2027.sql, or a roster email edited since)
+function heldBadgeHtml(player) {
+    const login = loginFor(player);
+    return `<span class="answer-badge answer-claim">${login && login.status_before_pick ? 'Claimed name' : 'Check login'}</span>`;
+}
+
+// "Yes" as before for a confirmed name signed in with his roster email. Otherwise the email he signs in
+// with: a name waiting for approval (whose login is it?), or a login that isn't his roster email.
+function accountCellHtml(p) {
+    const login = loginFor(p);
+    if (!login || (login.email_match && p.status !== 'potential')) return 'Yes';
+    const warn = login.email_match ? ''
+        : `<span class="acct-warn">${String(login.roster_email || '').trim() ? 'Not his roster email' : 'No roster email'}</span>`;
+    const email = login.login_email ? emailHtml(login.login_email) : 'A login with no email';
+    return `<div class="acct"><span class="acct-email">${email}</span>${warn}</div>`;
+}
+
+// New sign-ups list: who's signed in as him, and for a picked name what to check
+function loginLineHtml(login) {
+    const who = `<b>${login.login_email ? emailHtml(login.login_email) : 'a login with no email'}</b>`;
+    if (login.email_match) return `<div class="login-line">Signed in as ${who}.</div>`;
+    const roster = String(login.roster_email || '').trim()
+        ? `his roster email is ${escHtml(String(login.roster_email).trim())}` : 'his roster row has no email';
+    const before = login.status_before_pick === 'confirmed' ? ' Before the pick he was a confirmed player.'
+        : login.status_before_pick === 'potential' ? ' He was on this list before the pick.' : '';
+    return `<div class="login-line is-warn">Signed in as ${who}, but ${roster}. Check it’s really him.${before}</div>`;
+}
+
+// Approve the login behind a picked name, naming it (admin_approve_pick)
+async function approvePick(id, btn) {
+    const p = findRosterPlayer(id);
+    const login = loginFor(p);
+    if (!p || !login || !supabaseInstance) return;
+    const who = login.login_email || 'a login with no email';
+    const roster = String(login.roster_email || '').trim() ? `his roster email is ${String(login.roster_email).trim()}` : 'his roster row has no email';
+    const before = login.status_before_pick === 'confirmed' ? ` Before that, ${p.name} was a confirmed player.` : '';
+    // The database recorded a pick ("Claimed name"), or it just sees a login that isn't his roster email ("Check login")
+    const how = login.status_before_pick ? `That login picked ${p.name} from the roster` : `That login is signed in as ${p.name}`;
+    if (!confirm(`Approve ${who} as ${p.name}?\n\n${how}, but ${roster}.${before}\n\n` +
+        `Only approve if you know it’s really him: he’ll be on the head count and can use The Bookie as ${p.name}. If it isn’t him, press Cancel, then Not him.`)) return;
+    const fromList = !!(elements.potentialList && elements.potentialList.contains(btn));
+    btn.disabled = true;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_approve_pick', { p_player: id, p_login_email: login.login_email });
+    } catch (e) {
+        res = { error: e };
+    }
+    if (res.error) {
+        btn.disabled = false;
+        window.showToast('Couldn’t approve: ' + escHtml(plainError(res.error)), 'error');
+        // He was unlinked, or a different login has the name now: show who it is now
+        if (res.error.code === 'P0002') loadRosterLogins();
+        return;
+    }
+    // His roster email still isn't this login (blank or another address): the note says how to fix that
+    const fixEmail = !login.email_match && login.login_email ? login.login_email : '';
+    markApproved(id, p, mailableEmail(p.email) || mailableEmail(login.login_email), fixEmail);
+    if (fromList) focusPotentialList();
+}
+
+// "Not him": unlink the login from the name (admin_release_claim). A held name goes back to how it was.
+async function releaseClaim(id, btn) {
+    const p = findRosterPlayer(id);
+    const login = loginFor(p);
+    if (!p || !login || !supabaseInstance) return;
+    const who = login.login_email || 'a login with no email';
+    const back = login.status_before_pick === 'confirmed' ? `${p.name} goes back to being a confirmed player with no login`
+        : `${p.name} stays on the roster with no login`;
+    if (!confirm(`Unlink ${who} from ${p.name}?\n\n${back}, so the real ${p.name} can pick his name when he signs in. ` +
+        'That login can sign in again and pick a name or join as new.')) return;
+    const fromList = !!(elements.potentialList && elements.potentialList.contains(btn));
+    btn.disabled = true;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_release_claim', { p_player: id });
+    } catch (e) {
+        res = { error: e };
+    }
+    if (res.error) {
+        btn.disabled = false;
+        window.showToast('Couldn’t unlink: ' + escHtml(plainError(res.error)), 'error');
+        if (res.error.code === 'P0002') loadRosterLogins();
+        return;
+    }
+    const status = (res.data && res.data.status) || 'potential';
+    // Every copy gets the same values, so Save doesn't count this as an edit
+    [rsvpRoster, players, originalPlayers].forEach(list => {
+        const row = list.find(x => x.id === id);
+        if (row) Object.assign(row, { user_id: null, status });
+    });
+    dropStaleReads(payData.logins, loadRosterLogins);
+    payData.logins.byPlayer.delete(id);
+    renderRosterTable();
+    renderPotentialUI();
+    renderDraftingUI();
+    renderRsvpAdmin();
+    checkChanges();
+    window.showToast(`Unlinked ${escHtml(who)} from ${escHtml(p.name)}. ${escHtml(p.name)} is ${status === 'confirmed' ? 'a confirmed player again' : 'still waiting for approval'}, with no login.`, 'success');
+    if (fromList) {
+        focusPotentialList();
+    } else {
+        const row = document.querySelector(`#rsvp-admin-tbody [data-pay="${CSS.escape(id)}"]`);
+        const heading = document.querySelector('#tab-rsvps h2');
+        const target = row || heading;
+        if (target === heading) heading.setAttribute('tabindex', '-1');
+        if (target) target.focus();
+    }
+}
+
+// His card left the New sign-ups list: keep keyboard focus on that tab
+function focusPotentialList() {
+    const next = (elements.potentialList && elements.potentialList.querySelector('button')) || document.querySelector('#tab-potential h2');
+    if (!next) return;
+    if (next.tagName === 'H2') next.setAttribute('tabindex', '-1');
+    next.focus();
+}
+
+// ---- Trip payments: the Paid column and its sheet ----
+
+function paidCellHtml(p, name) {
+    if (!p || !p.id) return '<span class="rsvp-muted">—</span>';
+    const state = supabaseInstance ? payData.trip.state : 'off';
+    if (state === 'missing') return `<span class="rsvp-muted" title="${PAY_SETUP_TEXT}">Being set up</span>`;
+    if (state === 'error' || state === 'off') return '<span class="rsvp-muted">—</span>';
+    if (state !== 'ok') return '<span class="rsvp-muted">…</span>';
+    const rows = tripPaymentsOf(p.id);
+    const who = escHtml(name || p.name);
+    const id = escHtml(p.id);
+    if (!rows.length) return `<button type="button" class="cell-btn is-empty" data-pay="${id}">Add<span class="sr-only"> a trip payment for ${who}</span></button>`;
+    const total = rows.reduce((sum, r) => sum + centsOf(r.amount), 0);
+    const count = `${rows.length} payment${rows.length === 1 ? '' : 's'}`;
+    return `<button type="button" class="cell-btn" data-pay="${id}" title="${count}">${money(total)}<span class="sr-only">: ${who}’s trip payments (${count})</span></button>`;
+}
+
+// An email that may wrap: at the @ first, rather than mid-word
+function emailHtml(email) {
+    return escHtml(email).replace('@', '<wbr>@');
+}
+
+// "Paid toward trip": everything recorded for this year, with the counts
+function paidPillHtml(pill) {
+    if (!supabaseInstance || payData.trip.state !== 'ok') return '';
+    const year = paymentsYear();
+    const rows = payData.trip.rows.filter(r => Number(r.trip_year) === year);
+    const who = new Set(rows.map(r => r.player_id)).size;
+    return pill('Paid toward trip', money(rows.reduce((sum, r) => sum + centsOf(r.amount), 0)), who ? `${who} player${who === 1 ? '' : 's'}` : '');
+}
+
+// Removing a player who has trip payments: the database refuses it, so say so now
+function tripPaymentsBlockRemoval(p) {
+    if (!p.id || payData.trip.state !== 'ok') return false;
+    const rows = payData.trip.rows.filter(r => r.player_id === p.id);
+    if (!rows.length) return false;
+    // Which trips they're for, this one first: "$1,600 for 2027, $1,500 for 2026"
+    const thisYear = paymentsYear();
+    const years = [...new Set(rows.map(r => Number(r.trip_year)))]
+        .sort((a, b) => (b === thisYear) - (a === thisYear) || b - a);
+    const byYear = years.map(y => `${money(rows.filter(r => Number(r.trip_year) === y)
+        .reduce((sum, r) => sum + centsOf(r.amount), 0))} for ${y}`).join(', ');
+    const name = p.name || 'This player';
+    const onlyThisYear = years.length === 1 && years[0] === thisYear;
+    alert(`${name} has trip payments recorded (${byYear}), so he can’t be removed.\n\n` + (onlyThisYear
+        ? 'If he’s really off the trip, delete his trip payments first: RSVPs tab, Paid column.'
+        : `Payments from other years are the record of those trips. Skipping ${thisYear}? Keep him: his 'Out' RSVP keeps him off the head count.\n\n` +
+          'If he’s gone for good, delete his payments first: RSVPs tab, Paid column. His button there lists them, with other years under “Other trips”.'));
+    return true;
+}
+
+const paySheet = { playerId: null, busy: false };
+
+function openPaySheet(playerId, opener) {
+    const p = findRosterPlayer(playerId);
+    if (!p || payData.trip.state !== 'ok') return;
+    paySheet.playerId = playerId;
+    document.getElementById('pay-sheet-title').textContent = p.name || 'Trip payments';
+    document.getElementById('pay-sheet-sub').textContent = `Trip payments for BBB ${paymentsYear()}. Each one saves right away.`;
+    const date = document.getElementById('pay-date');
+    document.getElementById('pay-amount').value = '';
+    document.getElementById('pay-note').value = '';
+    date.value = localDate();
+    date.max = localDate(365);
+    setSheetError('pay-error', '');
+    document.getElementById('pay-sheet-status').textContent = '';
+    renderPaySheet();
+    // On a phone, start on the heading so the keyboard doesn't cover the payments list
+    const title = document.getElementById('pay-sheet-title');
+    title.setAttribute('tabindex', '-1');
+    const touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    openSheet(document.getElementById('pay-sheet'), opener, touch ? title : document.getElementById('pay-amount'));
+}
+
+function renderPaySheet() {
+    const id = paySheet.playerId;
+    const list = document.getElementById('pay-sheet-list');
+    const totalEl = document.getElementById('pay-sheet-total');
+    if (!id || !list || !totalEl) return;
+    const rows = tripPaymentsOf(id);
+    const total = rows.reduce((sum, r) => sum + centsOf(r.amount), 0);
+    const cost = tripCost();
+    const of = cost ? ` <span>of ${cost.approx ? 'about ' : ''}${money(cost.cents)}</span>` : '';
+    totalEl.innerHTML = rows.length ? `Paid ${money(total)}${of}` : `Nothing recorded yet.${cost ? ` <span>The trip is ${cost.approx ? 'about ' : ''}${money(cost.cents)} per person.</span>` : ''}`;
+    const sheet = document.getElementById('pay-sheet');
+    const had = sheet && sheet.contains(document.activeElement) ? focusKey(document.activeElement) : null;
+    const item = (r, trip) => {
+        const amount = money(centsOf(r.amount));
+        const day = escHtml(fmtDay(r.paid_on));
+        const year = trip ? ` for BBB ${escHtml(String(r.trip_year))}` : '';
+        return `<li>
+            <div class="pay-item">${trip ? `<span class="pay-item-trip">BBB ${escHtml(String(r.trip_year))}</span> ` : ''}<b>${amount}</b> <span class="pay-item-date">· ${day}</span>${r.note ? `<div class="pay-item-note">${escHtml(r.note)}</div>` : ''}</div>
+            <button type="button" class="pay-del" data-pay-delete="${escHtml(r.id)}">Delete<span class="sr-only"> the ${amount} payment from ${day}${year}</span></button>
+        </li>`;
+    };
+    list.innerHTML = rows.map(r => item(r, false)).join('');
+    list.hidden = !rows.length;
+    // Other trip years (a removed player's payments block his removal, so they're listed here to see,
+    // and to delete if he's really gone): newest trip first
+    const thisYear = paymentsYear();
+    const others = payData.trip.rows.filter(r => r.player_id === id && Number(r.trip_year) !== thisYear)
+        .sort((a, b) => Number(b.trip_year) - Number(a.trip_year) || byPaidOn(a, b));
+    const otherWrap = document.getElementById('pay-sheet-other');
+    if (otherWrap) {
+        document.getElementById('pay-sheet-other-list').innerHTML = others.map(r => item(r, true)).join('');
+        document.getElementById('pay-sheet-other-hint').textContent =
+            `Kept as the record of those trips. They don’t count toward ${thisYear}, and he can’t be removed from the roster while any are here.`;
+        otherWrap.hidden = !others.length;
+    }
+    const again = had && sheet.querySelector(had);
+    if (again) again.focus();
+}
+
+function setSheetError(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.hidden = !text;
+}
+
+// What the admin typed as an amount: "800", "$1,600", "812.50"
+function parseAmount(raw) {
+    const s = String(raw || '').trim().replace(/^\$\s*/, '').replace(/,/g, '');
+    if (!/^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(s)) return null;
+    return Math.round(Number(s) * 100);
+}
+
+async function addTripPayment(e) {
+    e.preventDefault();
+    if (paySheet.busy || !paySheet.playerId) return;
+    const amountEl = document.getElementById('pay-amount');
+    const dateEl = document.getElementById('pay-date');
+    const noteEl = document.getElementById('pay-note');
+    const btn = document.getElementById('pay-add-btn');
+    const cents = parseAmount(amountEl.value);
+    const fail = (text, el) => { setSheetError('pay-error', text); if (el) el.focus(); };
+    if (cents === null) return fail('Enter the amount in dollars, like 800 or 812.50.', amountEl);
+    if (cents < 1 || cents > 1000000) return fail('The amount should be between $0.01 and $10,000.', amountEl);
+    const day = dateEl.value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Pick the day he paid.', dateEl);
+    if (day < '2020-01-01' || day > localDate(365)) return fail('That payment date doesn’t look right.', dateEl);
+    const note = noteEl.value.trim();
+    if (note.length > 200) return fail('Keep the note to 200 characters.', noteEl);
+    setSheetError('pay-error', '');
+
+    const playerId = paySheet.playerId;
+    paySheet.busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_add_trip_payment', {
+            p_player: playerId, p_trip_year: paymentsYear(), p_amount: cents / 100, p_paid_on: day, p_note: note || null
+        });
+    } catch (err) {
+        res = { error: err };
+    }
+    paySheet.busy = false;
+    btn.disabled = false;
+    btn.textContent = 'Add payment';
+    if (res.error || !res.data) {
+        const err = res.error || new Error('Nothing came back. Refresh to check whether it saved.');
+        fail(isSetupMissing(err) ? PAY_SETUP_TEXT : err.code === '22007' ? 'That payment date doesn’t look right.' : plainError(err), amountEl);
+        return;
+    }
+    dropStaleReads(payData.trip, loadTripPayments);
+    payData.trip.rows = payData.trip.rows.filter(r => r.id !== res.data.id).concat([res.data]).sort(byPaidOn);
+    const p = findRosterPlayer(playerId);
+    const said = `Added ${money(centsOf(res.data.amount))} (${fmtDay(res.data.paid_on)}) for ${(p && p.name) || 'him'}.`;
+    if (paySheet.playerId === playerId) {
+        amountEl.value = '';
+        noteEl.value = '';
+        renderPaySheet();
+        document.getElementById('pay-sheet-status').textContent = said;
+        amountEl.focus();
+    }
+    if (rsvpLoaded && !rsvpLoading) renderRsvpAdmin();
+    window.showToast(escHtml(said), 'success');
+}
+
+async function deleteTripPayment(id, btn) {
+    const r = payData.trip.rows.find(x => x.id === id);
+    if (!r || paySheet.busy) return;
+    const p = findRosterPlayer(r.player_id);
+    const name = (p && p.name) || 'this player';
+    const what = `the ${money(centsOf(r.amount))} payment from ${fmtDay(r.paid_on)}${r.note ? ` (“${r.note}”)` : ''}`;
+    const otherTrip = Number(r.trip_year) !== paymentsYear();
+    if (!confirm(otherTrip
+        ? `Delete ${what} for BBB ${r.trip_year}?\n\nIt’s the record of what ${name} paid for that trip. Once it’s deleted, it’s gone from the site for good.`
+        : `Delete ${what}?\n\nIt comes off ${name}’s total, and he won’t see it any more.`)) return;
+    paySheet.busy = true;
+    btn.disabled = true;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_delete_trip_payment', { p_id: id });
+    } catch (err) {
+        res = { error: err };
+    }
+    paySheet.busy = false;
+    // Already gone (deleted on another device) is what was wanted
+    if (res.error && res.error.code !== 'P0002') {
+        btn.disabled = false;
+        setSheetError('pay-error', isSetupMissing(res.error) ? PAY_SETUP_TEXT : `Couldn’t delete it: ${plainError(res.error)}`);
+        return;
+    }
+    const deletes = () => [...document.querySelectorAll('#pay-sheet [data-pay-delete]')];
+    const at = deletes().indexOf(btn);
+    dropStaleReads(payData.trip, loadTripPayments);
+    payData.trip.rows = payData.trip.rows.filter(x => x.id !== id);
+    setSheetError('pay-error', '');
+    renderPaySheet();
+    const said = `Deleted ${name}’s ${money(centsOf(r.amount))} payment from ${fmtDay(r.paid_on)}${otherTrip ? ` (BBB ${r.trip_year})` : ''}.`;
+    document.getElementById('pay-sheet-status').textContent = said;
+    // Focus the delete that took its place (or the one above), else the amount box
+    const left = deletes();
+    (left[Math.min(at, left.length - 1)] || document.getElementById('pay-amount')).focus();
+    if (rsvpLoaded && !rsvpLoading) renderRsvpAdmin();
+    window.showToast(escHtml(said), 'success');
+}
+
+// ---- Venmo usernames: the roster's Venmo column and its sheet ----
+
+// Same rule as the rest of the site: trims, takes a pasted venmo.com link or a leading @, and
+// checks what's left. { handle } (null to remove it) or { error }.
+function cleanVenmoInput(raw) {
+    let v = String(raw || '').trim();
+    if (/venmo\.com\//i.test(v)) v = v.replace(/^(https?:\/\/)?(www\.|account\.)?venmo\.com\/(u\/)?/i, '').replace(/[/?#].*$/, '');
+    v = v.replace(/^@/, '');
+    if (!v) return { handle: null };
+    return /^[a-z0-9_-]{5,30}$/.test(v.toLowerCase()) ? { handle: v } : { error: VENMO_RULE };
+}
+
+function venmoCellHtml(p) {
+    if (!supabaseInstance) return '<span class="rsvp-muted">—</span>';
+    if (!p.id) return '<span class="rsvp-muted">After Save</span>';
+    const v = payData.venmo;
+    if (v.state === 'missing') return `<span class="rsvp-muted" title="${PAY_SETUP_TEXT}">Being set up</span>`;
+    if (v.state === 'error') return '<span class="rsvp-muted">—</span>';
+    if (v.state !== 'ok') return '<span class="rsvp-muted">…</span>';
+    const row = v.byPlayer.get(p.id);
+    const who = escHtml(p.name || 'this player');
+    const id = escHtml(p.id);
+    return row
+        ? `<button type="button" class="cell-btn" data-venmo="${id}" title="@${escHtml(row.handle)}"><span class="venmo-handle">@${escHtml(row.handle)}</span><span class="sr-only">: ${who}’s Venmo username. Change it</span></button>`
+        : `<button type="button" class="cell-btn is-empty" data-venmo="${id}">Add<span class="sr-only"> ${who}’s Venmo username</span></button>`;
+}
+
+// Only the Venmo cells, so typing elsewhere in the roster isn't interrupted
+function refreshVenmoCells() {
+    if (!elements.rosterTbody) return;
+    elements.rosterTbody.querySelectorAll('td[data-venmo-cell]').forEach(td => {
+        const p = players[Number(td.closest('tr').dataset.index)];
+        if (!p) return;
+        const had = td.contains(document.activeElement);
+        td.innerHTML = venmoCellHtml(p);
+        const btn = had && td.querySelector('button');
+        if (btn) btn.focus();
+    });
+}
+
+const venmoSheet = { playerId: null, busy: false };
+
+function openVenmoSheet(playerId, opener) {
+    const p = players.find(x => x.id === playerId) || findRosterPlayer(playerId);
+    if (!p || payData.venmo.state !== 'ok') return;
+    venmoSheet.playerId = playerId;
+    const row = payData.venmo.byPlayer.get(playerId);
+    document.getElementById('venmo-sheet-title').textContent = p.name ? `${p.name}’s Venmo` : 'Venmo';
+    const input = document.getElementById('venmo-input');
+    input.value = row ? row.handle : '';
+    // Who set it and when: him, or an admin
+    let meta = 'None saved yet. Players can add their own too.';
+    if (row) {
+        const by = row.updated_by === playerId ? 'him' : (findRosterPlayer(row.updated_by) || {}).name;
+        const when = row.updated_at ? new Date(row.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        meta = `Saved${when ? ` ${when}` : ''}${by ? ` by ${by}` : ''}.`;
+    }
+    document.getElementById('venmo-sheet-sub').textContent = meta;
+    setSheetError('venmo-error', '');
+    updateVenmoCheck();
+    openSheet(document.getElementById('venmo-sheet'), opener, input);
+}
+
+// "Check @handle on Venmo": his public Venmo page, to see it's the right person
+function updateVenmoCheck() {
+    const wrap = document.getElementById('venmo-check-wrap');
+    const link = document.getElementById('venmo-check');
+    const c = cleanVenmoInput(document.getElementById('venmo-input').value);
+    if (!c.handle) {
+        wrap.hidden = true;
+        link.removeAttribute('href');
+        return;
+    }
+    const url = new URL('https://venmo.com/');
+    url.pathname = '/u/' + encodeURIComponent(c.handle.toLowerCase());
+    link.href = url.href;
+    document.getElementById('venmo-check-handle').textContent = '@' + c.handle;
+    wrap.hidden = false;
+}
+
+async function saveVenmoSheet(e) {
+    e.preventDefault();
+    if (venmoSheet.busy || !venmoSheet.playerId) return;
+    const id = venmoSheet.playerId;
+    const p = players.find(x => x.id === id) || findRosterPlayer(id) || {};
+    const input = document.getElementById('venmo-input');
+    const btn = document.getElementById('venmo-save-btn');
+    const c = cleanVenmoInput(input.value);
+    if (c.error) {
+        setSheetError('venmo-error', c.error);
+        input.focus();
+        return;
+    }
+    const current = payData.venmo.byPlayer.get(id);
+    if ((current ? current.handle : null) === c.handle) {
+        closeSheet();
+        return;
+    }
+    if (!c.handle && !confirm(`Remove ${p.name || 'this player'}’s Venmo username (@${current.handle})?`)) return;
+    setSheetError('venmo-error', '');
+    venmoSheet.busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_set_venmo', { p_player: id, p_handle: c.handle });
+    } catch (err) {
+        res = { error: err };
+    }
+    venmoSheet.busy = false;
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    if (res.error) {
+        setSheetError('venmo-error', isSetupMissing(res.error) ? PAY_SETUP_TEXT : plainError(res.error));
+        input.focus();
+        return;
+    }
+    const row = res.data || {};
+    dropStaleReads(payData.venmo, loadVenmo);
+    if (row.handle) payData.venmo.byPlayer.set(id, row);
+    else payData.venmo.byPlayer.delete(id);
+    refreshVenmoCells();
+    closeSheet();
+    window.showToast(row.handle ? `Saved @${escHtml(row.handle)} for ${escHtml(p.name)}.` : `Removed ${escHtml(p.name)}’s Venmo username.`, 'success');
+}
+
+// ---- Sheets (dialogs) ----
+
+let sheetOpen = null; // { el, opener, key }
+
+function openSheet(el, opener, focusEl) {
+    if (!el) return;
+    if (sheetOpen) closeSheet(false);
+    sheetOpen = { el, opener, key: opener ? focusKey(opener) : null };
+    el.classList.add('open');
+    const page = document.querySelector('.admin-container');
+    if (page) page.inert = true; // the page behind can't be reached until it closes
+    document.documentElement.style.overflow = 'hidden';
+    setTimeout(() => { if (sheetOpen && sheetOpen.el === el) (focusEl || el.querySelector('input, button')).focus(); }, 30);
+}
+
+function closeSheet(restoreFocus = true) {
+    if (!sheetOpen) return;
+    const { el, opener, key } = sheetOpen;
+    sheetOpen = null;
+    el.classList.remove('open');
+    if (el.id === 'pay-sheet') paySheet.playerId = null;
+    if (el.id === 'venmo-sheet') venmoSheet.playerId = null;
+    const page = document.querySelector('.admin-container');
+    if (page) page.inert = false;
+    document.documentElement.style.overflow = '';
+    if (!restoreFocus) return;
+    // The button that opened it, or the same button drawn again since
+    const target = opener && opener.isConnected ? opener : key ? document.querySelector(key) : null;
+    if (target) target.focus();
+}
+
+function sheetBusy() {
+    return paySheet.busy || venmoSheet.busy;
+}
+
+function setupPaymentListeners() {
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-retry-pay]')) retryPaymentLoads();
+    });
+    elements.rosterTbody?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-venmo]');
+        if (btn) openVenmoSheet(btn.dataset.venmo, btn);
+    });
+    elements.potentialList?.addEventListener('click', (e) => {
+        const approve = e.target.closest('[data-approve-pick]');
+        if (approve) approvePick(approve.dataset.approvePick, approve);
+        const release = e.target.closest('[data-release]');
+        if (release) releaseClaim(release.dataset.release, release);
+    });
+    ['pay-sheet', 'venmo-sheet'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', (e) => {
+            // Outside the box, or a Close/Done/Cancel button
+            if ((e.target === el || e.target.closest('[data-sheet-close]')) && !sheetBusy()) closeSheet();
+        });
+    });
+    document.getElementById('pay-form')?.addEventListener('submit', addTripPayment);
+    // This trip's payments and other trips' (both lists in the sheet)
+    document.getElementById('pay-sheet')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pay-delete]');
+        if (btn) deleteTripPayment(btn.dataset.payDelete, btn);
+    });
+    document.getElementById('venmo-form')?.addEventListener('submit', saveVenmoSheet);
+    document.getElementById('venmo-input')?.addEventListener('input', () => {
+        updateVenmoCheck();
+        setSheetError('venmo-error', '');
+    });
+    // Escape closes; Tab stays inside the open sheet
+    document.addEventListener('keydown', (e) => {
+        if (!sheetOpen) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (!sheetBusy()) closeSheet();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const items = [...sheetOpen.el.querySelectorAll('a[href], button:not([disabled]), input:not([disabled])')]
+            .filter(x => x.getClientRects().length);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !sheetOpen.el.contains(document.activeElement))) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !sheetOpen.el.contains(document.activeElement))) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
 }

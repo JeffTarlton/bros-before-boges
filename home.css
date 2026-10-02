@@ -3362,3 +3362,103 @@ a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgb
 /* The titles take focus while it loads (the controls are locked); no ring on a heading */
 #rsvp-title:focus,
 #registration-title:focus { outline: none; }
+
+
+/* --------------------------------------------------------------------------
+   Payments (payments_2027.sql): the player's Venmo username in the golf profile, and his own
+   trip-cost payments on the cost card
+   -------------------------------------------------------------------------- */
+/* Venmo: under GHIN and handicap, full width, with a quiet rule above it (it saves on its own) */
+#registration-form .venmo-group {
+    grid-column: 1 / -1;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+/* Off: loading, being set up, or waiting for approval (the hint says which) */
+#registration-form:not(.is-loading) #venmo-handle:disabled { opacity: 0.55; cursor: not-allowed; }
+/* The hint, with "Check it" beside it once the username looks right */
+.venmo-foot { display: flex; align-items: center; gap: 0 14px; }
+.venmo-foot .field-hint { flex: 1 1 auto; min-width: 0; }
+.field-hint.is-note { color: var(--ink-muted); }
+.venmo-check {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 44px;
+    padding: 0 2px;
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    text-decoration: underline;
+    text-decoration-color: rgba(232, 184, 107, 0.45);
+    text-underline-offset: 3px;
+}
+.venmo-check:hover { color: var(--ink); }
+.venmo-check svg { width: 14px; height: 14px; flex: none; }
+/* Not a username yet: keeps its place (so the hint doesn't move as he types), unseen and untabbable */
+.venmo-check.is-off { visibility: hidden; }
+@media (max-width: 640px) {
+    #registration-form .venmo-group { padding-top: 12px; }
+    .venmo-foot { gap: 0 10px; }
+}
+/* With Venmo the profile no longer fits a small phone (or a short laptop screen) without scrolling,
+   so wherever the sheet scrolls, Save and Cancel stay pinned at its foot, over a fade. When it all
+   fits this changes nothing: same spacing (8px + 14px = the 22px gap above them), same colour. */
+#registration-form .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin-top: 8px;
+    padding-top: 14px;
+    background: linear-gradient(to bottom, rgba(28, 22, 18, 0), var(--surface) 14px);
+}
+/* ...and the sheet's own bottom padding below them stays solid, so nothing scrolls by under them */
+#registration-form .form-actions::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 50px; /* the sheet's bottom padding (style.css .modal-content) */
+    background: var(--surface);
+    pointer-events: none;
+}
+@media (max-width: 640px) {
+    #registration-form .form-actions { margin-top: 0; padding-top: 10px; }
+    #registration-form .form-actions::after { height: calc(22px + env(safe-area-inset-bottom)); }
+}
+/* ...and whatever the sheet scrolls to (an error message, a box being focused or tabbed to) stops
+   above the pinned bar, not under it: the sheet's bottom padding + the bar (its fade and the 48px
+   buttons) + 8px of air. Desktop 50 + 14 + 48 + 8; phones 22 (+ the safe area) + 10 + 48 + 8. */
+#registration-modal .modal-content { scroll-padding-bottom: 120px; }
+@media (max-width: 640px) {
+    #registration-modal .modal-content { scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+}
+
+/* Cost card: the signed-in player's own payments so far ("Trip cost: $1,600 paid (Oct 15)") */
+.cost-meta .cost-paid {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 14px;
+    padding: 9px 14px 9px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(147, 192, 139, 0.35);
+    background: rgba(147, 192, 139, 0.09);
+    color: var(--ink);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+.cost-paid svg { width: 16px; height: 16px; flex: none; margin-top: 0.17em; color: var(--fairway); }
+.cost-paid strong { font-weight: 700; color: var(--fairway); }
+/* Less than the per-man cost so far: no green check (it isn't "all set"), just the wallet */
+.cost-meta .cost-paid.is-part { border-color: var(--line-strong); background: rgba(244, 235, 223, 0.04); }
+.cost-paid.is-part svg { color: var(--gold); }
+.cost-paid.is-part strong { color: var(--ink); }
+@media (max-width: 640px) {
+    .cost-meta .cost-paid { margin-top: 12px; font-size: 0.88rem; }
+}

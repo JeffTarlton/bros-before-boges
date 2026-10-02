@@ -443,6 +443,7 @@ function renderTripDetails() {
                 <b>The damage · per man</b>
                 ${cost.note ? `<p>${esc(cost.note)}</p>` : ''}
                 ${paymentTipHTML(cost)}
+                <p class="cost-paid" id="cost-paid" hidden></p>
             </div>
             ${breakdown.length ? `<div class="cost-breakdown">${breakdown.map(b => `<div class="cost-line"><span>${esc(b.label)}</span><b${typeof b.amount === 'number' ? ' class="num"' : ''}>${esc(typeof b.amount === 'number' ? configMoney(b.amount) : b.amount)}</b></div>`).join('')}</div>` : ''}
         </div>` : '';
@@ -1728,7 +1729,7 @@ function viewer() {
 // Re-render everything that depends on who's looking. Runs after the first account check, and
 // again after an RSVP, a profile save, a log out, or any later account re-check.
 function renderPersonal() {
-    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus].forEach(fn => {
+    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
     });
 }
@@ -2365,7 +2366,7 @@ function validateRsvp(form) {
 function rsvpErrorMessage(error) {
     const text = `${error && error.code || ''} ${error && error.message || ''}`;
     if (/PGRST202|could not find the function/i.test(text)) return 'RSVPs are being set up. Try again in a few minutes, or text the commissioner.';
-    if (/54000|lot of RSVP changes/i.test(text)) return error.message;
+    if (/54000|lot of RSVP changes/i.test(text) || isWaitingApproval(error)) return error.message;
     return 'We couldn’t save your RSVP. Check your connection and try again.';
 }
 
@@ -2393,7 +2394,8 @@ async function handleRsvpSubmit(e) {
             p_note: rsvp.note || null
         });
         if (error) {
-            if (looksSignedOut(error) || /not linked/i.test(error.message || '')) {
+            // (A picked name still waiting for approval is refused with 42501 too: that's no logout)
+            if (!isWaitingApproval(error) && (looksSignedOut(error) || /not linked/i.test(error.message || ''))) {
                 if (!(await recheckAccount('rsvp'))) return;
             }
             throw error;
@@ -2484,6 +2486,10 @@ function fillProfileForm(p) {
     document.getElementById('handicap').value = hcp === null || isNaN(hcp) ? '' : Math.abs(hcp).toFixed(1);
     document.getElementById('handicap-plus').checked = hcp !== null && hcp < 0;
     setFieldError('profile-error', '');
+    ['ghin-number', 'handicap'].forEach(id => document.getElementById(id).removeAttribute('aria-invalid'));
+    // Venmo: his username when we already have it, else blank (and off) until loadMyVenmo has it
+    fillVenmoField(p);
+    renderVenmoField();
 }
 
 function setProfileLoading(on) {
@@ -2492,6 +2498,8 @@ function setProfileLoading(on) {
     // Cancel stays a way out while it loads
     setFormLoading(form, form, [form.querySelector('.form-row'), document.getElementById('profile-submit')],
         'profile-loading', 'Loading your golf profile…', on, document.getElementById('cancel-btn'));
+    // Unlocking turns every box back on: the Venmo box stays off unless it's ready
+    renderVenmoField();
 }
 
 let profileOpenSeq = 0; // the latest openProfile; an older one that finishes later does nothing
@@ -2528,6 +2536,8 @@ async function openProfile() {
             return;
         }
         fillProfileForm(account.player);
+        // His Venmo username loads on its own, so GHIN and handicap never wait for it
+        loadMyVenmo();
         if (!loading) {
             profileBackToRsvp = fromRsvpForm;
             openDialog(modal, '#ghin-number');
@@ -2578,20 +2588,38 @@ async function handleProfileSubmit(e) {
     const handicap = hcpText === '' ? null : parseHandicap(hcpText, document.getElementById('handicap-plus').checked);
     const errEl = document.getElementById('profile-error');
     const btn = document.getElementById('profile-submit');
-    const fail = (msg, input) => { showFormError(errEl, msg); if (input) input.focus(); };
+    // The message, and the box it's about: marked (red, aria-invalid) and focused
+    const fail = (msg, input) => {
+        showFormError(errEl, msg);
+        if (input) {
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+        }
+    };
     errEl.hidden = true;
 
     if (ghin && (ghin.length < 5 || ghin.length > 12)) return fail('A GHIN number is 5 to 12 digits.', ghinInput);
     if (handicap !== null && isNaN(handicap)) return fail('Enter your handicap as a number, like 9.4.', hcpInput);
     if (handicap !== null && (handicap < -10 || handicap > 54)) return fail('Enter a handicap between +10 and 54.', hcpInput);
+    // The Venmo box, when it's on: checked here, and saved (set_my_venmo) after the GHIN and handicap,
+    // only when it changed. Off (loading, being set up, waiting for approval): left alone.
+    const venmoInput = document.getElementById('venmo-handle');
+    const venmoPlayer = venmoInput && !venmoInput.disabled && venmoStateFor(account.player) === 'ready' ? account.player.id : null;
+    const venmoNew = venmoPlayer ? cleanVenmo(venmoInput.value) : '';
+    if (venmoNew === null) return fail(VENMO_BAD, venmoInput);
+    const venmoChanged = !!venmoPlayer && (venmoNew || null) !== (myVenmo.handle || null);
 
     btn.disabled = true;
     btn.textContent = 'Saving…';
+    // What's in the boxes was read above, so they can't be typed in until this is done (anything typed
+    // meanwhile would be lost). Read-only, not disabled: focus and the Venmo box's on/off stay as they are.
+    const boxes = [ghinInput, hcpInput, venmoInput].filter(Boolean);
+    boxes.forEach(el => { el.readOnly = true; });
     try {
         if (!(await stillSignedIn('profile'))) return;
         const { data, error } = await supabaseInstance.rpc('update_my_profile', { p_ghin: ghin || null, p_handicap: handicap });
         if (error) {
-            if (looksSignedOut(error) || /not linked/i.test(error.message || '')) {
+            if (!isWaitingApproval(error) && (looksSignedOut(error) || /not linked/i.test(error.message || ''))) {
                 if (!(await recheckAccount('profile'))) return;
             }
             throw error;
@@ -2601,6 +2629,16 @@ async function handleProfileSubmit(e) {
         const onRoster = roster.confirmed.find(p => p.id === account.player.id);
         if (onRoster) onRoster.handicap = account.player.handicap === null ? null : parseFloat(account.player.handicap);
         renderPersonal();
+        // Then the Venmo username, still for the player whose box it is (stillSignedIn checked the login)
+        if (venmoChanged && account.player && account.player.id === venmoPlayer) {
+            const venmoSave = await saveMyVenmo(venmoNew || null, venmoPlayer);
+            if (venmoSave.stop) return;
+            if (venmoSave.message) {
+                const box = document.getElementById('venmo-handle');
+                fail(venmoSave.message, venmoSave.field && box && !box.disabled ? box : null);
+                return;
+            }
+        }
         btn.textContent = 'Saved';
         setTimeout(closeProfile, 700);
     } catch (err) {
@@ -2608,13 +2646,275 @@ async function handleProfileSubmit(e) {
         const text = `${err.code || ''} ${err.message || ''}`;
         fail(/PGRST202|could not find the function/i.test(text)
             ? 'Profiles are being set up. Try again in a few minutes.'
-            : /22023/.test(text) && err.message
+            : (/22023/.test(text) || isWaitingApproval(err)) && err.message
                 ? err.message
                 : 'That didn’t save. Check your connection and try again.');
     } finally {
+        boxes.forEach(el => { el.readOnly = false; });
         btn.disabled = false;
         setTimeout(() => { btn.textContent = 'Save'; }, 800);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Payments (payments_2027.sql): the player's own Venmo username, in the golf profile, and his own
+// trip-cost payments, on the cost card. Until that SQL has run the Venmo box says "Venmo is being set
+// up." (and stays off), and the cost card shows nothing extra; everything else works as before.
+// ---------------------------------------------------------------------------
+// The tables or functions aren't there yet: a missing table (PGRST205, or 42P01 from an older
+// PostgREST) or function (PGRST202)
+function paymentsMissing(error) {
+    const text = `${error && error.code || ''} ${error && error.message || ''}`;
+    return /PGRST20[25]|42P01|could not find the (table|function)/i.test(text);
+}
+
+// A roster name this login picked from the list is held until the commissioner approves it, and the
+// RSVP, profile and Venmo functions say so (42501, a message that can be shown as is)
+function isWaitingApproval(error) {
+    return !!error && String(error.code || '') === '42501' && /waiting for the commissioner/i.test(error.message || '');
+}
+
+const VENMO_HINT = 'So the crew can pay you after the trip. Only signed-in crew can see it.';
+const VENMO_BAD = 'A Venmo username is 5 to 30 letters, numbers, hyphens or underscores, like @Jeff-Tarlton.';
+// The hint's place when the box is off, by state
+const VENMO_NOTES = {
+    missing: 'Venmo is being set up.',
+    held: 'Your roster name is waiting for the commissioner’s approval. You can add your Venmo once you’re approved.',
+    failed: 'Couldn’t load your Venmo just now. Close this and try again.'
+};
+const VENMO_LINK = /^(https?:\/\/)?(www\.|account\.)?venmo\.com\/(u\/)?/i;
+
+// What was typed in the Venmo box: "@name", "name", or a pasted venmo.com link (venmo.com/u/name or
+// venmo.com/name, with or without https://www., and anything after a ? or #), as the username without
+// the @. '' means "clear it"; null means it isn't a Venmo username (5 to 30 letters, numbers, hyphens
+// or underscores, the same rule as set_my_venmo).
+function cleanVenmo(text) {
+    let v = String(text === null || text === undefined ? '' : text).trim();
+    if (VENMO_LINK.test(v)) {
+        v = v.replace(VENMO_LINK, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+        if (!v) return null; // just "venmo.com/": not a username, and not "clear it" either
+    }
+    v = v.replace(/^@/, '');
+    if (!v) return '';
+    return /^[a-z0-9_-]{5,30}$/.test(v.toLowerCase()) ? v : null;
+}
+
+// Venmo's public page for a username (photo and name), to check it's the right one. Built as a URL,
+// never pasted into HTML.
+function venmoProfileUrl(handle) {
+    const url = new URL('https://venmo.com/');
+    url.pathname = `/u/${encodeURIComponent(String(handle).toLowerCase())}`;
+    return url.href;
+}
+
+// The signed-in player's own username (player_venmo). state: 'idle' (not asked yet), 'loading',
+// 'ready' (handle: his username, or null for none), 'held' (a picked name still waiting for approval:
+// set_my_venmo would refuse), 'missing' (payments_2027.sql hasn't run), 'failed' (couldn't load). Only
+// 'ready' turns the box on, so a blank box can never clear a username we couldn't read.
+const myVenmo = { playerId: null, state: 'idle', handle: null, slow: false, seq: 0, slowTimer: null };
+
+function venmoStateFor(player) {
+    return player && myVenmo.playerId === player.id ? myVenmo.state : 'idle';
+}
+
+// The box's value: his username ("@name") when it's known, else blank
+function fillVenmoField(player) {
+    const input = document.getElementById('venmo-handle');
+    if (!input) return;
+    input.value = venmoStateFor(player) === 'ready' && myVenmo.handle ? `@${myVenmo.handle}` : '';
+    input.removeAttribute('aria-invalid');
+}
+
+// On or off, and the hint (or what's up instead); "Check it" follows. Never touches what's typed.
+function renderVenmoField() {
+    const input = document.getElementById('venmo-handle');
+    const hint = document.getElementById('venmo-hint');
+    if (!input || !hint) return;
+    const state = venmoStateFor(account.player);
+    const form = elements.registrationForm;
+    // (While the whole profile is still loading, setFormLoading keeps every box off)
+    input.disabled = state !== 'ready' || !!(form && form.classList.contains('is-loading'));
+    // (No "@your-username" in a box that can't be used: the hint says why)
+    input.placeholder = VENMO_NOTES[state] ? '' : '@your-username';
+    const note = VENMO_NOTES[state] || (state === 'loading' && myVenmo.slow ? 'Loading your Venmo…' : '');
+    hint.textContent = note || VENMO_HINT;
+    hint.classList.toggle('is-note', !!note);
+    const group = document.getElementById('venmo-group');
+    if (group && state === 'loading') group.setAttribute('aria-busy', 'true');
+    else if (group) group.removeAttribute('aria-busy');
+    syncVenmoCheck();
+}
+
+// "Check it" (venmo.com/u/name, new tab) once what's typed is a username. While the box is on the
+// link keeps its place even when it's not showing, so the hint beside it doesn't jump as he types.
+function syncVenmoCheck() {
+    const input = document.getElementById('venmo-handle');
+    const link = document.getElementById('venmo-check');
+    const sr = document.getElementById('venmo-check-sr');
+    if (!input || !link) return;
+    const on = venmoStateFor(account.player) === 'ready';
+    const handle = on ? cleanVenmo(input.value) : null;
+    link.hidden = !on;
+    link.classList.toggle('is-off', !handle);
+    if (handle) {
+        link.href = venmoProfileUrl(handle);
+        if (sr) sr.textContent = `: @${handle} on Venmo (opens in a new tab)`;
+    }
+}
+
+// His own row, plus payments_me to tell a picked name that's still held (it can't set one) from a
+// new sign-up waiting for approval (it can). Loaded once per player per page; a save keeps it current.
+async function loadMyVenmo() {
+    const player = account.player;
+    if (!player || !supabaseInstance) return;
+    const now = venmoStateFor(player);
+    if (now === 'ready' || now === 'loading') return;
+    const seq = ++myVenmo.seq;
+    clearTimeout(myVenmo.slowTimer);
+    Object.assign(myVenmo, { playerId: player.id, state: 'loading', handle: null, slow: false });
+    // A quick load shows nothing; a slow one says so in the hint
+    myVenmo.slowTimer = setTimeout(() => {
+        if (seq !== myVenmo.seq) return;
+        myVenmo.slow = true;
+        renderVenmoField();
+    }, LOADING_SHOW_MS);
+    fillVenmoField(player);
+    renderVenmoField();
+
+    let state = 'failed';
+    let handle = null;
+    try {
+        const settle = q => Promise.resolve(q).catch(error => ({ data: null, error }));
+        const [me, row] = await Promise.all([
+            settle(supabaseInstance.rpc('payments_me')),
+            settle(supabaseInstance.from('player_venmo').select('handle').eq('player_id', player.id).maybeSingle())
+        ]);
+        if (paymentsMissing(me.error) || paymentsMissing(row.error)) state = 'missing';
+        else if (me.error || row.error || !me.data || me.data.player_id !== player.id) console.warn('Could not load your Venmo:', me.error || row.error || me.data);
+        else if (!me.data.own_ok) state = 'held';
+        else {
+            state = 'ready';
+            handle = row.data && row.data.handle ? String(row.data.handle) : null;
+        }
+    } catch (e) {
+        console.warn('Could not load your Venmo:', e);
+    }
+    if (seq !== myVenmo.seq) return; // a newer load (another player) took over
+    clearTimeout(myVenmo.slowTimer);
+    Object.assign(myVenmo, { state, handle, slow: false });
+    const input = document.getElementById('venmo-handle');
+    // The box was off while this loaded, so nothing typed is lost
+    if (input && input.disabled) fillVenmoField(account.player);
+    renderVenmoField();
+}
+
+// Saves his own username (null clears it). Returns {} when saved, {message, field} to show (field:
+// it's about what's in the box), or {stop: true} when the login is gone (the account step shows).
+async function saveMyVenmo(handle, playerId) {
+    let res;
+    try {
+        res = await supabaseInstance.rpc('set_my_venmo', { p_handle: handle });
+    } catch (e) {
+        res = { data: null, error: e };
+    }
+    const { data, error } = res || {};
+    if (!error) {
+        if (myVenmo.playerId === playerId) Object.assign(myVenmo, { state: 'ready', handle: data && data.handle ? String(data.handle) : null });
+        fillVenmoField(account.player);
+        renderVenmoField();
+        return {};
+    }
+    console.error('Venmo save failed:', error);
+    // (The GHIN and handicap are saved by now, and each message says so)
+    const notVenmo = 'Your GHIN and handicap saved, but your Venmo didn’t.';
+    if (paymentsMissing(error)) {
+        if (myVenmo.playerId === playerId) myVenmo.state = 'missing';
+        fillVenmoField(account.player);
+        renderVenmoField();
+        return { message: 'Your GHIN and handicap saved. Venmo is being set up, so your username didn’t save yet.' };
+    }
+    if (isWaitingApproval(error)) {
+        if (myVenmo.playerId === playerId) myVenmo.state = 'held';
+        fillVenmoField(account.player);
+        renderVenmoField();
+        return { message: `${notVenmo} ${error.message}` };
+    }
+    if (String(error.code || '') === '22023' && error.message) return { message: `${notVenmo} ${error.message}`, field: true };
+    if (looksSignedOut(error) || /not linked/i.test(error.message || '')) {
+        if (!(await recheckAccount('profile'))) return { stop: true };
+    }
+    return { message: `${notVenmo} Check your connection and try again.` };
+}
+
+// The signed-in player's own trip-cost payments for this trip (my_trip_payments: only ever his own
+// rows), for the cost card's "Trip cost: $800 paid (Oct 15)". state: 'idle', 'loading', 'ready'
+// (rows), 'missing' (payments_2027.sql hasn't run) or 'failed' (tried again on the next re-render).
+const myTripPay = { playerId: null, state: 'idle', rows: [], seq: 0 };
+
+// From renderPersonal: load for whoever is signed in now (a different player, or after a failure)
+function refreshTripPaid() {
+    const player = account.player;
+    if (!player || !supabaseInstance || !TRIP.year) {
+        myTripPay.seq++; // drop any load still on its way
+        Object.assign(myTripPay, { playerId: null, state: 'idle', rows: [] });
+    } else if (myTripPay.playerId !== player.id || myTripPay.state === 'failed') {
+        loadMyTripPayments(player.id);
+    }
+    renderTripPaid();
+}
+
+async function loadMyTripPayments(playerId) {
+    const seq = ++myTripPay.seq;
+    Object.assign(myTripPay, { playerId, state: 'loading', rows: [] });
+    let state = 'failed';
+    let rows = [];
+    try {
+        const { data, error } = await supabaseInstance.rpc('my_trip_payments', { p_trip_year: TRIP.year });
+        if (!error) {
+            state = 'ready';
+            rows = Array.isArray(data) ? data : [];
+        } else if (paymentsMissing(error)) {
+            state = 'missing';
+        } else {
+            console.warn('Could not load your trip payments:', error);
+        }
+    } catch (e) {
+        console.warn('Could not load your trip payments:', e);
+    }
+    if (seq !== myTripPay.seq) return; // signed out or switched player meanwhile
+    Object.assign(myTripPay, { state, rows });
+    renderTripPaid();
+}
+
+// "Trip cost: $1,600 paid (Oct 15)", or "$800 paid so far" while it's less than the per-man cost; with
+// several payments, the total and the latest date. Nothing when he has none (or they couldn't load),
+// and never anyone else's.
+function renderTripPaid() {
+    const el = document.getElementById('cost-paid');
+    if (!el) return;
+    const player = account.player;
+    const rows = player && myTripPay.playerId === player.id && myTripPay.state === 'ready' ? myTripPay.rows : [];
+    let cents = 0;
+    let latest = null;
+    rows.forEach(r => {
+        const c = Math.round(Number(r && r.amount) * 100);
+        if (Number.isFinite(c) && c > 0) cents += c;
+        const d = configDate(r && r.paid_on);
+        if (d && (!latest || d > latest)) latest = d;
+    });
+    if (!cents) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+    const day = latest ? `<span class="nowrap">${esc(monthDay(latest))}</span>` : '';
+    const when = rows.length > 1 ? ` (${rows.length} payments${day ? `, latest ${day}` : ''})` : day ? ` (${day})` : '';
+    // The green check only once he's paid the per-man cost; less than that is "paid so far"
+    const perPerson = Math.round(Number(TRIP.cost && TRIP.cost.perPerson) * 100);
+    const inFull = perPerson > 0 && cents >= perPerson;
+    el.classList.toggle('is-part', !inFull);
+    el.innerHTML = `${icon(inFull ? 'check' : 'wallet')}<span>Trip cost: <strong>${esc(configMoney(cents / 100))} paid</strong>${inFull ? '' : ' so far'}${when}</span>`;
+    el.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -3139,7 +3439,14 @@ function setupEventListeners() {
         });
     });
 
-    if (elements.registrationForm) elements.registrationForm.addEventListener('submit', handleProfileSubmit);
+    if (elements.registrationForm) {
+        elements.registrationForm.addEventListener('submit', handleProfileSubmit);
+        // A box being fixed loses its error mark; "Check it" follows what's typed in the Venmo box
+        elements.registrationForm.addEventListener('input', (e) => {
+            if (e.target.classList && e.target.classList.contains('field-input')) e.target.removeAttribute('aria-invalid');
+            if (e.target.id === 'venmo-handle') syncVenmoCheck();
+        });
+    }
 
     // RSVP modal
     if (elements.rsvpForm) {
