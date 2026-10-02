@@ -20,6 +20,10 @@ const SC = window.BBBScoring;
 const HOLES = SC.HOLES;
 const SESSION_KEY = 'bbb_tracker_session';
 const OUTBOX_KEY = 'bbb_tracker_outbox';
+// This tab's setup choices (sessionStorage): Back from the rules page can reload the tracker.
+// Kept for a while only, so a tab left open still opens on the round that's on now.
+const SETUP_KEY = 'bbb_tracker_setup';
+const SETUP_KEEP_MS = 30 * 60000;
 const REFRESH_MS = 45000;
 const BOARD_STALE_MS = 30000;
 const NEXT_ARM_MS = 700; // how long a freshly shown next-hole button ignores taps
@@ -96,6 +100,28 @@ function writeStore(key, value) {
     } catch (e) { /* private mode: still works for this visit */ }
 }
 
+// What was picked on the setup screen, kept in this tab until it becomes a group, so a look at the
+// rules and Back doesn't reset the round and players even when the page reloads
+function saveSetupDraft() {
+    const st = S.setup;
+    if (!st) return;
+    try {
+        sessionStorage.setItem(SETUP_KEY, JSON.stringify({ at: Date.now(), day: localDay(), round: st.round, courseId: st.courseId, playerIds: st.playerIds, touched: st.touched }));
+    } catch (e) { /* private mode: they last for this visit */ }
+}
+function clearSetupDraft() {
+    try { sessionStorage.removeItem(SETUP_KEY); } catch (e) { /* ignore */ }
+}
+function readSetupDraft() {
+    try {
+        const d = JSON.parse(sessionStorage.getItem(SETUP_KEY) || 'null');
+        const fresh = d && d.day === localDay() && Date.now() - d.at < SETUP_KEEP_MS;
+        return fresh && Number.isFinite(d.round) && Array.isArray(d.playerIds) ? d : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 function showToast(message, type = 'success') {
     let container = document.querySelector('.toast-container');
     if (!container) {
@@ -156,9 +182,10 @@ function mineFirst(matches, ids) {
 // Replace a container's contents, keeping keyboard focus on the same control
 function swapKeepingFocus(box, html) {
     const a = document.activeElement;
-    const sel = a && box.contains(a) && a.dataset && a.dataset.action
+    const inBox = a && box.contains(a);
+    const sel = inBox && a.dataset && a.dataset.action
         ? `[data-action="${a.dataset.action}"]${a.dataset.round ? `[data-round="${a.dataset.round}"]` : ''}`
-        : null;
+        : inBox && a.classList.contains('fmt-link') ? '.fmt-link' : null;
     box.innerHTML = html;
     const t = sel && box.querySelector(sel);
     if (t) t.focus({ preventScroll: true });
@@ -235,6 +262,34 @@ function formatOf(roundNumber) {
     return SC.formatFor(roundNumber, CFG);
 }
 
+// The rules page's name and section for each format (rules.html#grind opens that section), so the
+// tracker and the rules call a round the same thing. A format the rules don't describe keeps the
+// tracker's label and points at the house rules. Every match is gross: no handicap strokes.
+const FORMAT_RULES = {
+    points: { name: 'The Grind', section: 'grind' },
+    split: { name: 'The Split Decision', section: 'split' },
+    singles: { name: 'Championship Singles', section: 'singles' }
+};
+
+// { name: 'The Grind', about: ['team points'], href, link } for a round's format line
+function formatInfo(format) {
+    const rules = FORMAT_RULES[format.key];
+    if (!rules) return { name: format.label, about: [], href: 'rules.html#house-rules', link: 'House rules' };
+    const lower = s => s.charAt(0).toLowerCase() + s.slice(1);
+    return { name: rules.name, about: format.label.split(' · ').map(lower), href: `rules.html#${rules.section}`, link: 'How it’s scored' };
+}
+
+// "team points · no handicap strokes · How it's scored ›" (HTML). The dot stays with the part before
+// it, "front 9" and "no handicap" stay together (a line starting "handicap strokes" reads backwards),
+// and the rules link (same tab) comes last, whole.
+function formatLineHTML(parts, info, capFirst) {
+    const all = parts.concat('no\u00a0handicap strokes');
+    if (capFirst) all[0] = all[0].charAt(0).toUpperCase() + all[0].slice(1);
+    return all.map(p => escHtml(p).replace(/ (\d+)\b/g, '&nbsp;$1'))
+        .concat(`<a class="fmt-link" href="${escHtml(info.href)}">${escHtml(info.link)}<span aria-hidden="true">&nbsp;›</span></a>`)
+        .join('&nbsp;· ');
+}
+
 // ==========================================
 // Session (this phone's group) and outbox (unsent scores)
 // ==========================================
@@ -258,6 +313,7 @@ function dropStaleSession() {
     S.droppedStale = { round: S.sess.roundNumber, date: S.sess.date };
     S.sess = null;
     S.setup = null;
+    clearSetupDraft();
     S.board.round = null;
     saveSession();
     return true;
@@ -789,6 +845,7 @@ async function startScoring() {
         S.warnedOtherPhone = false;
         S.board.round = round.round_number;
         saveSession();
+        clearSetupDraft(); // the picks are this phone's group now
         S.refreshFailed = false;
         await refreshSession();
         if (S.sess && S.sess.needsLoad && S.refreshFailed) {
@@ -818,6 +875,7 @@ function endSession(silent) {
     S.sess = null;
     saveSession();
     S.setup = null;
+    clearSetupDraft();
     if (!silent) {
         showToast(pendingCount()
             ? 'Done. Keep this page open until it says All saved: some scores are still sending.'
@@ -881,6 +939,19 @@ function startLabel() {
 
 function defaultSetup() {
     const rounds = tripRounds();
+    // Picked in this tab a moment ago (a look at the rules, then back)
+    const draft = readSetupDraft();
+    if (draft && rounds.some(r => r.number === draft.round)) {
+        const fallback = dbCourseForRound(draft.round);
+        const playerIds = draft.playerIds.filter(id => playerById(id));
+        return {
+            round: draft.round,
+            courseId: S.courses.some(c => c.id === draft.courseId) ? draft.courseId : (fallback ? fallback.id : ''),
+            playerIds,
+            matchups: null,
+            touched: !!draft.touched && playerIds.length > 0 // nobody left: pick my match again
+        };
+    }
     const prev = S.sess && S.sess.date === localDay() ? S.sess : null;
     const round = prev ? prev.roundNumber : (scheduledRoundToday() || (rounds[0] && rounds[0].number) || 1);
     const course = dbCourseForRound(round);
@@ -952,6 +1023,9 @@ async function renderSetup() {
 function setupHTML(st, loading) {
     const rounds = tripRounds();
     const format = formatOf(st.round);
+    const info = formatInfo(format);
+    // A shared ball is worth saying only when there's no rules section to explain the format
+    const about = info.about.concat(!FORMAT_RULES[format.key] && format.sharedBall ? 'partners share one score' : []);
     const chosen = new Set(st.playerIds);
     const matches = SC.matchesFrom(st.matchups || []);
     const meId = S.me ? S.me.id : null;
@@ -984,7 +1058,7 @@ function setupHTML(st, loading) {
             <div class="seg" role="group" aria-label="Round">
                 ${rounds.map(r => `<button type="button" data-action="pick-round" data-round="${r.number}" aria-pressed="${r.number === st.round}">R${r.number}${r.day ? `<small>${escHtml(r.day)}</small>` : ''}</button>`).join('')}
             </div>
-            <p class="muted small" style="margin-top: 10px;">Format: <strong style="color: #fff;">${escHtml(format.label)}</strong>${format.sharedBall ? ' · partners share one score' : ''}</p>
+            <p class="muted small fmt-line">Format: <strong>${escHtml(info.name)}</strong>&nbsp;· ${formatLineHTML(about, info)}</p>
             <label class="field-label" for="course-select">Course</label>
             <select id="course-select" class="t-select">
                 <option value="">Choose a course…</option>
@@ -1525,9 +1599,11 @@ function renderBoard() {
     const matches = SC.matchesFrom(data.matchups);
     const mine = new Set(S.sess && S.sess.roundNumber === n ? S.sess.playerIds : (S.me ? [S.me.id] : []));
 
+    // The format by the rules' name, what it is, and a link to how it's scored
+    const info = formatInfo(format);
     let html = tabs;
     html += `<div class="board-meta">
-        <div><div class="eyebrow">${escHtml(format.label)}</div>${data.courseName ? `<div class="muted small">${escHtml(data.courseName)}${data.date ? ` · ${escHtml(fmtDay(data.date))}` : ''}</div>` : ''}</div>
+        <div><div class="eyebrow">${escHtml(info.name)}</div><p class="fmt-line">${formatLineHTML(info.about, info, true)}</p>${data.courseName ? `<div class="muted small">${escHtml(data.courseName)}${data.date ? ` · ${escHtml(fmtDay(data.date))}` : ''}</div>` : ''}</div>
         <div class="btn-row" style="align-items: center;">
             <span class="muted small">${B.at[n] ? `Updated ${new Date(B.at[n]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}</span>
             <button type="button" class="t-btn small" data-action="board-refresh"${B.loading[n] ? ' aria-busy="true"' : ''}>${B.loading[n] ? 'Updating…' : 'Refresh'}</button>
@@ -1643,6 +1719,7 @@ function onClick(e) {
             st.touched = false;
             st.matchups = null;
             { const c = dbCourseForRound(st.round); st.courseId = c ? c.id : ''; }
+            saveSetupDraft();
             renderSetup();
             break;
         case 'toggle-match': {
@@ -1650,6 +1727,7 @@ function onClick(e) {
             const on = ids.every(id => st.playerIds.includes(id));
             st.playerIds = on ? st.playerIds.filter(id => !ids.includes(id)) : [...new Set(st.playerIds.concat(ids))];
             st.touched = true;
+            saveSetupDraft();
             syncSetupSelection();
             break;
         }
@@ -1657,6 +1735,7 @@ function onClick(e) {
             const id = el.dataset.id;
             st.playerIds = st.playerIds.includes(id) ? st.playerIds.filter(x => x !== id) : st.playerIds.concat(id);
             st.touched = true;
+            saveSetupDraft();
             syncSetupSelection();
             break;
         }
@@ -1694,7 +1773,10 @@ function onClick(e) {
 }
 
 function onChange(e) {
-    if (e.target.id === 'course-select' && S.setup) S.setup.courseId = e.target.value;
+    if (e.target.id === 'course-select' && S.setup) {
+        S.setup.courseId = e.target.value;
+        saveSetupDraft();
+    }
 }
 
 function onKey(e) {

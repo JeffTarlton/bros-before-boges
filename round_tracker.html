@@ -109,6 +109,17 @@
         .seg button small { display: block; font-weight: 600; font-size: 0.8rem; opacity: 0.85; }
         .seg button[aria-pressed="true"] { border-color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); color: var(--accent-gold); }
 
+        /* A round's format (setup and the board): the rules' name, what it is, no handicap strokes, and a
+           link to its section of the rules */
+        #setup-body .fmt-line { margin-top: 12px; }
+        .fmt-line strong { color: #fff; white-space: nowrap; }
+        .board-meta .fmt-line { margin: 2px 0; color: var(--text-soft); font-size: 0.85rem; line-height: 1.5; }
+        .fmt-link { position: relative; white-space: nowrap; font-weight: 700; color: var(--accent-emerald); }
+        .fmt-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+        .fmt-link:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; border-radius: 4px; }
+        /* 44px tall under a finger, without spreading the lines apart */
+        .fmt-link::after { content: ''; position: absolute; left: -6px; right: -6px; top: 50%; height: 44px; margin-top: -22px; }
+
         .field-label { display: block; font-weight: 700; margin: 16px 0 8px; }
         .t-select {
             width: 100%;
@@ -664,6 +675,8 @@
         }
 
         .board-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        /* A long format line wraps inside its column, so Updated/Refresh keeps its place on wide screens */
+        .board-meta > div:first-child { flex: 1 1 280px; min-width: 0; }
 
         /* Bottom tabs: always on screen */
         .tracker-nav { display: flex; }
@@ -808,8 +821,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
-    <script src="scoring.js?v=2027.9"></script>
-    <script src="round_tracker.js?v=2027.12"></script>
+    <script src="scoring.js?v=2027.10"></script>
+    <script src="round_tracker.js?v=2027.13"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

@@ -230,7 +230,8 @@ window.BBBScoring = (function () {
     }
 
     // Short text for one part of a match, from side A's point of view, e.g. "2 UP", "3&2", "AS",
-    // "by 2", "+4 pts". `names` = ['Blue', 'Red'] or player names.
+    // "by 2", "+4 pts". `names` = ['Blue', 'Red'] or player names. "All square" is match play's word
+    // only: a level stroke or points contest is "Tied".
     function partText(part, names) {
         const who = part.lead > 0 ? names[0] : names[1];
         const n = Math.abs(part.lead);
@@ -252,7 +253,7 @@ window.BBBScoring = (function () {
         }
         // strokes
         if (part.final) return part.lead === 0 ? 'Halved' : `${who} wins by ${n}`;
-        return part.lead === 0 ? `All square thru ${thru}` : `${who} by ${n} thru ${thru}`;
+        return part.lead === 0 ? `Tied thru ${thru}` : `${who} by ${n} thru ${thru}`;
     }
 
     // Cup points for a round from its matches: { won: [blue, red], projected: [blue, red] }.
