@@ -373,7 +373,19 @@ function setupEventListeners() {
     const refreshBtn = document.getElementById('refresh-board-btn');
     if (refreshBtn) refreshBtn.addEventListener('click', () => refreshNow(refreshBtn));
     const ledgerNavBtn = document.getElementById('ledger-nav-btn');
-    if (ledgerNavBtn) ledgerNavBtn.addEventListener('click', () => document.getElementById('ledger-panel').scrollIntoView({ behavior: 'smooth' }));
+    if (ledgerNavBtn) ledgerNavBtn.addEventListener('click', goToLedger);
+    const myNetBtn = document.getElementById('my-net-btn');
+    if (myNetBtn) myNetBtn.addEventListener('click', goToLedger);
+
+    // Ledger: a row opens to its bets; Settle up copies for the group text or lists bet by bet
+    ledgerContainer.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-ledger-row]');
+        if (row) return toggleLedgerRow(row);
+        const betByBet = e.target.closest('#bet-by-bet-btn');
+        if (betByBet) return toggleBetByBet(betByBet);
+        if (e.target.closest('#copy-settle-up-btn')) shareSettleUp();
+    });
+    watchLedgerForFab();
 
     // Settle
     settleWagerForm.addEventListener('submit', handleSettleSubmit);
@@ -828,7 +840,7 @@ function openBetLink() {
         filter = ['all', wager.type === 'h2h' ? 'h2h' : 'pools', 'me']
             .find(f => wagersForFilter(f).some(w => w.id === wager.id)) || 'all';
     } else {
-        showToast(`That bet is from the ${new Date(wager.created_at).getFullYear()} trip, under Past Trips.`, 'info');
+        showToast(`That bet is from the ${seasonYear(wager)} trip, under Past Trips.`, 'info');
     }
     setFilter(filter);
     // On a phone the chip row scrolls sideways: bring the list it opened on into view
@@ -1376,6 +1388,7 @@ function setFilter(filter) {
     const cupCard = document.getElementById('cup-card');
     if (cupCard) cupCard.hidden = filter !== 'all';
     renderWagers();
+    renderLedger(); // Past Trips shows last trip's ledger
     // Scrolled down the list (or at the ledger)? Jump back to the top of the new list.
     const nav = document.querySelector('.bookie-nav');
     if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' });
@@ -1800,7 +1813,7 @@ function actionsHTML(wager) {
     // but their creator (or an admin) can still clear them off.
     if (!isCurrentSeason(wager)) {
         const unfinished = ['proposed', 'open', 'active'].includes(wager.status);
-        if (unfinished && (isCreator || isAdmin)) return row(cancelBtn) + note(`From the ${new Date(wager.created_at).getFullYear()} trip. It doesn’t count toward this year’s ledger.`);
+        if (unfinished && (isCreator || isAdmin)) return row(cancelBtn) + note(`From the ${seasonYear(wager)} trip. It doesn’t count toward this year’s ledger.`);
         return '';
     }
 
@@ -1861,7 +1874,8 @@ function wagerCardHTML(wager) {
 
     const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop bet' : 'Pool');
     const creatorLabel = isMe(wager.creator_id) ? 'You' : (wager.creator ? escHtml(wager.creator.name) : 'Unknown');
-    const pastLabel = isCurrentSeason(wager) ? '' : ` • ${new Date(wager.created_at).getFullYear()}`;
+    // The trip it was for, the same year the ledger's "2026 · Final" uses
+    const pastLabel = isCurrentSeason(wager) ? '' : ` • ${seasonYear(wager) || ''}`;
 
     // Waiting on you (a challenge to answer, or a result to record): red, like the heading over it
     let cardStyle = `margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'}; position: relative;`;
@@ -2515,42 +2529,77 @@ async function handleAutoSettle(wager) {
 }
 
 // ==========================================
-// Ledger (this trip's settled bets only)
+// Ledger (this trip's settled bets; the last trip's while Past Trips is on)
 // ==========================================
+// One settled bet's money: what each player in it won (+) or lost (−), to the cent. The nets add
+// these up and each player's breakdown lists them, so a breakdown always adds up to its net.
+function betMoney(wager) {
+    const money = [];
+    if (wager.status !== 'settled' || !wager.winner_id) return money;
+    const add = (id, amt) => { money.push({ id, amount: roundCents(amt) }); };
+    const parts = wager.participants || [];
+    const winnerIds = wager.winner_ids && wager.winner_ids.length ? wager.winner_ids : [wager.winner_id];
+    const amount = wager.amount;
+
+    if (wager.type === 'h2h') {
+        if (!wager.target_id) return money;
+        const { creatorWins, targetWins } = h2hPayouts(amount, wager.odds);
+        if (wager.winner_id === wager.target_id) {
+            add(wager.target_id, targetWins);
+            add(wager.creator_id, -targetWins);
+        } else if (wager.winner_id === wager.creator_id) {
+            add(wager.creator_id, creatorWins);
+            add(wager.target_id, -creatorWins);
+        }
+    } else if (wager.type === 'prop') {
+        const takers = parts.filter(pid => pid !== wager.creator_id);
+        const sign = winnerIds.includes(wager.creator_id) ? 1 : -1;
+        add(wager.creator_id, sign * amount * takers.length);
+        takers.forEach(tid => add(tid, -sign * amount));
+    } else {
+        const winners = parts.filter(pid => winnerIds.includes(pid));
+        if (!winners.length) return money;
+        const shares = potShares(amount, parts.length, winners.length);
+        parts.forEach(pid => add(pid, -amount));
+        winners.forEach((pid, i) => add(pid, shares[i]));
+    }
+    return money;
+}
+
 function computeBalances(wagers) {
     const balances = {};
-    const add = (id, amt) => { balances[id] = roundCents((balances[id] || 0) + amt); };
-
-    wagers.forEach(wager => {
-        if (wager.status !== 'settled' || !wager.winner_id) return;
-        const parts = wager.participants || [];
-        const winnerIds = wager.winner_ids && wager.winner_ids.length ? wager.winner_ids : [wager.winner_id];
-        const amount = wager.amount;
-
-        if (wager.type === 'h2h') {
-            if (!wager.target_id) return;
-            const { creatorWins, targetWins } = h2hPayouts(amount, wager.odds);
-            if (wager.winner_id === wager.target_id) {
-                add(wager.target_id, targetWins);
-                add(wager.creator_id, -targetWins);
-            } else if (wager.winner_id === wager.creator_id) {
-                add(wager.creator_id, creatorWins);
-                add(wager.target_id, -creatorWins);
-            }
-        } else if (wager.type === 'prop') {
-            const takers = parts.filter(pid => pid !== wager.creator_id);
-            const sign = winnerIds.includes(wager.creator_id) ? 1 : -1;
-            add(wager.creator_id, sign * amount * takers.length);
-            takers.forEach(tid => add(tid, -sign * amount));
-        } else {
-            const winners = parts.filter(pid => winnerIds.includes(pid));
-            if (!winners.length) return;
-            const shares = potShares(amount, parts.length, winners.length);
-            parts.forEach(pid => add(pid, -amount));
-            winners.forEach((pid, i) => add(pid, shares[i]));
-        }
-    });
+    wagers.forEach(wager => betMoney(wager).forEach(({ id, amount }) => {
+        balances[id] = roundCents((balances[id] || 0) + amount);
+    }));
     return balances;
+}
+
+const byMade = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+
+// Each player's settled bets, oldest first, with what each one did to their net (and, for a
+// pool winner, the share they took out of the pot that the net comes from)
+function betsByPlayer(wagers) {
+    const byPlayer = {};
+    wagers.slice().sort(byMade).forEach(wager => {
+        const cents = new Map(), won = new Map();
+        betMoney(wager).forEach(({ id, amount }) => {
+            const c = Math.round(amount * 100);
+            cents.set(id, (cents.get(id) || 0) + c);
+            if (c > 0) won.set(id, (won.get(id) || 0) + c);
+        });
+        cents.forEach((c, id) => (byPlayer[id] = byPlayer[id] || []).push({ wager, amount: c / 100, won: (won.get(id) || 0) / 100 }));
+    });
+    return byPlayer;
+}
+
+// The same bets paid one at a time instead of netted: in each bet, its losers pay its winners
+function betByBetPayments(wagers) {
+    const payments = [];
+    wagers.slice().sort(byMade).forEach(wager => {
+        const balances = computeBalances([wager]);
+        settleUpPayments(balances).forEach(p => payments.push(Object.assign(p, { wager })));
+    });
+    return payments;
 }
 
 // Who pays whom to square up: the biggest loser pays the biggest winner, and so on.
@@ -2577,46 +2626,216 @@ function settleUpPayments(balances) {
     return payments;
 }
 
+// The trip a bet was for: one made on or after the season's start date (June 1) counts toward
+// the next spring's trip
+function seasonYear(wager) {
+    const made = new Date(wager.created_at);
+    if (isNaN(made)) return null;
+    const y = made.getUTCFullYear();
+    if (!SEASON_START || isNaN(SEASON_START)) return y;
+    return made.getTime() >= Date.UTC(y, SEASON_START.getUTCMonth(), SEASON_START.getUTCDate()) ? y + 1 : y;
+}
+
+// The bets the ledger adds up: this trip's, or with Past Trips on, the last trip before it
+function ledgerView() {
+    if (currentFilter !== 'past') return { past: false, year: TRIP_YEAR, wagers: allWagers.filter(isCurrentSeason) };
+    const past = allWagers.filter(w => !isCurrentSeason(w));
+    const years = past.map(seasonYear).filter(Boolean);
+    const year = years.length ? Math.max(...years) : TRIP_YEAR - 1;
+    return { past: true, year, wagers: past.filter(w => seasonYear(w) === year) };
+}
+
+// "Zac" in a text to the group, or "David O." when someone else on the roster is a David too
+function shortName(id) {
+    const full = getPlayerName(id).trim();
+    const words = full.split(/\s+/);
+    const firstOf = name => normName(String(name || '').trim().split(/\s+/)[0]);
+    const twins = dbPlayers.filter(p => p.id !== id && firstOf(p.name) === normName(words[0]));
+    if (!twins.length || words.length < 2) return words[0];
+    const initialOf = name => { const w = String(name || '').trim().split(/\s+/); return normName(w[w.length - 1]).charAt(0); };
+    const initial = normName(words[words.length - 1]).charAt(0);
+    return twins.some(p => initialOf(p.name) === initial) ? full : `${words[0]} ${initial.toUpperCase()}.`;
+}
+
+// Who the player was up against in a bet: "vs Zac" / "vs you", "Kelly’s pool" / "your prop"
+function otherSideText(wager, playerId) {
+    if (wager.type === 'h2h') {
+        const other = playerId === wager.creator_id ? wager.target_id : wager.creator_id;
+        return `vs ${isMe(other) ? 'you' : escHtml(shortName(other))}`;
+    }
+    return `${isMe(wager.creator_id) ? 'your' : `${escHtml(shortName(wager.creator_id))}’s`} ${wager.type === 'prop' ? 'prop' : 'pool'}`;
+}
+
+// The arithmetic behind a breakdown line, where the bet's card shows a different number:
+// a pool winner's share of the pot ("won $13.33, put in $10"), a prop maker's per-taker amount
+function betMathText(x, playerId) {
+    const w = x.wager;
+    if (w.type === 'prop' && playerId === w.creator_id) {
+        const takers = (w.participants || []).filter(id => id !== w.creator_id).length;
+        if (takers > 1) return `${fmtMoney(w.amount)} ${x.amount > 0 ? 'from' : 'to'} each of ${takers} takers`;
+    } else if (w.type !== 'h2h' && w.type !== 'prop' && x.won > 0) {
+        return `won ${fmtMoney(x.won)}, put in ${fmtMoney(roundCents(x.won - x.amount))}`;
+    }
+    return '';
+}
+
+const netColor = (n, soft) => (n > 0 ? 'var(--accent-emerald)' : (n < 0 ? (soft ? '#fca5a5' : '#ef4444') : 'var(--text-muted)'));
+const fmtNet = n => (roundCents(n) === 0 ? 'Even' : fmtMoney(n, true));
+
+// Ledger rows the viewer opened, and the bet-by-bet list: kept as they were across refreshes.
+// The bet-by-bet list starts closed for this trip (the netted list is the one to use) and open
+// for a past trip, where some bets were likely paid already and netting would send money astray.
+const ledgerOpenRows = new Set();
+const betByBetOpen = { now: false, past: true };
+let settleUpText = ''; // the netted payments, written for the group text
+
+// A ledger row: the player and their net, opening to one line per settled bet, then the net
+function ledgerRowHTML(b, bets, mine, index) {
+    const name = `${escHtml(b.name)}${mine ? ' (You)' : ''}`;
+    const net = `<span class="ledger-net" style="color: ${netColor(b.balance)};">${fmtNet(b.balance)}</span>`;
+    if (!bets.length) {
+        // An unseen chevron keeps this amount in line with the rows that open
+        return `<div class="ledger-row${mine ? ' mine' : ''}"><div class="ledger-row-head"><span class="ledger-name">${name}</span>${net}<i class="fas fa-chevron-down ledger-chev" aria-hidden="true" style="visibility: hidden;"></i></div></div>`;
+    }
+    const open = ledgerOpenRows.has(b.id);
+    const panelId = `ledger-bets-${index}`;
+    const lines = bets.map(x => {
+        const math = betMathText(x, b.id);
+        return `
+                    <li class="ledger-bet">
+                        <span class="ledger-bet-what">${escHtml(x.wager.description)}<span class="ledger-bet-side">${otherSideText(x.wager, b.id)}${math ? ` · ${math}` : ''}</span></span>
+                        <span class="ledger-bet-amt" style="color: ${netColor(x.amount, true)};">${fmtMoney(x.amount, true)}</span>
+                    </li>`;
+    }).join('');
+    return `
+        <div class="ledger-row${mine ? ' mine' : ''}">
+            <button type="button" class="ledger-row-head" aria-expanded="${open}" aria-controls="${panelId}" data-ledger-row="${escHtml(b.id)}" data-focus-key="row:${escHtml(b.id)}">
+                <span class="ledger-name">${name}</span>${net}<i class="fas fa-chevron-down ledger-chev" aria-hidden="true"></i>
+            </button>
+            <div class="ledger-bets" id="${panelId}"${open ? '' : ' hidden'}>
+                <ul aria-label="${mine ? 'Your bets' : `${escHtml(b.name)}’s bets`}">${lines}
+                </ul>
+                <div class="ledger-bets-net"><span>${mine ? 'Your net' : 'Net'}</span><span style="color: ${netColor(b.balance, true)};">${fmtNet(b.balance)}</span></div>
+            </div>
+        </div>`;
+}
+
+// Settle up, paid bet by bet instead of netted: each bet's payments under its terms, yours first
+function betByBetHTML(payments, me) {
+    const mine = p => p.from === me || p.to === me;
+    const groups = [];
+    payments.forEach(p => {
+        let g = groups[groups.length - 1];
+        if (!g || g.wager !== p.wager) groups.push(g = { wager: p.wager, payments: [] });
+        g.payments.push(p);
+    });
+    const ordered = groups.filter(g => g.payments.some(mine)).concat(groups.filter(g => !g.payments.some(mine)));
+    return ordered.map(g => {
+        const w = g.wager;
+        const kind = w.type === 'h2h' ? 'Head-to-head' : otherSideText(w, null).replace(/^./, c => c.toUpperCase());
+        return `
+                    <div class="bet-by-bet-bet">
+                        <div class="bet-by-bet-terms">${escHtml(w.description)}<span class="ledger-bet-side">${kind}</span></div>
+                        ${g.payments.map(p => `
+                        <div class="settle-up-row${mine(p) ? ' mine' : ''}">
+                            <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
+                            <span style="white-space: nowrap;">${fmtMoney(p.amount)}</span>
+                        </div>`).join('')}
+                    </div>`;
+    }).join('');
+}
+
+// The netted payments for the group text: one line when it's short, one payment a line when it
+// isn't, then why someone might pay a person they didn't bet with, and where their bets are
+function settleUpMessage(view, payments) {
+    if (!payments.length) return '';
+    const lines = payments.map(p => `${shortName(p.from)} → ${shortName(p.to)} ${fmtMoney(p.amount)}`);
+    const head = `BBB ${view.year} settle up:`;
+    const list = lines.length > 4 ? `${head}\n${lines.join('\n')}` : `${head} ${lines.join(' · ')}`;
+    const link = location.origin + location.pathname;
+    const why = view.past
+        ? `Netted across every ${view.year} bet, so it’s only right if nobody has paid any of them yet. If some are paid, use the bet-by-bet list under Past Trips on the Bookie: ${link}`
+        : `Payments are netted across every bet so there are fewer Venmos. You might pay someone you didn’t bet with, but every total is right. Tap your name in the Bookie’s Ledger to see your bets: ${link}`;
+    return `${list}\n\n${why}`;
+}
+
+// "Your net: +$15" under "Logged in as" (the same view as the ledger: last trip's on Past Trips)
+function renderMyNet(view, balance) {
+    const btn = document.getElementById('my-net-btn');
+    if (!btn) return;
+    btn.hidden = balance === null;
+    if (balance === null) return;
+    document.getElementById('my-net-label').textContent = view.past ? `Your ${view.year} net` : 'Your net';
+    const amount = document.getElementById('my-net-amount');
+    amount.textContent = fmtNet(balance);
+    amount.style.color = netColor(balance);
+}
+
 function renderLedger() {
     if (!currentUser) return;
-    const balances = computeBalances(allWagers.filter(isCurrentSeason));
+    const view = ledgerView();
+    const me = currentUser.id;
+    const pill = document.getElementById('ledger-pill');
+    if (pill) pill.textContent = view.past ? `${view.year} · Final` : 'This trip · Net';
+
+    // Keep keyboard focus on the same control across a refresh
+    const active = document.activeElement;
+    const focusKey = active && ledgerContainer.contains(active) ? active.dataset.focusKey : null;
+    const scoreboardEl = document.getElementById('big-winner-board');
+
+    if (loadError && !allWagers.length) {
+        // Nothing loaded: say so, rather than "no settled bets" and an even net
+        settleUpText = '';
+        renderMyNet(view, null);
+        if (scoreboardEl) scoreboardEl.style.display = 'none';
+        ledgerContainer.innerHTML = `<div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 15px; text-align: center;">Couldn’t load the ledger. Check your signal and tap Refresh.</div>`;
+        queueFabSync();
+        syncLedgerFade();
+        return;
+    }
+
+    const balances = computeBalances(view.wagers);
+    const bets = betsByPlayer(view.wagers);
     dbPlayers.forEach(p => { if (!(p.id in balances)) balances[p.id] = 0; });
+    // This trip, you're always on the ledger ("Even" until you bet). A past trip only lists you
+    // if you were in its bets, so a newcomer isn't told he finished last year even.
+    const listMe = !view.past || !!(bets[me] || []).length;
+    renderMyNet(view, listMe ? (balances[me] || 0) : null);
 
     const sorted = Object.keys(balances)
         .map(id => ({ id, name: getPlayerName(id), balance: balances[id] }))
         .sort((a, b) => b.balance - a.balance || a.name.localeCompare(b.name));
 
     let ledgerHtml = '';
-    sorted.forEach(b => {
-        const isMe = b.id === currentUser.id;
-        if (b.balance === 0 && !isMe) return;
-        const color = b.balance > 0 ? 'var(--accent-emerald)' : (b.balance < 0 ? '#ef4444' : 'var(--text-muted)');
-        ledgerHtml += `
-            <div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <span style="font-weight: ${isMe ? '700' : 'normal'}">${escHtml(b.name)} ${isMe ? '(You)' : ''}</span>
-                <span style="color: ${color}; font-weight: 700; white-space: nowrap;">${fmtMoney(b.balance, true)}</span>
-            </div>
-        `;
+    let rowCount = 0;
+    sorted.forEach((b, i) => {
+        const mine = b.id === me;
+        const theirs = bets[b.id] || [];
+        if (b.balance === 0 && !theirs.length && !(mine && listMe)) return;
+        ledgerHtml += ledgerRowHTML(b, theirs, mine, i);
+        if (theirs.length) rowCount++;
     });
+    if (rowCount) {
+        ledgerHtml = `<p class="ledger-hint">Tap a name to see the bets behind it.</p>` + ledgerHtml;
+    }
 
     const top = sorted.length ? sorted[0].balance : 0;
     const bottom = sorted.length ? sorted[sorted.length - 1].balance : 0;
     const namesAt = v => sorted.filter(b => b.balance === v).map(b => escHtml(b.name)).join(', ');
 
-    const scoreboardEl = document.getElementById('big-winner-board');
     if (scoreboardEl) {
         if (top > 0 || bottom < 0) {
             scoreboardEl.style.display = 'flex';
             scoreboardEl.style.justifyContent = 'space-between';
             scoreboardEl.innerHTML = `
                 <div style="text-align: center; flex: 1; border-right: 1px solid rgba(255,255,255,0.1);">
-                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;"><i class="fas fa-trophy" style="color: var(--accent-gold);"></i> Big Winner</div>
-                    <div style="font-size: 1.2rem; font-weight: bold; color: var(--accent-emerald); margin-top: 5px;">${top > 0 ? fmtMoney(top, true) : '$0'}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;"><i class="fas fa-trophy" style="color: var(--accent-gold);" aria-hidden="true"></i> Big Winner</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: var(--accent-emerald); margin-top: 5px; white-space: nowrap;">${top > 0 ? fmtMoney(top, true) : '$0'}</div>
                     <div style="font-size: 0.9rem; margin-top: 2px;">${top > 0 ? namesAt(top) : '-'}</div>
                 </div>
                 <div style="text-align: center; flex: 1;">
-                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;"><i class="fas fa-skull" style="color: #ef4444;"></i> Big Loser</div>
-                    <div style="font-size: 1.2rem; font-weight: bold; color: #ef4444; margin-top: 5px;">${bottom < 0 ? fmtMoney(bottom, true) : '$0'}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;"><i class="fas fa-skull" style="color: #ef4444;" aria-hidden="true"></i> Big Loser</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #ef4444; margin-top: 5px; white-space: nowrap;">${bottom < 0 ? fmtMoney(bottom, true) : '$0'}</div>
                     <div style="font-size: 0.9rem; margin-top: 2px;">${bottom < 0 ? namesAt(bottom) : '-'}</div>
                 </div>
             `;
@@ -2626,28 +2845,138 @@ function renderLedger() {
     }
 
     if (!ledgerHtml) {
-        ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">No settled bets yet</div>`;
+        ledgerHtml = `<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; text-align: center;">${view.past ? `No settled bets from the ${view.year} trip` : 'No settled bets yet'}</div>`;
     }
 
-    // Settle up: the fewest payments that square everyone, yours first
+    // Settle up: the fewest payments that square everyone, yours first. The group-text version
+    // keeps the plain order (biggest first), since it's for everyone.
     const payments = settleUpPayments(balances);
+    settleUpText = settleUpMessage(view, payments);
     if (payments.length) {
-        const me = currentUser.id;
         const mine = p => p.from === me || p.to === me;
         payments.sort((a, b) => mine(b) - mine(a));
+        const lastYear = view.year === TRIP_YEAR - 1 ? 'Last year’s' : `The ${view.year}`;
+        const bbbKey = view.past ? 'past' : 'now';
+        const bbbOpen = betByBetOpen[bbbKey];
         ledgerHtml += `
             <div class="settle-up">
+                ${view.past ? `<p class="settle-up-past">${lastYear} settle up, for anyone still holding out.</p>` : ''}
                 <h4>Settle up</h4>
-                <p>Who pays whom to square everyone for the trip so far.</p>
+                <p>Payments are netted across every bet so there are fewer Venmos. You might pay someone you didn’t bet with, but every total is right.</p>
+                ${view.past ? `<p class="settle-up-caveat">That’s only right if nobody has paid any ${view.year} bets yet. If some are paid, use the bet-by-bet payments below and skip the ones already paid.</p>` : ''}
                 ${payments.map(p => `
                     <div class="settle-up-row${mine(p) ? ' mine' : ''}">
                         <span>${p.from === me ? 'You' : escHtml(getPlayerName(p.from))} → ${p.to === me ? 'you' : escHtml(getPlayerName(p.to))}</span>
                         <span style="white-space: nowrap;">${fmtMoney(p.amount)}</span>
                     </div>`).join('')}
+                <div class="settle-up-actions">
+                    <button type="button" class="settle-up-btn" id="copy-settle-up-btn" data-focus-key="copy"><i class="fas fa-copy" aria-hidden="true"></i>Copy for the group text</button>
+                    <button type="button" class="settle-up-btn settle-up-toggle" id="bet-by-bet-btn" aria-expanded="${bbbOpen}" aria-controls="bet-by-bet-list" data-focus-key="bet-by-bet" data-view="${bbbKey}">${bbbOpen ? 'Hide' : 'Show'} bet-by-bet payments</button>
+                </div>
+                <div class="bet-by-bet" id="bet-by-bet-list"${bbbOpen ? '' : ' hidden'}>
+                    <p>Or skip the netting and pay one bet at a time, instead of the list above:</p>
+                    ${betByBetHTML(betByBetPayments(view.wagers), me)}
+                </div>
             </div>`;
     }
 
     ledgerContainer.innerHTML = ledgerHtml;
+    const refocus = focusKey && [...ledgerContainer.querySelectorAll('[data-focus-key]')].find(el => el.dataset.focusKey === focusKey);
+    if (refocus) refocus.focus({ preventScroll: true });
+    // The bets above may have grown or shrunk: the + button and the panel's fade follow
+    queueFabSync();
+    syncLedgerFade();
+}
+
+function toggleLedgerRow(btn) {
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', String(open));
+    const panel = document.getElementById(btn.getAttribute('aria-controls'));
+    if (panel) panel.hidden = !open;
+    if (open) ledgerOpenRows.add(btn.dataset.ledgerRow);
+    else ledgerOpenRows.delete(btn.dataset.ledgerRow);
+    syncLedgerFade();
+}
+
+function toggleBetByBet(btn) {
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    betByBetOpen[btn.dataset.view === 'past' ? 'past' : 'now'] = open;
+    btn.setAttribute('aria-expanded', String(open));
+    btn.textContent = `${open ? 'Hide' : 'Show'} bet-by-bet payments`;
+    const list = document.getElementById('bet-by-bet-list');
+    if (list) list.hidden = !open;
+    syncLedgerFade();
+}
+
+// "Copy for the group text": the share sheet on a phone (Messages is one tap from it),
+// the clipboard everywhere else
+async function shareSettleUp() {
+    const text = settleUpText;
+    if (!text) return;
+    if (navigator.share && isPhone()) {
+        try {
+            await navigator.share({ text });
+            return;
+        } catch (err) {
+            if (err && err.name === 'AbortError') return; // they closed the share sheet
+        }
+    }
+    if (await copyText(text)) showToast('Copied the settle up. Paste it in the group text.', 'success');
+    else window.prompt('Copy this for the group text:', text);
+}
+
+// The Ledger tab and "Your net" both land on the ledger (focus follows, for screen readers)
+function goToLedger() {
+    const panel = document.getElementById('ledger-panel');
+    if (!panel) return;
+    const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = still ? 'auto' : 'smooth';
+    panel.scrollIntoView({ behavior });
+    // On a wide screen the Ledger scrolls inside its own panel: bring your row into it as well
+    const myRow = ledgerContainer.querySelector('.ledger-row.mine');
+    if (myRow && panel.scrollHeight - panel.clientHeight > 1) {
+        const top = myRow.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop;
+        if (top < panel.scrollTop || top + myRow.offsetHeight > panel.scrollTop + panel.clientHeight) {
+            panel.scrollTo({ top: Math.max(0, top - 16), behavior });
+        }
+    }
+    const title = document.getElementById('ledger-title');
+    if (title) title.focus({ preventScroll: true });
+}
+
+// On a wide screen the Ledger panel scrolls on its own and Settle up is often below its edge:
+// fade the bottom while there's more to see, since a Mac hides the scroll bar
+function syncLedgerFade() {
+    const panel = document.getElementById('ledger-panel');
+    if (panel) panel.classList.toggle('ledger-more', panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2);
+}
+
+// On a phone the + button floats just above the tab bar. It steps aside once the Ledger's
+// heading is up out from behind the tab bar (you scrolled to it, or tapped Ledger), so it never
+// sits on the amounts. At the top of the page it always shows, even on a short list where the
+// Ledger is already peeking up: on a phone it's the only New bet button.
+let fabSyncQueued = false;
+function syncFabWithLedger() {
+    fabSyncQueued = false;
+    const nav = document.getElementById('mobile-bottom-nav');
+    const title = document.getElementById('ledger-title');
+    let hide = false;
+    if (nav && title && window.matchMedia && matchMedia('(max-width: 768px)').matches) {
+        hide = window.scrollY > 24 && title.getBoundingClientRect().bottom < nav.getBoundingClientRect().top;
+    }
+    document.body.classList.toggle('ledger-in-view', hide);
+}
+function queueFabSync() {
+    if (fabSyncQueued) return;
+    fabSyncQueued = true;
+    requestAnimationFrame(syncFabWithLedger);
+}
+function watchLedgerForFab() {
+    window.addEventListener('scroll', queueFabSync, { passive: true });
+    window.addEventListener('resize', () => { queueFabSync(); syncLedgerFade(); });
+    const panel = document.getElementById('ledger-panel');
+    if (panel) panel.addEventListener('scroll', syncLedgerFade, { passive: true });
+    queueFabSync();
 }
 
 // ==========================================

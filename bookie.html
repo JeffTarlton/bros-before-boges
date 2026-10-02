@@ -200,6 +200,12 @@
                 overflow-y: auto;
             }
 
+            /* More below the panel's edge (often Settle up): its bottom fades (bookie.js sets this) */
+            #ledger-panel.ledger-more {
+                -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), rgba(0, 0, 0, 0.15));
+                mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), rgba(0, 0, 0, 0.15));
+            }
+
             #bookie-modal .modal-content {
                 max-width: 520px !important;
                 padding: 32px;
@@ -525,6 +531,266 @@
 
         .settle-up-row.mine {
             font-weight: 700;
+        }
+
+        /* Last trip's ledger (Past Trips): a line over its Settle up */
+        .settle-up p.settle-up-past {
+            color: var(--accent-gold);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        /* ...and under its explanation: netting only works if nobody has paid yet */
+        .settle-up p.settle-up-caveat {
+            color: var(--text-main);
+        }
+
+        .settle-up-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .settle-up-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-emerald);
+            font: inherit;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .settle-up-btn.settle-up-toggle {
+            border: 1px dashed rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .bet-by-bet {
+            margin-top: 12px;
+        }
+
+        .bet-by-bet-bet {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .bet-by-bet-terms {
+            font-size: 0.85rem;
+            overflow-wrap: anywhere;
+        }
+
+        .bet-by-bet .settle-up-row {
+            padding: 6px 0 6px 12px;
+            border-bottom: 0;
+        }
+
+        /* Long names wrap on a small phone: a faint line keeps one payment from running into the next */
+        .bet-by-bet .settle-up-row + .settle-up-row {
+            border-top: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+
+        /* Ledger rows: each one opens to the bets behind its net */
+        .ledger-hint {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .ledger-row {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .ledger-row-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            min-height: 44px;
+            padding: 10px;
+            background: none;
+            border: 0;
+            border-radius: 8px;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+        }
+
+        button.ledger-row-head {
+            cursor: pointer;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            button.ledger-row-head:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+        }
+
+        .ledger-name {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .ledger-row.mine .ledger-name {
+            font-weight: 700;
+        }
+
+        .ledger-net {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .ledger-chev {
+            flex: none;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+
+        .ledger-row-head[aria-expanded="true"] .ledger-chev {
+            transform: rotate(180deg);
+        }
+
+        .ledger-bets {
+            padding: 0 10px 12px;
+        }
+
+        .ledger-bets ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .ledger-bet {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            padding: 7px 0;
+            border-top: 1px dashed rgba(255, 255, 255, 0.08);
+            font-size: 0.85rem;
+        }
+
+        .ledger-bet-what {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .ledger-bet-side {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .ledger-bet-amt {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .ledger-bets-net {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        /* "Your net: +$15" under "Logged in as": goes to the Ledger */
+        .my-net-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+            margin: -8px 0 -10px;
+            padding: 0;
+            background: none;
+            border: 0;
+            color: var(--text-muted);
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .my-net-btn[hidden] {
+            display: none;
+        }
+
+        .my-net-btn i {
+            font-size: 0.7rem;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        #ledger-title:focus:not(:focus-visible) {
+            outline: none;
+        }
+
+        /* Phones: the + button steps aside once you've scrolled to the Ledger (bookie.js watches),
+           and stays at the top of the page, where it's the only New bet button */
+        #fab-create-wager-btn {
+            transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+        }
+
+        /* ...and the page ends far enough below the Ledger that its last amounts always clear the +,
+           even on a page too short to scroll it away */
+        @media (max-width: 768px) {
+            body.is-authed main.section-padding.bookie-main {
+                padding-bottom: calc(160px + env(safe-area-inset-bottom)) !important;
+            }
+        }
+
+        body.ledger-in-view #fab-create-wager-btn {
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.6);
+            pointer-events: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #fab-create-wager-btn,
+            .ledger-chev {
+                transition: none;
+            }
+        }
+
+        /* Small phones: give the names and amounts the room the panel's padding was taking */
+        @media (max-width: 400px) {
+            #ledger-panel {
+                padding: 20px 14px !important;
+            }
+
+            .ledger-row-head {
+                padding: 10px 6px;
+            }
+
+            .ledger-bets {
+                padding: 0 6px 12px;
+            }
         }
 
         #bookie-modal .modal-close {
@@ -980,6 +1246,8 @@
                     <div>
                         <h2 class="section-title" style="margin-bottom: 0;">The <span class="text-stroke">Board</span></h2>
                         <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
+                        <!-- Your net for the trip; tapping it goes to the Ledger (bookie.js fills it in) -->
+                        <button type="button" id="my-net-btn" class="my-net-btn" hidden><span><span id="my-net-label">Your net</span>: <strong id="my-net-amount">Even</strong><span class="sr-only">. Show the Ledger</span></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" id="refresh-board-btn" class="refresh-btn" aria-label="Refresh the board"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>Refresh</span></button>
@@ -1037,9 +1305,10 @@
                     <!-- Right Column: The Ledger -->
                     <div>
                         <div class="glass-panel" id="ledger-panel" style="padding: 25px;">
-                            <h3 style="margin-bottom: 20px; font-family: var(--font-heading); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                            <h3 id="ledger-title" tabindex="-1" style="margin-bottom: 20px; font-family: var(--font-heading); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                                 The Ledger
-                                <span style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 99px; font-weight: normal; white-space: nowrap;">This trip · Net</span>
+                                <!-- "This trip · Net", or "2026 · Final" while Past Trips is on -->
+                                <span id="ledger-pill" style="font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 99px; font-weight: normal; white-space: nowrap;">This trip · Net</span>
                             </h3>
 
                             <div id="big-winner-board" style="display: none; margin-bottom: 20px; padding: 15px; border-radius: 12px; background: linear-gradient(135deg, rgba(251,191,36,0.1), rgba(16,185,129,0.1)); border: 1px solid rgba(255,255,255,0.1);">
@@ -1201,7 +1470,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
-    <script src="bookie.js?v=2027.11" defer></script>
+    <script src="bookie.js?v=2027.12" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
