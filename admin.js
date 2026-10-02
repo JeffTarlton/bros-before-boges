@@ -70,6 +70,14 @@ let saveProblem = null; // what's blocking the last Save attempt, shown above th
 let leavingPage = false; // set once Logout is confirmed, so the unload prompt doesn't ask twice
 const EDITOR_TABS = ['tab-roster', 'tab-drafting', 'tab-matchups', 'tab-potential'];
 
+// Each sidebar section has an address (admin#rsvps), so a refresh or a bookmark opens it again
+const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential'];
+
+// Links that go out to the guys (texts and emails), so always the live site, never this page's host
+const SITE_URL = 'https://bros-before-boges.vercel.app';
+const INVITE_URL = `${SITE_URL}/signup`;
+const BOOKIE_URL = `${SITE_URL}/bookie`;
+
 // Initial Load
 function init() {
     console.log('Admin Dashboard initializing...');
@@ -81,6 +89,13 @@ function init() {
             saveBar: document.getElementById('save-bar'),
             saveNote: document.getElementById('save-note'),
             loginBtn: document.getElementById('login-btn'),
+            loginForm: document.getElementById('login-form'),
+            loginFormWrap: document.getElementById('login-form-wrap'),
+            loginHelp: document.getElementById('login-help'),
+            loginDenied: document.getElementById('login-denied'),
+            loginDeniedText: document.getElementById('login-denied-text'),
+            deniedRetryBtn: document.getElementById('denied-retry-btn'),
+            deniedLogoutBtn: document.getElementById('denied-logout-btn'),
             logoutBtn: document.getElementById('logout-btn'),
             loginError: document.getElementById('login-error'),
             emailInput: document.getElementById('email'),
@@ -161,50 +176,118 @@ async function signInWithGoogle() {
     if (error) window.showToast('Google sign-in didn’t start: ' + escHtml(error.message), 'error');
 }
 
-async function verifyAdminAndShowDashboard(email) {
+// fromForm: the check follows a Log in press, so focus moves to the next thing to press
+async function verifyAdminAndShowDashboard(email, fromForm = false) {
+    let adminRows = null;
+    let error = null;
     try {
         // Any admin row with this email counts (the same rule the database uses), even if a
         // second, non-admin row has the same email
-        const { data: adminRows, error } = await supabaseInstance
+        ({ data: adminRows, error } = await supabaseInstance
             .from('players')
             .select('is_admin')
             .ilike('email', escapeLike(email))
             .eq('is_admin', true)
-            .limit(1);
-
-        if (error || !adminRows || !adminRows.length) {
-            // Stay on the login screen. No sign-out: that would also end this player's
-            // Round Tracker / Bookie session on the same phone.
-            alert("Access Denied: You do not have administrator privileges.");
-        } else {
-            showDashboard();
-        }
+            .limit(1));
     } catch (e) {
-        console.error("Admin verification failed:", e);
-        if (elements.loginError) {
-            elements.loginError.textContent = "Error verifying admin privileges.";
-            elements.loginError.style.display = 'block';
-        }
+        error = e;
+    }
+
+    // Either way he stays on the login screen. No automatic sign-out: that would also end
+    // this player's Round Tracker / Bookie session on the same phone.
+    if (error) {
+        console.error('Admin verification failed:', error);
+        showAccessProblem(email, 'error', plainError(error), fromForm);
+        return false;
+    }
+    if (!adminRows || !adminRows.length) {
+        showAccessProblem(email, 'denied', '', fromForm);
+        return false;
+    }
+    showDashboard();
+    return true;
+}
+
+let deniedEmail = '';
+
+// "Logged in, but not as an admin" (or the check didn't go through), in place of the form
+function showAccessProblem(email, kind, detail, fromForm) {
+    deniedEmail = email || '';
+    const who = `<b>${escHtml(email || 'an account with no email')}</b>`;
+    if (elements.loginDeniedText) {
+        elements.loginDeniedText.innerHTML = kind === 'denied'
+            ? `You’re logged in as ${who}, but that login isn’t an admin. Ask Jeff to add this email to your roster row.`
+            : `You’re logged in as ${who}, but the admin check didn’t go through: ${escHtml(detail)}`;
+    }
+    if (elements.deniedRetryBtn) elements.deniedRetryBtn.hidden = kind === 'denied';
+    if (elements.loginFormWrap) elements.loginFormWrap.hidden = true;
+    if (elements.loginHelp) elements.loginHelp.hidden = true;
+    if (elements.loginDenied) elements.loginDenied.hidden = false;
+    if (fromForm) {
+        const next = kind === 'denied' ? elements.deniedLogoutBtn : elements.deniedRetryBtn;
+        if (next) next.focus();
     }
 }
 
+function showLoginForm() {
+    if (elements.loginDenied) elements.loginDenied.hidden = true;
+    if (elements.loginFormWrap) elements.loginFormWrap.hidden = false;
+    if (elements.loginHelp) elements.loginHelp.hidden = false;
+}
+
+function showLoginError(text) {
+    if (!elements.loginError) return;
+    elements.loginError.textContent = text || '';
+    elements.loginError.hidden = !text;
+}
+
+// The same wording the Bookie uses for the same login
+function friendlyLoginError(err) {
+    const msg = (err && err.message) || String(err || '');
+    if (/invalid login credentials/i.test(msg)) return 'That email and password don’t match. Try again, or tap “Forgot password?”.';
+    if (/email not confirmed/i.test(msg)) return 'Confirm your email first: open the link we sent you, then log in here.';
+    if (/failed to fetch|load failed|networkerror|network request failed/i.test(msg)) return 'Couldn’t reach the server. Check your connection and try again.';
+    if (/rate limit|too many/i.test(msg)) return 'Too many tries in a row. Wait a minute, then try again.';
+    return msg || 'Something went wrong. Try again.';
+}
+
 function setupEventListeners() {
-    // Login Handling
-    if (elements.loginBtn) {
-        elements.loginBtn.addEventListener('click', (e) => {
+    // Login: a real form, so Enter (or Go on a phone keyboard) logs in
+    if (elements.loginForm) {
+        elements.loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
             handleLogin();
         });
     }
+    // The email field's phone key says Next: with the password still empty it moves there,
+    // instead of submitting and showing "Enter your password." (Enter with both filled still logs in)
+    elements.emailInput?.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.isComposing || !elements.passwordInput) return;
+        if (!elements.emailInput.value.trim() || elements.passwordInput.value) return;
+        e.preventDefault();
+        showLoginError('');
+        elements.passwordInput.focus();
+    });
 
     if (elements.logoutBtn) {
         elements.logoutBtn.addEventListener('click', handleLogout);
     }
+    elements.deniedLogoutBtn?.addEventListener('click', logOutOfDeniedLogin);
+    elements.deniedRetryBtn?.addEventListener('click', async () => {
+        const btn = elements.deniedRetryBtn;
+        btn.disabled = true;
+        const ok = await verifyAdminAndShowDashboard(deniedEmail);
+        btn.disabled = false;
+        // Still not in: keep focus here (it was on this button, which was off during the check)
+        if (!ok) (btn.hidden ? elements.deniedLogoutBtn : btn).focus();
+    });
     document.getElementById('admin-google-btn')?.addEventListener('click', signInWithGoogle);
 
     // RSVPs tab
     document.getElementById('rsvp-refresh-btn')?.addEventListener('click', loadRsvpAdmin);
     document.getElementById('rsvp-export-btn')?.addEventListener('click', exportRsvpCsv);
+    document.getElementById('rsvp-invite-btn')?.addEventListener('click', copyInviteLink);
+    document.getElementById('rsvp-reminder-btn')?.addEventListener('click', copyRsvpReminder);
     document.getElementById('rsvp-filters')?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-rsvp-filter]');
         if (!btn) return;
@@ -214,6 +297,37 @@ function setupEventListeners() {
     document.getElementById('rsvp-admin-tbody')?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-approve]');
         if (btn) approvePlayer(btn.dataset.approve, btn);
+    });
+    document.getElementById('rsvp-approved')?.addEventListener('click', (e) => {
+        const dismiss = e.target.closest('[data-dismiss-approved]');
+        if (dismiss) {
+            rsvpJustApproved = rsvpJustApproved.filter(a => a.id !== dismiss.dataset.dismissApproved);
+            renderApprovedNotes();
+            const tab = document.getElementById('tab-rsvps');
+            const heading = tab && tab.querySelector('h2');
+            if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus(); }
+            return;
+        }
+        const copy = e.target.closest('[data-copy-approval]');
+        if (copy) shareOrCopy({ text: approvalMessage() }, 'Note copied. Text it to him.');
+    });
+
+    // Sidebar sections follow the address: #rsvps, #score-entry…
+    window.addEventListener('hashchange', () => {
+        const tab = tabFromHash();
+        if (tab && elements.dashboard && elements.dashboard.classList.contains('active')) openTab(tab, { fromHash: true });
+    });
+
+    // Roster "…" menus: one open at a time; a click elsewhere or Escape closes it
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('details.row-menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const open = document.querySelector('details.row-menu[open]');
+        if (!open) return;
+        open.open = false;
+        open.querySelector('summary').focus();
     });
 
     // Add Player Button
@@ -256,31 +370,27 @@ function setupEventListeners() {
         });
 
         elements.rosterTbody.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-player-btn')) {
-                const index = e.target.closest('tr').dataset.index;
-                removePlayer(index);
+            const btn = e.target.closest('.remove-player-btn');
+            if (!btn) return;
+            const row = btn.closest('tr');
+            const at = [...elements.rosterTbody.querySelectorAll('tr[data-index]')].indexOf(row);
+            if (!removePlayer(row.dataset.index)) {
+                const menu = btn.closest('details');
+                if (menu) { menu.open = false; menu.querySelector('summary').focus(); }
+                return;
             }
+            // The row is gone: focus the "…" of the row that took its place (or the one above)
+            const rows = elements.rosterTbody.querySelectorAll('tr[data-index]');
+            const next = rows[Math.min(at, rows.length - 1)];
+            const target = next ? next.querySelector('.row-menu summary') : document.querySelector('#tab-roster h2');
+            if (target && target.tagName === 'H2') target.setAttribute('tabindex', '-1');
+            if (target) target.focus();
         });
     }
 
     // Tab switching
     document.querySelectorAll('.sidebar-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const tab = item.dataset.tab;
-            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-
-            item.classList.add('active');
-            const targetTab = document.getElementById(`tab-${tab}`);
-            if (targetTab) targetTab.style.display = 'block';
-
-            if (tab === 'drafting') renderDraftingUI();
-            if (tab === 'matchups') renderMatchupsUI();
-            if (tab === 'scores') renderScoresUI();
-            if (tab === 'score-entry') renderScoreEntryUI();
-            if (tab === 'potential') renderPotentialUI();
-            if (tab === 'rsvps') loadRsvpAdmin();
-        });
+        item.addEventListener('click', () => openTab(item.dataset.tab));
     });
 
     if (elements.autoDraftBtn) {
@@ -318,10 +428,20 @@ function setupEventListeners() {
     });
 }
 
+let loggingIn = false;
+
 async function handleLogin() {
-    console.log('Login attempt...');
-    const email = elements.emailInput ? elements.emailInput.value : '';
+    if (loggingIn) return;
+    const email = elements.emailInput ? elements.emailInput.value.trim() : '';
     const password = elements.passwordInput ? elements.passwordInput.value : '';
+
+    showLoginError('');
+    if (!email || !password) {
+        showLoginError(!email && !password ? 'Enter your email and password.' : !email ? 'Enter your email.' : 'Enter your password.');
+        const missing = email ? elements.passwordInput : elements.emailInput;
+        if (missing) missing.focus();
+        return;
+    }
 
     if (!supabaseInstance) {
         // DEMO BYPASS
@@ -330,33 +450,65 @@ async function handleLogin() {
             showDashboard();
             return;
         }
-        alert('Supabase not configured. Use admin/admin for demo.');
+        showLoginError('The database isn’t set up on this copy of the site. Use admin / admin for the demo.');
         return;
     }
 
+    loggingIn = true;
+    if (elements.loginBtn) {
+        elements.loginBtn.disabled = true;
+        elements.loginBtn.textContent = 'Logging in…';
+    }
     try {
-        const { error } = await supabaseInstance.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabaseInstance.auth.signInWithPassword({ email, password });
         if (error) {
-            if (elements.loginError) {
-                elements.loginError.textContent = error.message;
-                elements.loginError.style.display = 'block';
+            showLoginError(friendlyLoginError(error));
+            if (elements.passwordInput && /invalid login credentials/i.test(error.message || '')) {
+                elements.passwordInput.focus();
+                elements.passwordInput.select();
             }
         } else {
-            await verifyAdminAndShowDashboard(email);
+            await verifyAdminAndShowDashboard((data && data.user && data.user.email) || email, true);
         }
     } catch (err) {
         console.error('Login error:', err);
-        if (elements.loginError) {
-            elements.loginError.textContent = 'An unexpected error occurred.';
-            elements.loginError.style.display = 'block';
+        showLoginError(friendlyLoginError(err));
+    } finally {
+        loggingIn = false;
+        if (elements.loginBtn) {
+            elements.loginBtn.disabled = false;
+            elements.loginBtn.textContent = 'Log in';
         }
     }
 }
+
+// Logged in, but not as an admin: log out here (this device only) to try another login
+async function logOutOfDeniedLogin() {
+    if (supabaseInstance) {
+        try {
+            await supabaseInstance.auth.signOut({ scope: 'local' });
+        } catch (e) {
+            console.error('Sign-out failed:', e);
+        }
+    }
+    deniedEmail = '';
+    if (elements.passwordInput) elements.passwordInput.value = '';
+    showLoginError('');
+    showLoginForm();
+    if (elements.emailInput) elements.emailInput.focus();
+}
+
+// This device only, like the Bookie and the homepage: a global sign-out would also end this
+// person's Round Tracker and Bookie sessions on his phone, maybe mid-round
 async function handleLogout() {
     if (hasChanges && !confirm('You have unsaved changes. Log out anyway?')) return;
     leavingPage = true;
     if (supabaseInstance) {
-        await supabaseInstance.auth.signOut();
+        try {
+            await supabaseInstance.auth.signOut({ scope: 'local' });
+        } catch (e) {
+            console.error('Sign-out failed:', e);
+        }
     }
     location.reload();
 }
@@ -364,10 +516,51 @@ async function handleLogout() {
 function showDashboard() {
     if (elements.authScreen) elements.authScreen.style.display = 'none';
     if (elements.dashboard) elements.dashboard.classList.add('active');
-    if (elements.logoutBtn) elements.logoutBtn.style.display = 'block';
+    if (elements.logoutBtn) elements.logoutBtn.hidden = false;
     renderSaveBar(); // the add buttons stay off until the roster is in
     loadRoster();
     loadMatchups();
+    // admin#rsvps, admin#score-entry…: open the section the address names
+    const tab = tabFromHash();
+    if (tab) openTab(tab, { fromHash: true });
+}
+
+function tabFromHash() {
+    let name = '';
+    try {
+        name = decodeURIComponent((window.location.hash || '').replace(/^#/, '')).trim().toLowerCase();
+    } catch (e) { /* a malformed hash names no tab */ }
+    return TAB_NAMES.includes(name) ? name : null;
+}
+
+// Show one sidebar section. A click also puts it in the address (replaceState, so Back still
+// leaves Admin instead of stepping through tabs).
+function openTab(tab, { fromHash = false } = {}) {
+    const item = document.querySelector(`.sidebar-item[data-tab="${tab}"]`);
+    if (!item) return;
+    document.querySelectorAll('.sidebar-item').forEach(i => {
+        i.classList.remove('active');
+        i.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+
+    item.classList.add('active');
+    item.setAttribute('aria-current', 'true');
+    const targetTab = document.getElementById(`tab-${tab}`);
+    if (targetTab) targetTab.style.display = 'block';
+
+    if (!fromHash && window.location.hash !== `#${tab}`) {
+        try { history.replaceState(history.state, '', `#${tab}`); } catch (e) { /* sandboxed: the tab still opens */ }
+    }
+    // On a phone the sidebar is a sideways strip: bring the open section into view
+    if (fromHash && item.scrollIntoView) item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+
+    if (tab === 'drafting') renderDraftingUI();
+    if (tab === 'matchups') renderMatchupsUI();
+    if (tab === 'scores') renderScoresUI();
+    if (tab === 'score-entry') renderScoreEntryUI();
+    if (tab === 'potential') renderPotentialUI();
+    if (tab === 'rsvps') loadRsvpAdmin();
 }
 
 async function loadRoster() {
@@ -506,15 +699,22 @@ function renderRosterTable() {
     elements.rosterTbody.innerHTML = confirmedPlayers.map((player) => {
         // Find actual index in main array
         const realIndex = players.indexOf(player);
+        // Names the boxes for screen readers ("Colby Gibson email"); data-label is only CSS
+        const who = escHtml(player.name || 'New player');
         return `
         <tr data-index="${realIndex}">
-            <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${escHtml(player.name || '')}" placeholder="Name"></td>
-            <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${escHtml(player.email || '')}" placeholder="Email"></td>
-            <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${escHtml(player.ghin || '')}" placeholder="GHIN"></td>
-            <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${escHtml(player.handicap !== null ? player.handicap : 0)}" placeholder="HCP"></td>
+            <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${escHtml(player.name || '')}" placeholder="Name" aria-label="${who} name"></td>
+            <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${escHtml(player.email || '')}" placeholder="Email" aria-label="${who} email"></td>
+            <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${escHtml(player.ghin || '')}" placeholder="GHIN" aria-label="${who} GHIN"></td>
+            <td data-label="Handicap"><input type="number" step="0.1" class="edit-input" data-field="handicap" value="${escHtml(player.handicap !== null ? player.handicap : 0)}" placeholder="HCP" aria-label="${who} handicap"></td>
             <td data-label="Status"><span class="status-badge status-confirmed">${escHtml(player.status || 'confirmed')}</span></td>
             <td data-label="Actions">
-                <button class="remove-player-btn admin-btn secondary" style="width: auto; padding: 5px 10px; margin: 0;">Remove</button>
+                <details class="row-menu">
+                    <summary aria-label="More for ${who}">…</summary>
+                    <div class="row-menu-pop">
+                        <button type="button" class="remove-player-btn">Delete player<span class="sr-only"> ${who}</span></button>
+                    </div>
+                </details>
             </td>
         </tr>
     `}).join('');
@@ -613,13 +813,29 @@ async function saveNewPlayer() {
     }
 }
 
-function removePlayer(index) {
-    if (confirm(`Remove ${players[index].name || 'this player'}?`)) {
-        players.splice(index, 1);
-        renderRosterTable();
-        renderPotentialUI(); // Just in case
-        checkChanges();
+// What deleting him really does, said before anything is marked (the Bookie bet count is
+// checked again when Save runs)
+function deletePlayerQuestion(p) {
+    const name = p.name || 'this player';
+    if (!p.id) return `Remove ${name}? He was only added on this page and hasn’t been saved yet.`;
+    const after = '\n\nNothing is deleted until you press Save Changes.';
+    if (p.status === 'potential') {
+        return `Delete ${name} from the site for good? His login is unlinked and his RSVPs show as 'not on roster'.\n\n` +
+            `Not coming this year? Leave him here: he stays off the head count until you approve him.${after}`;
     }
+    return `Delete ${name} from the site for good? His login is unlinked, his RSVPs show as 'not on roster', and bets he created are deleted.\n\n` +
+        `Skipping a year? Keep him: his 'Out' RSVP keeps him off the head count.${after}`;
+}
+
+// Marks him for deletion (written on Save). Returns whether he was marked.
+function removePlayer(index) {
+    const p = players[index];
+    if (!p || !confirm(deletePlayerQuestion(p))) return false;
+    players.splice(index, 1);
+    renderRosterTable();
+    renderPotentialUI(); // Just in case
+    checkChanges();
+    return true;
 }
 
 function checkChanges() {
@@ -897,20 +1113,22 @@ function renderPotentialUI() {
     const potentialPlayers = players.filter(p => p.status === 'potential');
 
     if (potentialPlayers.length === 0) {
-        elements.potentialList.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No potential players added yet.</p>';
+        elements.potentialList.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No new sign-ups waiting.</p>';
         return;
     }
 
     potentialPlayers.forEach((p) => {
         const realIndex = players.indexOf(p);
+        const who = escHtml(p.name);
         const div = document.createElement('div');
         div.className = 'glass-panel';
-        div.style = "padding: 15px; display: flex; justify-content: space-between; align-items: center;";
+        div.style = "padding: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;";
+        // Approve here is a staged edit like the rest of this page: it lands with Save Changes
         div.innerHTML = `
-            <span style="font-weight: 600;">${escHtml(p.name)}</span>
-                <div style="display: flex; gap: 10px;">
-                    <button class="admin-btn" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Promote</button>
-                    <button class="admin-btn secondary" style="width: auto; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Remove</button>
+            <span style="font-weight: 600;">${who}${p.user_id ? ' <span class="answer-badge answer-new">Has an account</span>' : ''}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <button type="button" class="admin-btn" style="width: auto; min-height: 44px; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="promotePlayer(${realIndex})">Approve (Save to apply)<span class="sr-only">: ${who}</span></button>
+                    <button type="button" class="admin-btn secondary" style="width: auto; min-height: 44px; padding: 5px 15px; margin: 0; font-size: 0.8rem;" onclick="removePlayer(${realIndex})">Delete<span class="sr-only"> ${who}</span></button>
                 </div>
         `;
         elements.potentialList.appendChild(div);
@@ -935,11 +1153,18 @@ function addPotentialPlayer() {
 
 window.promotePlayer = (index) => {
     if (players[index]) {
+        const hadFocus = elements.potentialList && elements.potentialList.contains(document.activeElement);
         players[index].status = 'confirmed';
         renderRosterTable();
         renderPotentialUI();
         renderDraftingUI();
         checkChanges();
+        // His row is gone; keep keyboard focus on this tab
+        if (hadFocus) {
+            const next = elements.potentialList.querySelector('button') || document.querySelector('#tab-potential h2');
+            if (next.tagName === 'H2') next.setAttribute('tabindex', '-1');
+            next.focus();
+        }
     }
 };
 
@@ -1338,7 +1563,8 @@ async function renderScoreEntryUI() {
     const tbody = document.getElementById('score-entry-tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: rgba(255,255,255,0.3); padding: 30px;">Loading...</td></tr>';
+    renderScoreEntryContext();
+    tbody.innerHTML = '<tr><td colspan="22" style="text-align: center; color: rgba(255,255,255,0.3); padding: 30px;">Loading...</td></tr>';
 
     try {
         // Fetch confirmed players
@@ -1371,7 +1597,7 @@ async function renderScoreEntryUI() {
         renderScoreEntryTable();
     } catch (e) {
         console.error('Error loading score entry data:', e);
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 30px;">Error loading data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="22" style="text-align: center; color: #fca5a5; padding: 30px;">Error loading data.</td></tr>';
     }
 }
 
@@ -1406,6 +1632,93 @@ function adminScoringForRound(roundNumber) {
     return cfg.roundScoring[roundNumber] || 'stroke';
 }
 
+// The course a round is played on (trip-config roundCourses), as "Talking Stick O’odham"
+function adminCourseNameForRound(roundNumber) {
+    const cfg = window.BBB;
+    if (!cfg || !cfg.roundCourses || !cfg.courses) return '';
+    const id = cfg.roundCourses[roundNumber];
+    for (const c of cfg.courses) {
+        for (const o of (c.options || [c])) {
+            if (o.id !== id) continue;
+            const club = String(c.club || o.club || '').split('·')[0].trim().replace(/\s+Golf Club$/i, '');
+            const name = String(o.name || c.name || '').replace(/\s+Course$/i, '').trim();
+            return !club || name.toLowerCase().startsWith(club.toLowerCase()) ? name : `${club} ${name}`.trim();
+        }
+    }
+    return '';
+}
+
+// Total is quota points on a points (Stableford) round with known pars, strokes otherwise:
+// the same rule the auto-sum below uses
+function scoreEntryIsPoints(roundNumber) {
+    return adminScoringForRound(roundNumber) === 'stableford' && !!adminParsForRound(roundNumber);
+}
+
+// "Round 1 · Talking Stick O’odham · Par 70 · Team points (Total = quota points)"
+function renderScoreEntryContext() {
+    const el = document.getElementById('score-entry-context');
+    if (!el) return;
+    const pars = adminParsForRound(scoreEntryRound);
+    const course = adminCourseNameForRound(scoreEntryRound);
+    const format = window.BBBScoring ? window.BBBScoring.formatFor(scoreEntryRound, window.BBB).label : '';
+    const what = scoreEntryIsPoints(scoreEntryRound) ? 'Total = quota points' : 'Total = strokes';
+    el.innerHTML = [
+        `Round ${scoreEntryRound}`,
+        course ? `<b>${escHtml(course)}</b>` : 'Course not set in trip-config.js',
+        pars ? `Par ${pars.reduce((sum, p) => sum + p, 0)}` : '',
+        `${escHtml(format)}${format ? ' ' : ''}(${what})`
+    ].filter(Boolean).join(' · ');
+}
+
+// Player, Team, Total and To Par first (so they're on screen without scrolling sideways),
+// then the 18 holes, with a Par row under the hole numbers
+function renderScoreEntryHead(pars, isPoints) {
+    const thead = document.getElementById('score-entry-thead');
+    if (!thead) return;
+    const holes = Array.from({ length: 18 }, (_, i) => `<th scope="col">${i + 1}</th>`).join('');
+    const parRow = pars
+        ? `<tr class="se-par-row"><th scope="row" class="se-sticky">Par</th><td></td><td class="se-pin-total">${isPoints ? '' : pars.reduce((sum, p) => sum + p, 0)}</td><td class="se-pin-topar"></td>${pars.map(p => `<td>${escHtml(p)}</td>`).join('')}</tr>`
+        : '';
+    thead.innerHTML = `<tr>
+            <th class="se-sticky" scope="col">Player</th>
+            <th scope="col" style="min-width: 70px;">Team</th>
+            <th class="se-pin-total" scope="col" style="min-width: 90px;">${isPoints ? 'Points' : 'Total'}</th>
+            <th class="se-pin-topar" scope="col" style="min-width: 90px;">To Par</th>
+            ${holes}
+        </tr>${parRow}`;
+}
+
+// Desktop: Total and To Par stick right after the name column (CSS .se-pin-*), so they stay
+// in view while the back nine is typed. Their offsets are the measured column widths; a hidden
+// tab measures 0, so that keeps the last good offsets and the observer re-pins once it shows.
+let scoreEntryPinObserver = null;
+function pinScoreEntryTotals() {
+    const wrap = document.querySelector('#tab-score-entry .table-responsive');
+    const thead = document.getElementById('score-entry-thead');
+    if (!wrap || !thead) return;
+    const nameTh = thead.querySelector('th.se-sticky');
+    const totalTh = thead.querySelector('th.se-pin-total');
+    const toparTh = thead.querySelector('th.se-pin-topar');
+    if (!nameTh || !totalTh || !toparTh) return;
+    const nameW = nameTh.getBoundingClientRect().width;
+    const totalW = totalTh.getBoundingClientRect().width;
+    const toparW = toparTh.getBoundingClientRect().width;
+    if (!nameW || !totalW || !toparW) return;
+    // Rounded down, so a pinned column overlaps its neighbour by a hair rather than leaving a gap
+    wrap.style.setProperty('--se-total-left', `${Math.floor(nameW)}px`);
+    wrap.style.setProperty('--se-topar-left', `${Math.floor(nameW + totalW)}px`);
+    wrap.style.setProperty('--se-pinned-width', `${Math.ceil(nameW + totalW + toparW)}px`);
+}
+
+function watchScoreEntryPins() {
+    pinScoreEntryTotals();
+    if (scoreEntryPinObserver || typeof ResizeObserver === 'undefined') return;
+    const table = document.querySelector('#tab-score-entry .score-entry-table');
+    if (!table) return;
+    scoreEntryPinObserver = new ResizeObserver(() => pinScoreEntryTotals());
+    scoreEntryPinObserver.observe(table);
+}
+
 function renderScoreEntryTable() {
     const tbody = document.getElementById('score-entry-tbody');
     if (!tbody || !scoreEntryData.players) return;
@@ -1413,53 +1726,58 @@ function renderScoreEntryTable() {
     const playersList = scoreEntryData.players;
     const lookup = scoreEntryData.scoreLookup || {};
 
+    // Course pars + scoring for this round come from trip-config.js
+    const roundPars = adminParsForRound(scoreEntryRound);
+    const isStableford = adminScoringForRound(scoreEntryRound) === 'stableford' && !!roundPars;
+    renderScoreEntryContext();
+    renderScoreEntryHead(roundPars, isStableford);
+
     if (playersList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="22" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">No confirmed players found.</td></tr>';
         return;
     }
 
+    const shown = v => (v !== null && v !== undefined ? v : '');
     tbody.innerHTML = playersList.map(p => {
         const key = `${p.id}_${scoreEntryRound}`;
         const existing = lookup[key] || {};
+        const pid = escHtml(p.id);
+        const who = escHtml(p.name);
         const teamLabel = p.team_id === 1 ? '<span style="color: #60a5fa; font-weight: 700;">Blue</span>'
                         : p.team_id === 2 ? '<span style="color: #fca5a5; font-weight: 700;">Red</span>'
                         : '<span style="color: var(--text-muted);">—</span>';
 
         let holesHtml = '';
         for (let i = 1; i <= 18; i++) {
-            const hVal = existing[`h${i}`] !== null && existing[`h${i}`] !== undefined ? existing[`h${i}`] : '';
+            const par = roundPars ? roundPars[i - 1] : null;
             holesHtml += `
-                <td data-label="H${i}" style="padding: 6px;">
-                    <input type="number" class="edit-input score-hole-input" 
-                           data-player="${p.id}" data-hole="${i}" 
-                           value="${hVal}" 
-                           style="width: 50px; text-align: center; padding: 8px 4px;">
+                <td class="se-hole" data-label="${i}" data-par="${par ? `Par ${escHtml(par)}` : ''}">
+                    <input type="number" class="edit-input score-hole-input" inputmode="numeric" placeholder="–"
+                           data-player="${pid}" data-hole="${i}" aria-label="${who} hole ${i}"
+                           value="${escHtml(shown(existing[`h${i}`]))}">
                 </td>
             `;
         }
 
         return `
-        <tr data-player-id="${p.id}">
-            <td data-label="Player" style="font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: rgba(28, 22, 18, 0.95); z-index: 1;">${escHtml(p.name)}</td>
-            <td data-label="Team">${teamLabel}</td>
+        <tr data-player-id="${pid}">
+            <td class="se-name se-sticky" data-label="Player">${who}</td>
+            <td class="se-team" data-label="Team">${teamLabel}</td>
+            <td class="se-total se-pin-total" data-label="${isStableford ? 'Points' : 'Total'}">
+                <input type="number" class="edit-input score-total-input" inputmode="numeric" placeholder="–"
+                       data-player="${pid}" aria-label="${who} ${isStableford ? 'points' : 'total'}"
+                       value="${escHtml(shown(existing.total_score))}">
+            </td>
+            <td class="se-topar se-pin-topar" data-label="To Par">
+                <input type="number" class="edit-input score-topar-input" placeholder="–"
+                       data-player="${pid}" aria-label="${who} to par"
+                       value="${escHtml(shown(existing.to_par))}">
+            </td>
             ${holesHtml}
-            <td data-label="Total Score">
-                <input type="number" class="edit-input score-total-input" data-player="${p.id}" 
-                       value="${existing.total_score !== null && existing.total_score !== undefined ? existing.total_score : ''}" 
-                       placeholder="TOT" style="width: 80px; text-align: center; font-weight: 800; background: rgba(0,0,0,0.3);">
-            </td>
-            <td data-label="To Par">
-                <input type="number" class="edit-input score-topar-input" data-player="${p.id}" 
-                       value="${existing.to_par !== null && existing.to_par !== undefined ? existing.to_par : ''}" 
-                       placeholder="+/-" style="width: 80px; text-align: center;">
-            </td>
         </tr>
         `;
     }).join('');
-
-    // Course pars + scoring for this round come from trip-config.js
-    const roundPars = adminParsForRound(scoreEntryRound);
-    const isStableford = adminScoringForRound(scoreEntryRound) === 'stableford' && !!roundPars;
+    watchScoreEntryPins();
 
     // Attach auto-sum listeners
     const holeInputs = document.querySelectorAll('.score-hole-input');
@@ -1514,10 +1832,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 roundTabs.forEach(t => {
                     t.classList.remove('active');
                     t.classList.add('secondary');
+                    t.setAttribute('aria-pressed', 'false');
                 });
                 tab.classList.add('active');
                 tab.classList.remove('secondary');
+                tab.setAttribute('aria-pressed', 'true');
                 scoreEntryRound = parseInt(tab.dataset.round);
+                renderScoreEntryContext();
                 renderScoreEntryTable();
             });
         });
@@ -1775,9 +2096,10 @@ async function loadRsvpAdmin() {
     const { data, error } = rsvpResult;
     rsvpRoster = !rosterResult.error && rosterResult.data ? rosterResult.data : originalPlayers.filter(p => p.id);
     // Players added since this page loaded (new sign-ups) join the roster tab's lists as well,
-    // so they can be removed on the Potential tab without a reload. Both lists get the same
-    // copy, so Save sees no change for them.
-    if (!rosterResult.error && rosterResult.data) {
+    // so they can be removed on the New sign-ups tab without a reload. Both lists get the same
+    // copy, so Save sees no change for them. Only once the roster tab's own load is in: opened
+    // straight from admin#rsvps, this can finish first, and that load brings everyone anyway.
+    if (!rosterResult.error && rosterResult.data && loadState.roster === 'ok') {
         const known = new Set(originalPlayers.map(p => p.id));
         const added = rosterResult.data.filter(p => !known.has(p.id));
         added.forEach(p => {
@@ -1845,14 +2167,139 @@ function fmtWhen(iso) {
     return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+// The CSV's times: this computer's local time, with the year, e.g. "Sep 30, 2026, 5:00 AM"
+function fmtWhenFull(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+// An email that's safe to put in a mailto: link, or ''
+function mailableEmail(value) {
+    const email = String(value || '').trim();
+    return /^[^\s@<>"'?&#,;:]+@[^\s@<>"'?&#,;:]+\.[^\s@<>"'?&#,;:]+$/.test(email) ? email : '';
+}
+
+// ---- Chasing replies: reminder text, invite link, "you're approved" note ----
+
+// "Scottsdale, Apr 8–11"
+function tripWhereWhen() {
+    const trip = (window.BBB && window.BBB.trip) || {};
+    const city = String(trip.location || '').split(',')[0].trim();
+    const dates = (trip.dates && trip.dates.short) || '';
+    return [city, dates].filter(Boolean).join(', ');
+}
+
+// First names, with a last initial where two players share one ("Alex I., Alex M.")
+function firstNames(entries) {
+    const parts = entries.map(e => String(e.name || '').trim().split(/\s+/).filter(Boolean));
+    const seen = new Map();
+    parts.forEach(p => { const k = (p[0] || '').toLowerCase(); seen.set(k, (seen.get(k) || 0) + 1); });
+    return parts.map(p => (seen.get((p[0] || '').toLowerCase()) > 1 && p.length > 1 ? `${p[0]} ${p[p.length - 1][0]}.` : p[0] || '')).filter(Boolean);
+}
+
+function rsvpReminderText(entries) {
+    const where = tripWhereWhen();
+    return `Still need your RSVP${where ? ` for ${where}` : ''}: ${firstNames(entries).join(', ')}. Takes a minute: ${INVITE_URL}`;
+}
+
+function approvalMessage() {
+    return `You're confirmed for BBB ${rsvpTripYear()}, so The Bookie is open to you: ${BOOKIE_URL}`;
+}
+
+// Phones get the share sheet (straight into the group text); computers copy to the clipboard,
+// since desktop browsers' share dialogs are no help for pasting into a text thread
+function useShareSheet() {
+    return typeof navigator.share === 'function' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+}
+
+async function copyText(text) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) { /* blocked: try the old way */ }
+    const had = document.activeElement;
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+    document.body.appendChild(box);
+    box.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    box.remove();
+    if (had && had.focus) had.focus();
+    return ok;
+}
+
+// payload is what navigator.share takes ({ text } or { title, url }). Returns 'shared',
+// 'cancelled', 'copied' or 'failed'.
+async function shareOrCopy(payload, copiedMessage) {
+    const text = payload.text || payload.url;
+    if (useShareSheet()) {
+        try {
+            await navigator.share(payload);
+            return 'shared';
+        } catch (e) {
+            if (e && e.name === 'AbortError') return 'cancelled';
+            // Share sheet unavailable after all: copy instead
+        }
+    }
+    if (await copyText(text)) {
+        window.showToast(copiedMessage, 'success');
+        return 'copied';
+    }
+    window.showToast(`Couldn’t copy automatically. Here it is to copy by hand: ${escHtml(text)}`, 'error');
+    return 'failed';
+}
+
+function copyInviteLink() {
+    return shareOrCopy({ title: 'Bros before Boges: sign up', url: INVITE_URL },
+        `Invite link copied: ${escHtml(INVITE_URL.replace(/^https:\/\//, ''))}`);
+}
+
+function copyRsvpReminder() {
+    const waiting = rsvpEntries().filter(e => e.answer === 'none');
+    if (!waiting.length) return window.showToast('Everyone has answered. No reminder needed.', 'success');
+    return shareOrCopy({ text: rsvpReminderText(waiting) },
+        `Reminder copied with ${waiting.length} name${waiting.length === 1 ? '' : 's'}. Paste it into the group text.`);
+}
+
+// Players approved on this visit, each with a ready-made note to tell him
+let rsvpJustApproved = []; // { id, name, email }
+
+function renderApprovedNotes(focusId) {
+    const list = document.getElementById('rsvp-approved');
+    if (!list) return;
+    list.hidden = !rsvpJustApproved.length;
+    const year = rsvpTripYear();
+    list.innerHTML = rsvpJustApproved.map(a => {
+        const who = escHtml(a.name);
+        const action = a.email
+            ? `<a class="admin-btn" data-let-know="${escHtml(a.id)}" href="${escHtml(`mailto:${a.email}?subject=${encodeURIComponent(`You're confirmed for BBB ${year}`)}&body=${encodeURIComponent(approvalMessage())}`)}">Let him know<span class="sr-only"> by email: ${who}</span></a>`
+            : `<button type="button" class="admin-btn" data-let-know="${escHtml(a.id)}" data-copy-approval>Copy a note for him<span class="sr-only">: ${who}</span></button>`;
+        return `<li><span><b>${who}</b> is confirmed: he’s on the head count and The Bookie is open to him.</span>${action}` +
+            `<button type="button" class="rsvp-dismiss" data-dismiss-approved="${escHtml(a.id)}" aria-label="Dismiss the note about ${who}">×</button></li>`;
+    }).join('');
+    if (focusId) {
+        const target = [...list.querySelectorAll('[data-let-know]')].find(el => el.dataset.letKnow === focusId);
+        if (target) target.focus();
+    }
+}
+
 function renderRsvpAdmin() {
     const tbody = document.getElementById('rsvp-admin-tbody');
     const summary = document.getElementById('rsvp-summary');
     if (!tbody) return;
     document.querySelectorAll('[data-rsvp-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.rsvpFilter === rsvpFilter)));
 
+    renderApprovedNotes();
+    const chase = document.getElementById('rsvp-chase');
+
     if (rsvpLoadError) {
         if (summary) summary.innerHTML = '';
+        if (chase) chase.hidden = true;
         tbody.innerHTML = `<tr><td colspan="8" class="rsvp-message">${escHtml(rsvpLoadError)}</td></tr>`;
         return;
     }
@@ -1860,19 +2307,41 @@ function renderRsvpAdmin() {
     const entries = rsvpEntries();
     const count = fn => entries.filter(fn).length;
     if (summary) {
-        const pill = (label, n) => `<div class="rsvp-pill"><b>${n}</b>${label}</div>`;
+        const pill = (label, n, sub) => `<div class="rsvp-pill"><b>${n}</b>${label}${sub ? ` <span class="rsvp-pill-sub">(${sub})</span>` : ''}</div>`;
+        // The homepage head count only counts confirmed roster players: say who else is in here
+        const answerPill = (key, label) => {
+            const list = entries.filter(e => e.answer === key);
+            const waiting = list.filter(e => e.isNew).length;
+            const offRoster = list.filter(e => !e.player).length;
+            return pill(label, list.length, [
+                waiting ? `${waiting} awaiting approval` : '',
+                offRoster ? `${offRoster} not on roster` : ''
+            ].filter(Boolean).join(', '));
+        };
         summary.innerHTML = [
-            pill('In', count(e => e.answer === 'in')),
-            pill('Probably', count(e => e.answer === 'maybe')),
-            pill('Out', count(e => e.answer === 'out')),
+            answerPill('in', 'In'),
+            answerPill('maybe', 'Probably'),
+            answerPill('out', 'Out'),
             pill('No reply yet', count(e => e.answer === 'none')),
             pill('Sunday round', count(e => e.latest && e.latest.sunday_round && e.answer !== 'out')),
             pill('Needs approval', count(e => e.needsApproval))
         ].join('');
     }
 
+    // "No reply yet": a reminder for the group text
+    const noReply = entries.filter(e => e.answer === 'none');
+    if (chase) {
+        chase.hidden = !(rsvpFilter === 'none' && noReply.length);
+        const text = document.getElementById('rsvp-chase-text');
+        if (text && !chase.hidden) {
+            text.textContent = `${noReply.length} ${noReply.length === 1 ? 'player hasn’t' : 'players haven’t'} answered. ` +
+                'Copy a reminder with their first names and the sign-up link for the group text.';
+        }
+    }
+
     const shown = entries.filter(e => rsvpFilter === 'all' ? true
         : rsvpFilter === 'approve' ? e.needsApproval
+        : rsvpFilter === 'noaccount' ? !!(e.player && !e.player.user_id)
         : e.answer === rsvpFilter);
     if (!shown.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="rsvp-message">Nobody here.</td></tr>';
@@ -1882,7 +2351,12 @@ function renderRsvpAdmin() {
     tbody.innerHTML = shown.map(e => {
         const p = e.player;
         const tag = !p ? '<span class="answer-badge answer-none">Not on roster</span>'
-            : e.isNew ? `<span class="answer-badge answer-new">${p.user_id ? 'New sign-up' : 'Potential'}</span>` : '';
+            : e.isNew ? `<span class="answer-badge answer-new">${p.user_id ? 'New sign-up' : 'Not confirmed'}</span>` : '';
+        // Email him straight from the list when the roster has his address
+        const email = p ? mailableEmail(p.email) : '';
+        const name = email
+            ? `<a class="rsvp-name-link" href="mailto:${escHtml(email)}" title="Email ${escHtml(e.name)}">${escHtml(e.name)}</a>`
+            : escHtml(e.name);
         const answer = e.latest
             ? `<span class="answer-badge answer-${e.answer}">${RSVP_ANSWERS[e.answer]}</span>`
             : '<span class="answer-badge answer-none">No reply</span>';
@@ -1890,18 +2364,18 @@ function renderRsvpAdmin() {
             ? `<details class="rsvp-history"><summary>${answerCount(e)} answers</summary><ul>${e.history.slice().reverse().map(h =>
                 `<li>${escHtml(RSVP_ANSWERS[h.status] || h.status)}${h.sunday_round ? ' + Sunday' : ''} · ${escHtml(fmtWhen(h.created_at))}${h.note ? ` · “${escHtml(h.note)}”` : ''}</li>`).join('')}</ul></details>`
             : `<span class="rsvp-muted">${e.history.length ? '1 answer' : '—'}</span>`;
-        const login = !p ? '—' : p.user_id ? 'Yes' : '<span class="rsvp-muted">No login yet</span>';
+        const account = !p ? '—' : p.user_id ? 'Yes' : '<span class="rsvp-muted">No account yet</span>';
         const action = e.needsApproval
-            ? `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve</button>`
+            ? `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; min-height: 44px; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve<span class="sr-only"> ${escHtml(e.name)}</span></button>`
             : '';
         return `
         <tr>
-            <td data-label="Player" style="font-weight: 600;">${escHtml(e.name)} ${tag}</td>
+            <td data-label="Player" style="font-weight: 600;">${name} ${tag}</td>
             <td data-label="Answer">${answer}</td>
             <td data-label="Answered"><span class="rsvp-muted" style="white-space: nowrap;">${e.latest ? escHtml(fmtWhen(e.latest.created_at)) : '—'}</span></td>
             <td data-label="Sunday">${e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : '<span class="rsvp-muted">—</span>'}</td>
             <td data-label="Note"><div class="rsvp-note">${e.latest && e.latest.note ? escHtml(e.latest.note) : '<span class="rsvp-muted">—</span>'}</div></td>
-            <td data-label="Login">${login}</td>
+            <td data-label="Account">${account}</td>
             <td data-label="History">${history}</td>
             <td data-label="${action ? 'Approve' : ''}">${action}</td>
         </tr>`;
@@ -1935,11 +2409,15 @@ async function approvePlayer(id, btn) {
         const at = players.findIndex(x => (order.has(x.id) ? order.get(x.id) : Infinity) > order.get(id));
         players.splice(at === -1 ? players.length : at, 0, JSON.parse(JSON.stringify(originalPlayers.find(x => x.id === id))));
     }
+    // A note to tell him, kept above the list until dismissed (focus goes there: his row's
+    // Approve button is gone)
+    rsvpJustApproved = rsvpJustApproved.filter(a => a.id !== id).concat([{ id, name: p.name, email: mailableEmail(p.email) }]);
     renderRosterTable();
     renderPotentialUI();
     renderDraftingUI();
     renderRsvpAdmin();
     checkChanges();
+    renderApprovedNotes(id);
     window.showToast(`${escHtml(p.name)} is confirmed for the trip.`, 'success');
 }
 
@@ -1954,13 +2432,13 @@ function csvCell(value) {
 
 function exportRsvpCsv() {
     if (rsvpLoadError) return window.showToast(escHtml(rsvpLoadError), 'error');
-    const header = ['Name', 'Answer', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has login', 'Times answered'];
+    const header = ['Name', 'Answer', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has account', 'Times answered'];
     const rows = rsvpEntries().map(e => {
         const p = e.player || {};
         return [
             e.name,
             e.latest ? RSVP_ANSWERS[e.answer] : 'No reply',
-            e.latest ? new Date(e.latest.created_at).toISOString() : '',
+            e.latest ? fmtWhenFull(e.latest.created_at) : '',
             e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : 'No',
             e.latest ? e.latest.note || '' : '',
             p.email || '',

@@ -53,6 +53,73 @@
             margin: 0;
         }
 
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Keeps screen-reader text inside a sideways-scrolling table (e.g. "Approve <name>")
+           from escaping the scroller and widening the whole page */
+        .table-responsive { position: relative; }
+
+        /* The way back to the site: brand home link, View site, Live scores */
+        .admin-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            margin-bottom: 4px;
+            color: rgba(255, 255, 255, 0.75);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.05rem;
+            white-space: nowrap;
+        }
+
+        .admin-brand img { width: 30px; height: 30px; flex: none; }
+        .admin-brand:hover { color: #fff; }
+
+        .admin-nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px 10px;
+        }
+
+        .admin-nav a {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 44px;
+            padding: 0 12px;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.75);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .admin-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+
+        .admin-brand:focus-visible,
+        .admin-nav a:focus-visible,
+        .login-links a:focus-visible,
+        .rsvp-name-link:focus-visible,
+        .sidebar-item:focus-visible,
+        .admin-btn:focus-visible {
+            outline: 2px solid var(--admin-gold);
+            outline-offset: 2px;
+        }
+
+        #logout-btn { width: auto; min-height: 44px; padding: 10px 20px; margin: 0; }
+
         .glass-panel {
             background: var(--admin-card);
             backdrop-filter: blur(12px);
@@ -68,12 +135,67 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 60vh;
+            min-height: 60vh;
+            padding: 20px 0;
         }
 
         .login-box {
             width: 100%;
             max-width: 400px;
+            text-align: center;
+        }
+
+        .login-box h2 { margin-bottom: 6px; }
+        .login-help { margin: 0 0 22px; color: var(--text-muted); font-size: 0.95rem; }
+        .login-form { text-align: left; }
+
+        .login-label {
+            display: block;
+            margin: 14px 0 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .login-form .admin-input { margin: 0; }
+        .login-error { margin: 14px 0 0; color: #fca5a5; font-size: 0.9rem; font-weight: 600; line-height: 1.4; }
+        .login-form .admin-btn { min-height: 48px; }
+
+        .login-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 4px 16px;
+            margin-top: 14px;
+        }
+
+        .login-links a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            color: var(--admin-accent);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .login-links a:hover { text-decoration: underline; }
+
+        /* Logged in, but not as an admin (or the check failed) */
+        .login-denied { text-align: left; }
+        .login-denied p { margin: 0 0 18px; line-height: 1.55; color: rgba(255, 255, 255, 0.85); overflow-wrap: anywhere; }
+        .login-denied p b { color: #fff; }
+        .login-denied-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .login-denied-actions .admin-btn {
+            flex: 1 1 auto;
+            width: auto;
+            min-height: 44px;
+            margin: 0;
+            padding: 10px 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             text-align: center;
         }
 
@@ -138,7 +260,13 @@
 
         .sidebar-item {
             padding: 15px 20px;
+            min-height: 44px;
+            border: 0;
             border-radius: 12px;
+            background: none;
+            font-size: 1rem;
+            line-height: 1.6;
+            text-align: left;
             cursor: pointer;
             transition: background 0.2s;
             font-weight: 600;
@@ -176,15 +304,20 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        /* A visible box at rest, so empty fields read as places to type */
         .edit-input {
-            background: transparent;
-            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.18);
             color: white;
             padding: 8px 12px;
+            min-height: 44px;
             border-radius: 6px;
             width: 100%;
             transition: all 0.2s;
         }
+
+        .edit-input::placeholder { color: rgba(255, 255, 255, 0.45); }
+        .edit-input:hover:not(:focus) { border-color: rgba(255, 255, 255, 0.3); }
 
         .edit-input:focus {
             background: rgba(255, 255, 255, 0.05);
@@ -363,6 +496,182 @@
         .rsvp-history ul { margin: 8px 0 0; padding-left: 16px; font-size: 0.8rem; color: rgba(255, 255, 255, 0.7); line-height: 1.6; }
         .rsvp-message { padding: 30px; text-align: center; color: rgba(255, 255, 255, 0.6); }
 
+        .rsvp-pill-sub { display: block; margin-top: 2px; font-size: 0.75rem; color: #93c5fd; }
+        .rsvp-filters button { min-height: 44px; }
+
+        .rsvp-tools { display: flex; flex-wrap: wrap; gap: 10px; }
+        .rsvp-tools .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 10px 18px; }
+
+        /* Chasing: a reminder for everyone who hasn't answered */
+        .rsvp-chase,
+        .rsvp-approved li {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .rsvp-chase {
+            margin-bottom: 18px;
+            background: rgba(251, 191, 36, 0.08);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .rsvp-chase span,
+        .rsvp-approved li > span { flex: 1 1 220px; }
+        .rsvp-chase .admin-btn,
+        .rsvp-approved .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 10px 16px; font-size: 0.85rem; }
+
+        /* Just approved: a nudge to tell him */
+        .rsvp-approved { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 8px; }
+
+        .rsvp-approved li {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .rsvp-approved a.admin-btn { display: inline-flex; align-items: center; text-decoration: none; }
+
+        .rsvp-approved .rsvp-dismiss {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .rsvp-approved .rsvp-dismiss:hover,
+        .rsvp-approved .rsvp-dismiss:focus-visible { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+        .rsvp-name-link { color: inherit; text-decoration: underline; text-decoration-color: rgba(16, 185, 129, 0.6); text-underline-offset: 3px; }
+        .rsvp-name-link:hover { color: var(--admin-accent); }
+
+        /* Roster row actions: Delete sits behind a small "…" menu */
+        .row-menu { position: relative; display: inline-block; }
+        .row-menu > summary {
+            list-style: none;
+            display: grid;
+            place-items: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.3rem;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .row-menu > summary::-webkit-details-marker { display: none; }
+        .row-menu > summary:hover,
+        .row-menu[open] > summary { color: #fff; background: rgba(255, 255, 255, 0.08); }
+        .row-menu > summary:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+
+        .row-menu-pop {
+            position: absolute;
+            right: calc(100% + 6px);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+            padding: 4px;
+            background: #241d18;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+        }
+
+        .row-menu-pop button {
+            min-height: 44px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #fca5a5;
+            font-size: 0.9rem;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .row-menu-pop button:hover,
+        .row-menu-pop button:focus-visible { background: rgba(239, 68, 68, 0.15); outline: none; color: #fecaca; }
+
+        /* Desktop roster: room for full names; a handicap needs only a few characters */
+        @media (min-width: 1025px) {
+            #tab-roster .admin-table td[data-label="Name"] { min-width: 190px; }
+            #tab-roster .admin-table td[data-label="Handicap"] { width: 110px; }
+
+            /* RSVPs: eight columns fit the panel without a sideways scrollbar */
+            #tab-rsvps .admin-table th,
+            #tab-rsvps .admin-table td { padding-left: 12px; padding-right: 12px; }
+
+            /* Score Entry: Total and To Par stay pinned beside the name while the holes scroll.
+               admin.js measures the columns and sets the offsets (pinScoreEntryTotals). */
+            .score-entry-table .se-pin-total,
+            .score-entry-table .se-pin-topar {
+                position: sticky;
+                z-index: 2;
+                background: rgb(28, 22, 18); /* opaque: hole numbers mustn't show through */
+            }
+
+            .score-entry-table .se-pin-total { left: var(--se-total-left, 150px); }
+            .score-entry-table .se-pin-topar {
+                left: var(--se-topar-left, 270px);
+                box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.14);
+            }
+
+            .score-entry-table thead .se-pin-total,
+            .score-entry-table thead .se-pin-topar { z-index: 10; }
+
+            /* A hole tabbed to from the right scrolls clear of the pinned columns */
+            #tab-score-entry .table-responsive { scroll-padding-left: var(--se-pinned-width, 0px); }
+        }
+
+        /* Score Entry: which round this is, par per hole, totals next to the name */
+        .se-context { margin: -10px 0 20px; color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; font-weight: 600; }
+        .se-context b { color: #fff; }
+        .score-entry-table .se-sticky {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            min-width: 150px;
+            background: rgb(28, 22, 18);
+        }
+
+        .score-entry-table thead .se-sticky { z-index: 10; }
+        .score-entry-table td.se-name { font-weight: 600; white-space: nowrap; }
+        .score-entry-table td { padding: 6px; }
+        .score-entry-table .se-par-row th,
+        .score-entry-table .se-par-row td {
+            padding: 6px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-align: center;
+            text-transform: none;
+        }
+
+        .score-entry-table .se-par-row .se-sticky { text-align: left; padding-left: 15px; }
+        .score-entry-table thead tr:first-child th { text-align: center; }
+        .score-entry-table thead tr:first-child th.se-sticky { text-align: left; }
+        .score-entry-table .se-hole input { width: 48px; text-align: center; padding: 8px 2px; }
+        .score-entry-table .se-total input,
+        .score-entry-table .se-topar input { width: 80px; text-align: center; }
+        .score-entry-table .se-total input { font-weight: 800; background: rgba(0, 0, 0, 0.3); }
+
         .login-or {
             display: flex;
             align-items: center;
@@ -534,11 +843,86 @@
                 width: 60%;
             }
 
+            /* Roster cards: label above a full-width box, so long names and emails aren't clipped */
+            #tab-roster .admin-table td[data-label="Name"],
+            #tab-roster .admin-table td[data-label="Email"],
+            #tab-roster .admin-table td[data-label="GHIN"],
+            #tab-roster .admin-table td[data-label="Handicap"] {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            #tab-roster .admin-table .edit-input { width: 100%; text-align: left; }
+
+            /* Score Entry cards: name and totals on top, the 18 holes in a 6-wide grid */
+            .score-entry-table tr[data-player-id] {
+                display: grid;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 10px 6px;
+            }
+
+            .score-entry-table tr[data-player-id] > td {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                width: auto;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+            }
+
+            .score-entry-table td.se-name {
+                grid-column: 1 / 5;
+                justify-content: center;
+                position: static;
+                background: none;
+                font-size: 1.05rem;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+
+            .score-entry-table td.se-team { grid-column: 5 / -1; align-items: flex-end; justify-content: center; }
+            .score-entry-table td.se-name::before,
+            .score-entry-table td.se-team::before { content: none; }
+            .score-entry-table td.se-total { grid-column: 1 / 4; }
+            .score-entry-table td.se-topar { grid-column: 4 / -1; }
+            .score-entry-table td.se-total::before,
+            .score-entry-table td.se-topar::before { padding: 0 0 4px; }
+            .score-entry-table .se-total input,
+            .score-entry-table .se-topar input { width: 100%; text-align: center; }
+
+            .score-entry-table td.se-hole::before {
+                padding: 0;
+                text-align: center;
+                font-size: 0.75rem;
+                color: rgba(255, 255, 255, 0.75);
+            }
+
+            .score-entry-table td.se-hole::after {
+                content: attr(data-par);
+                order: 1;
+                text-align: center;
+                font-size: 0.65rem;
+                color: rgba(255, 255, 255, 0.5);
+                line-height: 1.4;
+            }
+
+            .score-entry-table td.se-hole input {
+                order: 2;
+                width: 100%;
+                padding: 8px 0;
+                text-align: center;
+            }
+
             .admin-header {
                 flex-direction: column;
                 gap: 15px;
                 text-align: center;
             }
+
+            .admin-nav { justify-content: center; }
 
             .save-bar {
                 bottom: 15px;
@@ -563,18 +947,22 @@
         <!-- Header -->
         <header class="admin-header">
             <div class="admin-title">
+                <a class="admin-brand" href="index.html"><img src="bbb-logo.svg" alt="" width="30" height="30">Bros before Boges</a>
                 <h1>Admin Dashboard</h1>
             </div>
-            <div id="auth-status">
-                <button id="logout-btn" class="admin-btn secondary"
-                    style="display: none; width: auto; padding: 10px 20px; margin: 0;">Log out</button>
-            </div>
+            <nav class="admin-nav" id="auth-status" aria-label="Site">
+                <a href="index.html" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
+                <a href="round_tracker.html#board">Live scores</a>
+                <button type="button" id="logout-btn" class="admin-btn secondary" hidden>Log out</button>
+            </nav>
         </header>
 
         <!-- Login Screen -->
         <div id="login-screen" class="login-screen">
             <div class="login-box glass-panel">
-                <h2 style="margin-bottom: 30px;">Authorized Personnel Only</h2>
+                <h2 id="login-heading">Commissioner login</h2>
+                <p class="login-help" id="login-help">Same email and password as The Bookie.</p>
+                <div id="login-form-wrap">
                 <div data-google-block hidden>
                     <button type="button" class="google-btn" id="admin-google-btn">
                         <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -582,29 +970,46 @@
                     </button>
                     <div class="login-or">or use email</div>
                 </div>
-                <input type="email" id="email" class="admin-input" placeholder="Email Address">
-                <input type="password" id="password" class="admin-input" placeholder="Password">
-                <button id="login-btn" class="admin-btn">Log in</button>
-                <p id="login-error" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
-                <p style="margin-top: 20px; font-size: 0.8rem; color: rgba(255,255,255,0.4);">
-                    Credentials managed via Supabase Auth
-                </p>
+                <form id="login-form" class="login-form" method="post" novalidate aria-labelledby="login-heading" onsubmit="return false">
+                    <label class="login-label" for="email">Email</label>
+                    <input type="email" id="email" name="email" class="admin-input" autocomplete="username"
+                        autocapitalize="none" spellcheck="false" enterkeyhint="next" aria-describedby="login-error" required>
+                    <label class="login-label" for="password">Password</label>
+                    <input type="password" id="password" name="password" class="admin-input"
+                        autocomplete="current-password" enterkeyhint="go" aria-describedby="login-error" required>
+                    <p id="login-error" class="login-error" role="alert" hidden></p>
+                    <button type="submit" id="login-btn" class="admin-btn">Log in</button>
+                </form>
+                <div class="login-links">
+                    <a href="bookie.html?next=admin&amp;mode=login">Forgot password?</a>
+                    <a href="index.html">← Back to the site</a>
+                </div>
+                </div>
+                <!-- Logged in, but that login isn't an admin (or the check didn't go through) -->
+                <div id="login-denied" class="login-denied" hidden>
+                    <p id="login-denied-text" role="alert"></p>
+                    <div class="login-denied-actions">
+                        <button type="button" id="denied-retry-btn" class="admin-btn" hidden>Try again</button>
+                        <button type="button" id="denied-logout-btn" class="admin-btn secondary">Log out</button>
+                        <a class="admin-btn secondary" href="index.html">← Back to the site</a>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Main Dashboard -->
         <div id="dashboard" class="dashboard">
             <!-- Sidebar -->
-            <aside class="admin-sidebar">
-                <div class="sidebar-item active" data-tab="roster">Confirmed Roster</div>
-                <div class="sidebar-item" data-tab="rsvps">RSVPs</div>
-                <div class="sidebar-item" data-tab="drafting">Team Drafting</div>
-
-                <div class="sidebar-item" data-tab="matchups">Ryder Cup Matchups</div>
-                <div class="sidebar-item" data-tab="scores">Ryder Cup Score</div>
-                <div class="sidebar-item" data-tab="score-entry">📝 Score Entry</div>
-                <div class="sidebar-item" data-tab="potential">Potential Players</div>
-            </aside>
+            <!-- Each section has its own address (admin#rsvps, admin#score-entry…) for refreshes and bookmarks -->
+            <nav class="admin-sidebar" aria-label="Admin sections">
+                <button type="button" class="sidebar-item active" data-tab="roster" aria-current="true">Confirmed Roster</button>
+                <button type="button" class="sidebar-item" data-tab="rsvps">RSVPs</button>
+                <button type="button" class="sidebar-item" data-tab="drafting">Team Drafting</button>
+                <button type="button" class="sidebar-item" data-tab="matchups">Ryder Cup Matchups</button>
+                <button type="button" class="sidebar-item" data-tab="scores">Ryder Cup Score</button>
+                <button type="button" class="sidebar-item" data-tab="score-entry"><span aria-hidden="true">📝 </span>Score Entry</button>
+                <button type="button" class="sidebar-item" data-tab="potential">New sign-ups</button>
+            </nav>
 
             <!-- Content Area -->
             <main class="admin-content glass-panel">
@@ -647,9 +1052,10 @@
                             <h2>RSVPs <span id="rsvp-admin-year" style="color: var(--admin-accent);"></span></h2>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Each player’s latest answer, from their own login. Notes are only visible here. New sign-ups stay off the public head count until you approve them.</p>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button id="rsvp-refresh-btn" class="admin-btn secondary" style="width: auto; margin: 0; padding: 10px 18px;">Refresh</button>
-                            <button id="rsvp-export-btn" class="admin-btn" style="width: auto; margin: 0; padding: 10px 18px;">Export CSV</button>
+                        <div class="rsvp-tools">
+                            <button type="button" id="rsvp-invite-btn" class="admin-btn secondary">Copy invite link</button>
+                            <button type="button" id="rsvp-refresh-btn" class="admin-btn secondary">Refresh</button>
+                            <button type="button" id="rsvp-export-btn" class="admin-btn">Export CSV</button>
                         </div>
                     </div>
                     <div class="rsvp-summary" id="rsvp-summary"></div>
@@ -659,7 +1065,15 @@
                         <button type="button" data-rsvp-filter="maybe" aria-pressed="false">Probably</button>
                         <button type="button" data-rsvp-filter="out" aria-pressed="false">Out</button>
                         <button type="button" data-rsvp-filter="none" aria-pressed="false">No reply yet</button>
+                        <button type="button" data-rsvp-filter="noaccount" aria-pressed="false">No account yet</button>
                         <button type="button" data-rsvp-filter="approve" aria-pressed="false">Needs approval</button>
+                    </div>
+                    <!-- Players just approved: a ready-made note to tell them -->
+                    <ul class="rsvp-approved" id="rsvp-approved" aria-label="Just approved" hidden></ul>
+                    <!-- On "No reply yet": one reminder for the group text -->
+                    <div class="rsvp-chase" id="rsvp-chase" hidden>
+                        <span id="rsvp-chase-text"></span>
+                        <button type="button" id="rsvp-reminder-btn" class="admin-btn">Copy reminder</button>
                     </div>
                     <div class="table-responsive" style="overflow-x: auto; width: 100%;">
                         <table class="admin-table">
@@ -670,7 +1084,7 @@
                                     <th>Answered</th>
                                     <th>Sunday</th>
                                     <th>Note</th>
-                                    <th>Login</th>
+                                    <th>Account</th>
                                     <th>History</th>
                                     <th></th>
                                 </tr>
@@ -742,15 +1156,17 @@
                 <div id="tab-potential" class="tab-content" style="display: none;">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                        <h2>Potential Players</h2>
+                        <h2>New sign-ups</h2>
                     </div>
                     <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
-                        Manage the list of players who are interested or invited but not yet confirmed.
+                        Players who signed up (or you added here) but aren’t confirmed yet. They stay off the head
+                        count and out of The Bookie until approved. Approve here takes effect when you press Save
+                        Changes; Approve on the RSVPs tab is instant.
                     </p>
 
                     <div class="glass-panel" style="padding: 20px; margin-bottom: 30px; display: flex; gap: 10px;">
                         <input type="text" id="new-potential-name" class="admin-input" placeholder="Enter player name"
-                            style="margin: 0; flex: 1;">
+                            aria-label="New player’s name" style="margin: 0; flex: 1;">
                         <button id="add-potential-btn" class="admin-btn"
                             style="width: auto; margin: 0; padding: 10px 25px;">Add</button>
                     </div>
@@ -774,12 +1190,12 @@
                         <div style="display: flex; gap: 15px; justify-content: center; align-items: center; flex-wrap: wrap;">
                             <div style="text-align: center;">
                                 <h3 style="color: #60a5fa; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase;">Team Blue</h3>
-                                <input type="number" id="admin-blue-score" step="0.5" class="admin-input" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
+                                <input type="number" id="admin-blue-score" step="0.5" class="admin-input" aria-label="Team Blue points" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
                             </div>
                             <div style="font-size: 1.5rem; color: var(--text-muted); font-weight: 900; opacity: 0.5; padding: 0 10px;">VS</div>
                             <div style="text-align: center;">
                                 <h3 style="color: #fca5a5; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase;">Team Red</h3>
-                                <input type="number" id="admin-red-score" step="0.5" class="admin-input" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
+                                <input type="number" id="admin-red-score" step="0.5" class="admin-input" aria-label="Team Red points" style="font-size: 2.2rem; text-align: center; width: 100px; height: 80px; padding: 10px; font-weight: 900; background: rgba(0,0,0,0.2);" placeholder="0.0">
                             </div>
                         </div>
                     </div>
@@ -796,28 +1212,30 @@
 
                     <!-- Round Selector Tabs -->
                     <div id="score-entry-round-tabs" style="display: flex; gap: 10px; margin-bottom: 25px;">
-                        <button class="admin-btn score-round-tab active" data-round="1" style="width: auto; padding: 10px 20px; margin: 0;">Round 1</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="2" style="width: auto; padding: 10px 20px; margin: 0;">Round 2</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="3" style="width: auto; padding: 10px 20px; margin: 0;">Round 3</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="4" style="width: auto; padding: 10px 20px; margin: 0;">Round 4</button>
+                        <button class="admin-btn score-round-tab active" data-round="1" aria-pressed="true" style="width: auto; padding: 10px 20px; margin: 0;">Round 1</button>
+                        <button class="admin-btn secondary score-round-tab" data-round="2" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 2</button>
+                        <button class="admin-btn secondary score-round-tab" data-round="3" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 3</button>
+                        <button class="admin-btn secondary score-round-tab" data-round="4" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 4</button>
                     </div>
+                    <!-- Course, par and format for the round, from trip-config.js -->
+                    <p class="se-context" id="score-entry-context" aria-live="polite"></p>
 
-                    <!-- Score Entry Table -->
+                    <!-- Score Entry Table (header and par row are drawn per round in admin.js) -->
                     <div class="table-responsive" style="overflow-x: auto; width: 100%;">
-                        <table class="admin-table">
-                            <thead>
+                        <table class="admin-table score-entry-table">
+                            <thead id="score-entry-thead">
                                 <tr>
-                                    <th style="min-width: 150px; position: sticky; left: 0; background: rgba(28, 22, 18, 0.95); z-index: 10;">Player</th>
-                                    <th style="min-width: 80px;">Team</th>
+                                    <th class="se-sticky" scope="col">Player</th>
+                                    <th scope="col" style="min-width: 70px;">Team</th>
+                                    <th scope="col" style="min-width: 90px;">Total</th>
+                                    <th scope="col" style="min-width: 90px;">To Par</th>
                                     <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
                                     <th>10</th><th>11</th><th>12</th><th>13</th><th>14</th><th>15</th><th>16</th><th>17</th><th>18</th>
-                                    <th style="min-width: 100px;">Total Score</th>
-                                    <th style="min-width: 100px;">To Par (+/-)</th>
                                 </tr>
                             </thead>
                             <tbody id="score-entry-tbody">
                                 <tr>
-                                    <td colspan="4" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
+                                    <td colspan="22" style="text-align: center; color: rgba(255,255,255,0.3); padding: 50px;">
                                         Loading players...
                                     </td>
                                 </tr>
@@ -889,7 +1307,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
     <script src="scoring.js?v=2027.9"></script>
-    <script src="admin.js?v=2027.9"></script>
+    <script src="admin.js?v=2027.10"></script>
 </body>
 
 </html>
