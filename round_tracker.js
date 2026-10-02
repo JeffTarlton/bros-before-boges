@@ -26,6 +26,11 @@ const NEXT_ARM_MS = 700; // how long a freshly shown next-hole button ignores ta
 const NEXT_ARM_COVER_MS = 1500; // ...when it's pinned over a player's buttons (a short phone)
 // Rounds before this date belong to earlier trips
 const WINDOW_START = (CFG.bookie && CFG.bookie.seasonStart) || (CFG.trip && CFG.trip.dates && CFG.trip.dates.start) || '2000-01-01';
+// Until the commissioner switches the season on, ryder_cup_scores still holds last year's total
+const SEASON_LIVE = !!(CFG.season && CFG.season.live);
+// The last official Cup total this phone loaded (this trip's only), so the row is there from the first paint
+const CUP_KEY = 'bbb_tracker_cup';
+const CUP_YEAR = (CFG.trip && CFG.trip.year) || null;
 
 let sb = null;
 const S = {
@@ -43,6 +48,7 @@ const S = {
     syncMessage: '',
     setup: null,         // setup screen choices
     board: { round: null, data: {}, loading: {}, error: {}, at: {}, tried: {} },
+    cup: cachedCup(),    // the official Cup total { blue, red } (season live only): the last one saved, then the database's
     keypad: null,
     nextShown: { key: null, at: 0 }, // which hole's next button is showing, and since when
     legendOn: false,     // the gold-dot legend is showing (a send failed or is slow, and scores are still waiting)
@@ -1359,9 +1365,38 @@ function pickBoardDay(roundNumber, rounds, rows) {
         b.localeCompare(a))[0];
 }
 
+// The official Cup total, hand-entered by the commissioner in Admin (ryder_cup_scores row 1). It loads
+// beside the board and never holds it up. The phone keeps the last total that loaded (also across
+// visits, so the row doesn't push the board down when it lands); with none yet, the row stays hidden.
+function cachedCup() {
+    if (!SEASON_LIVE) return null;
+    const c = readStore(CUP_KEY, null);
+    return c && c.year === CUP_YEAR && Number.isFinite(c.blue) && Number.isFinite(c.red) ? { blue: c.blue, red: c.red } : null;
+}
+
+let cupLoading = false;
+async function loadCup() {
+    if (!SEASON_LIVE || !sb || cupLoading) return;
+    cupLoading = true;
+    try {
+        const { data, error } = await sb.from('ryder_cup_scores').select('blue_score, red_score').eq('id', 1).maybeSingle();
+        if (error) throw error;
+        const cup = data ? { blue: Number(data.blue_score) || 0, red: Number(data.red_score) || 0 } : null;
+        const changed = JSON.stringify(cup) !== JSON.stringify(S.cup);
+        S.cup = cup;
+        writeStore(CUP_KEY, cup ? { year: CUP_YEAR, blue: cup.blue, red: cup.red } : null);
+        if (changed && S.view === 'board') renderBoard();
+    } catch (err) {
+        console.warn('Cup total failed:', err);
+    } finally {
+        cupLoading = false;
+    }
+}
+
 async function loadBoard(roundNumber, quiet) {
     const B = S.board;
     if (!sb || B.loading[roundNumber]) return;
+    loadCup();
     B.loading[roundNumber] = true;
     B.tried[roundNumber] = Date.now();
     if (!quiet && S.view === 'board' && B.round === roundNumber) renderBoard();
@@ -1410,6 +1445,51 @@ function defaultBoardRound() {
     return scheduledRoundToday() || (tripRounds()[0] || { number: 1 }).number;
 }
 
+// The official Cup total, above the round tabs (only once the season is live and it has loaded).
+// On a narrow phone "(official)" drops under "The Cup" so the score keeps to one line.
+function cupRowHTML() {
+    if (!SEASON_LIVE || !S.cup) return '';
+    const [b, r] = [S.cup.blue, S.cup.red].map(v => escHtml(SC.fmtPoints(v)));
+    return `<div class="cup-row">
+        <div class="cup-name"><span class="cup-title">The Cup</span> <span class="cup-off">(official)</span></div>
+        <div class="cup-score"><span class="team-1">Blue <b>${b}</b></span><span class="cup-dash" aria-hidden="true">–</span><span class="sr-only"> to </span><span class="team-2"><b>${r}</b> Red</span></div>
+        <div class="cup-note">Updated by the commissioner after each session</div>
+    </div>`;
+}
+
+// The round's Cup points. The big numbers are the live projection (every match as it stands), with
+// what's already banked under them; once every match is final they're the result. Before any match
+// has started, just what the round is worth (and `empty`, the no-scores line).
+function boardHeadHTML(n, format, matches, holesById, pars, empty) {
+    const results = matches.map(m => SC.matchResult(format, m, holesById, pars));
+    const onLine = results.reduce((sum, r) => sum + r.parts.length, 0); // a point per match, or per nine in split
+    const onLineText = `${onLine} point${onLine === 1 ? '' : 's'} on the line`;
+    if (!results.some(r => r.started)) {
+        return `<div class="panel board-head"><p class="bh-stake">${onLineText} this round</p>${empty}</div>`;
+    }
+    const pts = SC.roundPoints(format, matches, holesById, pars);
+    const final = results.every(r => r.final);
+    const [b, r] = (final ? pts.won : pts.projected).map(SC.fmtPoints);
+    const [wb, wr] = pts.won.map(SC.fmtPoints);
+    // Once points are banked, say what's still in play ("4 of 8"), not the round's whole worth
+    const banked = pts.won[0] + pts.won[1];
+    const stakeText = banked > 0 ? `${SC.fmtPoints(onLine - banked)} of ${onLine} points still on the line` : `${onLineText} this round`;
+    const label = final ? `Round ${n} final` : 'If it ended now';
+    const spoken = `${label}: Blue ${b}, Red ${r}.${final ? '' : ` Banked so far ${wb} to ${wr}. ${stakeText}.`}`;
+    return `<div class="panel board-head${final ? ' final' : ''}">
+        <p class="sr-only">${spoken}</p>
+        <div aria-hidden="true">
+            <p class="bh-label">${label}</p>
+            <div class="bh-score">
+                <span class="bh-team team-1">Blue</span><span class="bh-num team-1">${b}</span>
+                <span class="bh-dash">–</span>
+                <span class="bh-num team-2">${r}</span><span class="bh-team team-2">Red</span>
+            </div>
+            ${final ? '' : `<p class="bh-line"><span>Banked so far: <b>${wb}–${wr}</b></span><span class="bh-sep"> · </span><span>${stakeText}</span></p>`}
+        </div>
+    </div>`;
+}
+
 function renderBoard() {
     const B = S.board;
     if (B.round === null) B.round = defaultBoardRound();
@@ -1418,7 +1498,7 @@ function renderBoard() {
     const rounds = tripRounds();
     const data = B.data[n];
     const format = formatOf(n);
-    const tabs = `<div class="round-tabs" role="group" aria-label="Round">${rounds.map(r => `<button type="button" data-action="board-round" data-round="${r.number}" aria-pressed="${r.number === n}">Round ${r.number}${r.day ? ` · ${escHtml(r.day)}` : ''}</button>`).join('')}</div>`;
+    const tabs = cupRowHTML() + `<div class="round-tabs" role="group" aria-label="Round">${rounds.map(r => `<button type="button" data-action="board-round" data-round="${r.number}" aria-pressed="${r.number === n}">Round ${r.number}${r.day ? ` · ${escHtml(r.day)}` : ''}</button>`).join('')}</div>`;
     const centerTabs = () => centerInStrip(body.querySelector('.round-tabs'), '[aria-pressed="true"]');
 
     if (!data) {
@@ -1455,21 +1535,11 @@ function renderBoard() {
     </div>`;
     if (B.error[n]) html += `<div class="notice error">Couldn’t update just now${isNetworkError(B.error[n]) ? ' (no signal)' : ''}. Showing the last scores that loaded.</div>`;
 
-    if (!data.rows.length) {
-        html += `<div class="panel"><p class="muted">No scores for Round ${n} yet.${S.authUser ? ' They show up here as groups enter them.' : ' If a round is under way, <a href="bookie.html?next=board&amp;mode=login">log in</a> to see it.'}</p></div>`;
-    }
-
-    if (matches.length && format.key !== 'stroke' && data.rows.length) {
-        const pts = SC.roundPoints(format, matches, holesById, data.pars);
-        html += `<div class="panel">
-            <div class="cup-strip">
-                <div><div class="lbl team-1">BLUE</div><div class="pts">${SC.fmtPoints(pts.won[0])}</div></div>
-                <div class="muted small">Round ${n}<br>points won</div>
-                <div><div class="lbl team-2">RED</div><div class="pts">${SC.fmtPoints(pts.won[1])}</div></div>
-            </div>
-            <p class="muted small" style="text-align: center; margin-top: 8px;">If every match ended now: Blue ${SC.fmtPoints(pts.projected[0])} · Red ${SC.fmtPoints(pts.projected[1])}. The official Cup total is the commissioner’s.</p>
-        </div>`;
-    }
+    // A group that pressed Start has blank rows: those aren't scores yet
+    const anyScores = Object.values(holesById).some(h => SC.countEntered(h) > 0);
+    const empty = `<p class="board-empty">No scores for Round ${n} yet. They show up here as groups enter them.</p>`;
+    if (matches.length && format.key !== 'stroke') html += boardHeadHTML(n, format, matches, holesById, data.pars, anyScores ? '' : empty);
+    else if (!anyScores) html += `<div class="panel">${empty}</div>`;
 
     if (matches.length && format.key !== 'stroke') {
         html += mineFirst(matches, mine).map(m => {
@@ -1494,7 +1564,9 @@ function renderBoard() {
         }).join('');
     }
 
-    // Everyone's own card: gross score to par (one ball per pair in one-ball formats)
+    // Everyone's own card: gross score to par (one ball per pair in one-ball formats). In team points
+    // rounds each player's quota points lead, the same number his Score view shows.
+    const isPoints = format.key === 'points';
     const ids = Object.keys(holesById);
     if (ids.length) {
         let units;
@@ -1504,27 +1576,39 @@ function renderBoard() {
             matches.forEach(m => m.sides.forEach(s => {
                 const inRows = s.ids.filter(id => holesById[id]);
                 if (!inRows.length) return;
-                units.push({ label: s.ids.map(id => firstName(nameOf(id))).join(' & '), team: s.team, holes: SC.sideHoles(format, { ids: inRows }, holesById, data.pars) });
+                units.push({ label: s.ids.map(id => firstName(nameOf(id))).join(' & '), side: true, team: s.team, holes: SC.sideHoles(format, { ids: inRows }, holesById, data.pars) });
                 s.ids.forEach(id => used.add(id));
             }));
             ids.filter(id => !used.has(id)).forEach(id => units.push({ label: nameOf(id), team: teamOf(id), holes: holesById[id] }));
         } else {
             units = ids.map(id => ({ label: nameOf(id), team: teamOf(id), holes: holesById[id] }));
         }
-        const rows = units.map(u => ({ ...u, t: SC.totals(u.holes, data.pars) })).filter(u => u.t.thru)
-            .sort((a, b) => a.t.toPar - b.t.toPar || b.t.thru - a.t.thru || a.label.localeCompare(b.label));
+        // Points rounds rank on points against par pace (a par is 2), so a group that teed off later
+        // isn't buried under one that has simply played more holes; at the finish it's the raw points order
+        const pace = u => u.pts - 2 * u.t.thru;
+        const rows = units.map(u => ({ ...u, t: SC.totals(u.holes, data.pars), pts: isPoints ? unitPoints(u.holes, data.pars) : 0 })).filter(u => u.t.thru)
+            .sort((a, b) => (isPoints ? pace(b) - pace(a) : 0) || a.t.toPar - b.t.toPar || b.t.thru - a.t.thru || a.label.localeCompare(b.label));
+        // Phones show "David O." so each player keeps to one line; two who'd look alike keep full names
+        const shortOf = u => (u.side ? u.label : shortName(u.label));
+        const shortCount = {};
+        rows.forEach(u => { shortCount[shortOf(u)] = (shortCount[shortOf(u)] || 0) + 1; });
+        const nameCell = u => (shortOf(u) !== u.label && shortCount[shortOf(u)] === 1
+            ? `<span class="nm-full">${escHtml(u.label)}</span><span class="nm-short">${escHtml(shortOf(u))}</span>`
+            : escHtml(u.label));
         if (rows.length) {
-            // Ties share a position: T2, T2, 4
+            // Ties share a position: T2, T2, 4 (on points against pace in a points round, else on to par)
+            const rank = u => (isPoints ? pace(u) : u.t.toPar);
             const pos = u => {
-                const first = rows.findIndex(x => x.t.toPar === u.t.toPar);
-                const tied = rows.filter(x => x.t.toPar === u.t.toPar).length > 1;
+                const first = rows.findIndex(x => rank(x) === rank(u));
+                const tied = rows.filter(x => rank(x) === rank(u)).length > 1;
                 return `${tied ? 'T' : ''}${first + 1}`;
             };
-            html += `<div class="panel">
-                <div class="eyebrow" style="margin-bottom: 8px;">${format.sharedBall ? 'Team cards' : 'Individual'} · gross</div>
-                <table class="standings">
-                    <thead><tr><th scope="col">#</th><th scope="col">${format.sharedBall ? 'Team' : 'Player'}</th><th scope="col">To par</th><th scope="col">Thru</th><th scope="col">Strokes</th></tr></thead>
-                    <tbody>${rows.map(u => `<tr><td>${pos(u)}</td><td class="${u.team ? `team-${u.team}` : ''}" style="font-weight: 700;">${escHtml(u.label)}</td><td style="font-weight: 800;">${SC.fmtToPar(u.t.toPar)}</td><td>${u.t.thru === HOLES ? 'F' : u.t.thru}</td><td>${u.t.strokes}</td></tr>`).join('')}</tbody>
+            const heading = isPoints ? 'Individual · team points' : `${format.sharedBall ? 'Team cards' : 'Individual'} · gross`;
+            html += `<div class="panel board-table">
+                <div class="eyebrow" style="margin-bottom: 8px;">${heading}</div>
+                <table class="standings${isPoints ? ' has-pts' : ''}">
+                    <thead><tr><th scope="col">#</th><th scope="col">${format.sharedBall ? 'Team' : 'Player'}</th>${isPoints ? '<th scope="col"><span aria-hidden="true">Pts</span><span class="sr-only">Points</span></th>' : ''}<th scope="col">To par</th><th scope="col">Thru</th><th scope="col" class="col-strokes">Strokes</th></tr></thead>
+                    <tbody>${rows.map(u => `<tr><td>${pos(u)}</td><td class="${u.team ? `team-${u.team}` : ''}" style="font-weight: 700;">${nameCell(u)}</td>${isPoints ? `<td class="lead-col">${u.pts}</td>` : ''}<td${isPoints ? '' : ' class="lead-col"'}>${SC.fmtToPar(u.t.toPar)}</td><td>${u.t.thru === HOLES ? 'F' : u.t.thru}</td><td class="col-strokes">${u.t.strokes}</td></tr>`).join('')}</tbody>
                 </table>
             </div>`;
         }
@@ -1534,7 +1618,8 @@ function renderBoard() {
 }
 
 function boardErrorHTML(err) {
-    if (!S.authUser && !isNetworkError(err)) {
+    // Anyone can read the board: logging in only helps when the database turned a signed-out visitor away
+    if (!S.authUser && (isAuthError(err) || isRefused(err))) {
         return `<div class="notice">Log in to see live scores. <a href="bookie.html?next=board&amp;mode=login">Log in</a></div>`;
     }
     return `<div class="notice error">Couldn’t load live scores${isNetworkError(err) ? ' (no signal)' : ''}.</div><button type="button" class="t-btn block" data-action="board-refresh">Try again</button>`;

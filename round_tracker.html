@@ -559,9 +559,60 @@
         }
         .round-tabs button[aria-pressed="true"] { border-color: var(--accent-gold); color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); }
 
-        .cup-strip { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; text-align: center; }
-        .cup-strip .pts { font-family: var(--font-heading); font-size: 2rem; font-weight: 900; line-height: 1; }
-        .cup-strip .lbl { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; }
+        /* The official Cup total (season live): one slim row above the round tabs. The score keeps
+           to one line; on a narrow phone "(official)" drops under "The Cup" instead. */
+        .cup-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 2px 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            border-radius: 14px;
+            background: rgba(251, 191, 36, 0.06);
+            border: 1px solid rgba(251, 191, 36, 0.28);
+        }
+        .cup-row .cup-name { font-size: 0.85rem; font-weight: 800; line-height: 1.3; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-gold); }
+        .cup-row .cup-title { white-space: nowrap; }
+        .cup-row .cup-off { white-space: nowrap; font-weight: 700; letter-spacing: 0.02em; text-transform: none; }
+        .cup-row .cup-score { justify-self: end; font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; white-space: nowrap; }
+        .cup-row .cup-score b { font-weight: 900; }
+        .cup-row .cup-dash { margin: 0 7px; color: var(--text-soft); }
+        .cup-row .cup-note { grid-column: 1 / -1; color: var(--text-soft); font-size: 0.82rem; line-height: 1.4; }
+        @media (max-width: 400px) {
+            .cup-row { padding: 8px 12px; margin-bottom: 10px; }
+            .cup-row .cup-dash { margin: 0 5px; }
+        }
+        /* Short phones: the round's own score has to land above the bottom tabs, so the note gives way
+           ("official" still says it) */
+        @media (max-width: 400px) and (max-height: 760px) {
+            .cup-row .cup-note { display: none; }
+        }
+
+        /* The round's points: the live projection, big, with what's banked under it */
+        .board-head { text-align: center; padding: 16px 14px; }
+        .board-head p { margin: 0; }
+        .board-head .bh-label { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-gold); }
+        .board-head.final .bh-label { color: var(--accent-emerald); }
+        .board-head .bh-score { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; column-gap: 10px; margin: 8px 0 6px; }
+        .board-head .bh-team { font-size: 0.9rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
+        .board-head .bh-team:last-child { text-align: left; }
+        .board-head .bh-num { font-family: var(--font-heading); font-size: 3.2rem; font-weight: 900; line-height: 1; }
+        .board-head .bh-dash { font-family: var(--font-heading); font-size: 2rem; font-weight: 700; line-height: 1; color: var(--text-soft); }
+        .board-head .bh-line { color: var(--text-soft); font-size: 0.95rem; line-height: 1.45; }
+        .board-head .bh-line b { color: var(--text-main); white-space: nowrap; }
+        .board-head .bh-stake { font-family: var(--font-heading); font-size: 1.3rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+        .board-empty { margin: 0; color: var(--text-soft); line-height: 1.5; text-wrap: balance; }
+        .board-head .board-empty { margin-top: 6px; }
+        /* Phones: "Banked so far" and "N points on the line" on their own lines, no stray dot */
+        @media (max-width: 440px) {
+            .board-head .bh-line > span { display: block; }
+            .board-head .bh-line .bh-sep { display: none; }
+        }
+        @media (max-width: 360px) {
+            .board-head .bh-score { column-gap: 8px; }
+            .board-head .bh-num { font-size: 2.75rem; }
+        }
 
         .match-card {
             padding: 12px 14px;
@@ -589,7 +640,28 @@
         .standings { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
         .standings th, .standings td { padding: 10px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: right; }
         .standings th:nth-child(2), .standings td:nth-child(2) { text-align: left; }
-        .standings th { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+        .standings th { color: var(--text-soft); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+        .standings td.lead-col { font-weight: 800; }
+        .standings .nm-short { display: none; }
+        /* Narrow phones: a little less padding, "David O." for the name, and the Strokes column (to par
+           says the same) gives way, so each player keeps to one line and nothing scrolls sideways */
+        @media (max-width: 400px) {
+            .board-table { padding: 14px 12px; }
+            .standings th, .standings td { padding: 10px 4px; }
+            .standings .nm-full { display: none; }
+            .standings .nm-short { display: inline; }
+        }
+        @media (max-width: 380px) {
+            .standings .col-strokes { display: none; }
+        }
+        @media (max-width: 360px) {
+            .standings th, .standings td { padding: 10px 3px; }
+            .standings th { letter-spacing: 0.02em; }
+        }
+        /* Team points tables carry an extra Pts column: on phones Strokes gives way so a name fits on one line */
+        @media (max-width: 440px) {
+            .standings.has-pts .col-strokes { display: none; }
+        }
 
         .board-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 
@@ -737,7 +809,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
     <script src="scoring.js?v=2027.9"></script>
-    <script src="round_tracker.js?v=2027.11"></script>
+    <script src="round_tracker.js?v=2027.12"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
