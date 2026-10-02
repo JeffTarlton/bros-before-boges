@@ -31,6 +31,8 @@ const rsvpState = { available: false, missingTable: false, latest: [], lastAt: n
 
 // RSVP and new-player alerts (trip-config.js → alerts)
 const ALERTS = CFG.alerts || {};
+// Each RSVP alert links straight to Admin's RSVPs tab, so approving a new player from a phone is one tap
+const ADMIN_RSVPS_URL = 'https://bros-before-boges.vercel.app/admin#rsvps';
 
 // The signed-in visitor and their roster row. RSVPs need both; accounts are set up on
 // The Bookie page (bookie.html?next=…), which sends people back here when they're done.
@@ -270,6 +272,8 @@ let phase = tripPhase(nowMs());
 // Initialization
 // ---------------------------------------------------------------------------
 async function init() {
+    // Tells index.html's safety net that the page is rendering, so it leaves the scroll reveals alone
+    window.__homeInit = true;
     try {
         elements = {
             nav: document.getElementById('site-nav'),
@@ -1352,9 +1356,11 @@ async function loadRosterData() {
     try {
         // Only rows the page shows: confirmed players and names the commissioner added.
         // (Self sign-ups waiting for approval stay private, and can't crowd the list.)
+        // No GHIN numbers: the public lists show handicaps only. A player's own GHIN loads with his
+        // account (loadAccount) for his golf profile, and Admin has everyone's.
         const { data, error } = await supabaseInstance
             .from('players')
-            .select('id, name, ghin, handicap, team_id, status, user_id')
+            .select('id, name, handicap, team_id, status, user_id')
             .or('status.eq.confirmed,user_id.is.null')
             .order('name');
 
@@ -1374,7 +1380,6 @@ async function loadRosterData() {
                 roster.confirmed.push({
                     id: p.id,
                     name: p.name,
-                    ghin: p.ghin,
                     handicap: p.handicap !== null && p.handicap !== undefined ? parseFloat(p.handicap) : null,
                     team_id: p.team_id
                 });
@@ -1404,13 +1409,21 @@ function isMe(playerId) {
 
 const YOU_TAG = '<span class="you-tag">You</span>';
 
+// A handicap as the crew list shows it: "10.0" / "+1.2" over a small HCP, or just "No HCP".
+// (No GHIN numbers on public lists: those are for the captains and Admin.)
+function hcpBadgeHTML(handicap) {
+    const hcp = fmtHcp(handicap);
+    return hcp === '–'
+        ? '<div class="player-hcp is-none"><span>No HCP</span></div>'
+        : `<div class="player-hcp"><b>${esc(hcp)}</b><span>HCP</span></div>`;
+}
+
 // `waiting`: the viewer's own card while the commissioner hasn't approved them yet (only they see it)
 function playerCardHTML(p, i, meta, waiting) {
     const nameKey = p.name.replace(/\s+/g, '');
     const hasCard = (CFG.playerCards || []).includes(nameKey);
     const cap = isCaptain(p.name);
     const me = waiting || isMe(p.id);
-    const hcp = fmtHcp(p.handicap);
     return `
             <div class="player ${cap ? 'is-captain' : ''} ${me ? 'is-you' : ''} ${waiting ? 'is-waiting' : ''} reveal" style="transition-delay: ${Math.min(i, 12) * 30}ms;">
                 <div class="player-avatar">
@@ -1419,9 +1432,9 @@ function playerCardHTML(p, i, meta, waiting) {
                 </div>
                 <div class="player-info">
                     <div class="player-name">${esc(p.name)}${cap ? '<span class="cap-tag">Capt.</span>' : ''}${me && !waiting ? YOU_TAG : ''}</div>
-                    <div class="player-meta">${esc(meta)}</div>
+                    ${meta ? `<div class="player-meta">${esc(meta)}</div>` : ''}
                 </div>
-                <div class="player-hcp"><b>${esc(hcp)}</b><span>HCP</span></div>
+                ${hcpBadgeHTML(p.handicap)}
             </div>`;
 }
 
@@ -1462,7 +1475,7 @@ function renderRoster() {
             if (ca !== cb) return ca - cb;
             return (a.name || '').localeCompare(b.name || '');
         });
-        grid.innerHTML = sorted.map((p, i) => playerCardHTML(p, i, `GHIN ${realGhin(p.ghin) || '—'}`)).join('');
+        grid.innerHTML = sorted.map((p, i) => playerCardHTML(p, i, '')).join('');
     }
 
     if (elements.crewCount) {
@@ -1626,8 +1639,7 @@ function renderHeadcount() {
     if (grid) {
         const cards = counts.in.map((r, i) => {
             const player = rosterPlayerById(r.player_id);
-            const meta = [realGhin(player.ghin) ? `GHIN ${realGhin(player.ghin)}` : null, r.sunday_round ? 'Sunday round' : null]
-                .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
+            const meta = r.sunday_round ? 'Sunday round' : `RSVP’d ${timeAgo(r.created_at)}`;
             return playerCardHTML(player, i, meta);
         });
         if (waiting && waiting.status === 'in') cards.push(playerCardHTML(waiting.player, cards.length, 'You, waiting on approval', true));
@@ -1804,7 +1816,9 @@ function renderAccountMenus() {
     const clubRow = document.getElementById('clubhouse-account');
     const v = viewer();
     [drawerRow, clubRow].forEach(el => { if (el) el.hidden = !v; });
+    renderAdminLinks();
     if (!v) return;
+    checkAdmin();
 
     const who = v.player ? v.player.name : v.email || 'your account';
     const loginUrl = accountUrl('home', 'login');
@@ -1826,6 +1840,33 @@ function renderAccountMenus() {
                    : `<a href="${accountUrl('home')}">${icon('user')}Finish setting up</a>`}
                <button type="button" data-action="logout">${icon('logout')}Log out</button>`;
     }
+}
+
+// The Admin links (Clubhouse menu, drawer, footer) show only to admins. The database decides, by its
+// own rule (is_trip_admin: an is_admin roster row with this login's email), asked once per login.
+// Signed out, not an admin, or the check failed: hidden. Anyone can still open /admin directly.
+const adminCheck = { userId: null, isAdmin: false };
+
+function renderAdminLinks() {
+    const v = viewer();
+    const show = !!(v && v.signedIn && account.user && adminCheck.userId === account.user.id && adminCheck.isAdmin);
+    document.querySelectorAll('[data-admin-link]').forEach(el => { el.hidden = !show; });
+}
+
+async function checkAdmin() {
+    const userId = account.user ? account.user.id : null;
+    if (!userId || !supabaseInstance || !personalReady) return;
+    if (adminCheck.userId === userId) return; // already asked (or asking) for this login
+    adminCheck.userId = userId;
+    adminCheck.isAdmin = false;
+    let isAdmin = false;
+    try {
+        const { data, error } = await supabaseInstance.rpc('is_trip_admin');
+        isAdmin = !error && data === true;
+    } catch (e) { /* offline: hidden until the next page load */ }
+    if (adminCheck.userId !== userId) return; // a different login since: its own check decides
+    adminCheck.isAdmin = isAdmin;
+    renderAdminLinks();
 }
 
 // Many of these golfers won't remember their password, so ask before logging out.
@@ -2075,29 +2116,154 @@ function setRsvpEyebrows() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Loading states: on a weak signal the login check (and the player's own RSVP) can take a few
+// seconds. The RSVP sheet and the golf profile open on the tap anyway, locked, and fill in and
+// unlock when it's done, so a tap never looks dead. The copy that needs no network (title, lede,
+// RSVP-by date) shows from the start, so nothing moves when it finishes.
+// ---------------------------------------------------------------------------
+// A load quicker than this shows no loading state at all (no dimming, no "Loading…" flash)
+const LOADING_SHOW_MS = 300;
+const loadingTimers = new Map();
+
+// Locks or unlocks a form; `regions` are the parts that lock (not `keep`, a way out such as Cancel).
+// Locking is immediate but invisible at first: aria-busy, and the regions inert (no taps, no focus,
+// same look; a disabled checkbox would turn grey). Only if it's still loading after LOADING_SHOW_MS
+// does the form dim (.is-loading) with "Loading…" over it (the status line), its controls disabled.
+function setFormLoading(form, busyEl, regions, loadingId, text, on, keep) {
+    if (!form || !busyEl) return;
+    const parts = regions.filter(Boolean);
+    const controls = [...form.elements].filter(el => el !== keep);
+    const line = document.getElementById(loadingId);
+    if (!on) {
+        clearTimeout(loadingTimers.get(busyEl));
+        loadingTimers.delete(busyEl);
+        busyEl.removeAttribute('aria-busy');
+        busyEl.classList.remove('is-loading');
+        parts.forEach(el => { el.inert = false; });
+        controls.forEach(el => { el.disabled = false; });
+        if (line) line.innerHTML = '';
+        return;
+    }
+    busyEl.setAttribute('aria-busy', 'true');
+    if (busyEl.classList.contains('is-loading') || loadingTimers.has(busyEl)) return; // already locked
+    parts.forEach(el => { el.inert = true; });
+    loadingTimers.set(busyEl, setTimeout(() => {
+        loadingTimers.delete(busyEl);
+        if (!busyEl.hasAttribute('aria-busy')) return;
+        // Still loading: dimmed, controls disabled (what screen readers expect), and the status line
+        // filled, which is what they announce (it's always in the page, empty when idle)
+        parts.forEach(el => { el.inert = false; });
+        controls.forEach(el => { el.disabled = true; });
+        busyEl.classList.add('is-loading');
+        if (line) line.innerHTML = `<span class="form-spinner" aria-hidden="true"></span>${esc(text)}`;
+    }, LOADING_SHOW_MS));
+}
+
+function setRsvpLoading(on) {
+    const step = document.getElementById('rsvp-step-form');
+    setFormLoading(elements.rsvpForm, step, [elements.rsvpForm], 'rsvp-loading', 'Loading your RSVP…', on);
+    // "Golf profile" and "Switch player" wait too: they act on the login being checked
+    if (step) step.querySelectorAll('.rsvp-who-links button').forEach(b => { b.disabled = on; });
+}
+
+function fillRsvpForm(answer) {
+    const form = elements.rsvpForm;
+    if (!form || !answer) return;
+    const radio = RSVP_LABELS[answer.status] ? form.querySelector(`input[name="status"][value="${answer.status}"]`) : null;
+    if (radio) radio.checked = true;
+    const sunday = form.elements.namedItem('sunday');
+    if (sunday) sunday.checked = !!answer.sunday_round;
+    if (answer.note !== undefined) form.elements.namedItem('note').value = answer.note || '';
+}
+
+// The sheet as soon as RSVP is tapped: the form, locked, showing who's RSVPing (when we know) and
+// the answer we already have (this page's, or the head count's), until openRsvp has the real one.
+function showRsvpLoading(keepValues) {
+    const form = elements.rsvpForm;
+    if (!keepValues) {
+        form.reset();
+        if (account.player) fillRsvpForm(myAnswer());
+    }
+    // Who's RSVPing: the name when we know it; otherwise the row keeps its place, blank, until we do
+    const who = document.getElementById('rsvp-who');
+    document.getElementById('rsvp-who-name').textContent = account.player ? account.player.name : '';
+    if (who) {
+        who.hidden = false;
+        who.classList.toggle('is-unknown', !account.player);
+    }
+    setFieldError('rsvp-status-error', '');
+    const err = document.getElementById('rsvp-error');
+    if (err) err.hidden = true;
+    const sundayLabel = document.getElementById('rsvp-sunday-label');
+    if (sundayLabel && RSVP.sundayQuestion) sundayLabel.textContent = RSVP.sundayQuestion;
+    setRsvpFormLede();
+    setRsvpEyebrows();
+    syncSundayOption();
+    setRsvpLoading(true);
+    showRsvpStep('form');
+    // Focus the title while it loads (the controls are disabled); openRsvp moves it on afterwards
+    openRsvpModal(() => document.getElementById('rsvp-title'));
+}
+
+// With an RSVP-by date the lede leads with it, and "Change your answer any time" (index.html, still
+// used once the trip starts) gives way to a line that doesn't argue with it. Config only (no network),
+// so the sheet shows it from the first frame, loading or not.
+function setRsvpFormLede() {
+    const lede = document.getElementById('rsvp-form-lede');
+    if (!lede) return;
+    if (lede.dataset.text === undefined) lede.dataset.text = lede.textContent;
+    const due = rsvpDeadline();
+    lede.innerHTML = due
+        ? `<span class="rsvp-due${due.passed ? ' is-past' : ''}">${esc(due.text)}</span> ${due.passed
+            ? 'You can still answer or change it here, and we count your latest one.'
+            : 'We count your latest answer.'}`
+        : esc(lede.dataset.text);
+}
+
+let rsvpOpenSeq = 0; // the latest openRsvp; an older one that finishes later leaves the sheet alone
+
 async function openRsvp(keepValues) {
     const form = elements.rsvpForm;
     if (!form) return;
+    const sheet = elements.rsvpModal;
+    const seq = ++rsvpOpenSeq;
     const shownPlayer = account.player ? { id: account.player.id, name: account.player.name } : null;
-    await ensureFreshAccount();
-    if (!account.player) {
-        showAccountStep('rsvp');
-        return;
-    }
-    // "Change my answer" after a different player logged in (another tab): start from the
-    // new player's own RSVP, not the previous player's answers and note
-    const switched = !!(keepValues && shownPlayer && shownPlayer.id !== account.player.id);
-
-    if (!keepValues || switched) {
-        form.reset();
-        const mine = await loadMyRsvp();
-        if (mine) {
-            const radio = form.querySelector(`input[name="status"][value="${mine.status}"]`);
-            if (radio) radio.checked = true;
-            const sunday = form.elements.namedItem('sunday');
-            if (sunday) sunday.checked = !!mine.sunday_round;
-            form.elements.namedItem('note').value = mine.note || '';
+    // Known to be signed out: the account step needs no network, so it opens straight away.
+    // Otherwise open now, locked, while the login is re-checked and the answer loads.
+    const loading = !(account.checked && !account.error && !account.user);
+    if (loading) showRsvpLoading(keepValues);
+    // Closed while it loaded (or opened again): don't pop it back up
+    const stale = () => seq !== rsvpOpenSeq || (loading && !sheet.classList.contains('active'));
+    try {
+        await ensureFreshAccount();
+        if (stale()) return;
+        if (!account.player) {
+            showAccountStep('rsvp');
+            return;
         }
+        // "Change my answer" after a different player logged in (another tab): start from the
+        // new player's own RSVP, not the previous player's answers and note
+        const switched = !!(keepValues && shownPlayer && shownPlayer.id !== account.player.id);
+
+        if (!keepValues || switched) {
+            const mine = await loadMyRsvp();
+            if (stale()) return;
+            form.reset();
+            fillRsvpForm(mine);
+        }
+        finishOpenRsvp(switched, shownPlayer, loading);
+    } finally {
+        if (seq === rsvpOpenSeq) setRsvpLoading(false);
+    }
+}
+
+function finishOpenRsvp(switched, shownPlayer, loading) {
+    const form = elements.rsvpForm;
+    const who = document.getElementById('rsvp-who');
+    if (who) {
+        who.hidden = false;
+        who.classList.remove('is-unknown');
     }
     document.getElementById('rsvp-who-name').textContent = account.player.name;
     setFieldError('rsvp-status-error', '');
@@ -2105,22 +2271,14 @@ async function openRsvp(keepValues) {
     if (err) err.hidden = true;
     const sundayLabel = document.getElementById('rsvp-sunday-label');
     if (sundayLabel && RSVP.sundayQuestion) sundayLabel.textContent = RSVP.sundayQuestion;
-    // With an RSVP-by date the lede leads with it, and "Change your answer any time" (index.html, still
-    // used once the trip starts) gives way to a line that doesn't argue with it
-    const lede = document.getElementById('rsvp-form-lede');
-    if (lede) {
-        if (lede.dataset.text === undefined) lede.dataset.text = lede.textContent;
-        const due = rsvpDeadline();
-        lede.innerHTML = due
-            ? `<span class="rsvp-due${due.passed ? ' is-past' : ''}">${esc(due.text)}</span> ${due.passed
-                ? 'You can still answer or change it here, and we count your latest one.'
-                : 'We count your latest answer.'}`
-            : esc(lede.dataset.text);
-    }
+    setRsvpFormLede();
     setRsvpEyebrows();
     syncSundayOption();
     showRsvpStep('form');
-    openRsvpModal(() => form.querySelector('input[name="status"]:checked') || form.querySelector('input[name="status"]'));
+    const answerControl = () => form.querySelector('input[name="status"]:checked') || form.querySelector('input[name="status"]');
+    // After loading, focus moves from the title to the answer, unless the player went to the close
+    // button meanwhile (the only other control that isn't locked while it loads)
+    if (!(loading && document.activeElement && document.activeElement.id === 'rsvp-close')) openRsvpModal(answerControl);
     if (switched) showNoteAfterFocus(err, switchedNote(shownPlayer.name));
 }
 
@@ -2213,6 +2371,8 @@ function rsvpErrorMessage(error) {
 
 async function handleRsvpSubmit(e) {
     e.preventDefault();
+    // Still loading the login / the player's answer: nothing to send yet (the form is locked anyway)
+    if (document.getElementById('rsvp-step-form').hasAttribute('aria-busy')) return;
     const form = elements.rsvpForm;
     const rsvp = validateRsvp(form);
     if (!rsvp) return;
@@ -2247,7 +2407,8 @@ async function handleRsvpSubmit(e) {
                 rsvp: RSVP_LABELS[saved.status],
                 sunday_round: saved.sunday ? 'Yes' : 'No',
                 note: saved.note || '—',
-                roster: saved.pending ? 'New player: approve in Admin → RSVPs' : 'On the roster'
+                roster: saved.pending ? 'New player: approve in Admin → RSVPs (link below)' : 'On the roster',
+                admin_link: ADMIN_RSVPS_URL
             });
         }
 
@@ -2310,26 +2471,77 @@ function showRsvpDone(rsvp) {
 // the picked answer and note as they were, since that RSVP hasn't been sent yet.
 let profileBackToRsvp = false;
 
-async function openProfile() {
-    await ensureFreshAccount();
-    if (!account.player) {
-        showAccountStep('profile');
-        return;
-    }
-    const sheet = elements.rsvpModal;
-    const formStep = document.getElementById('rsvp-step-form');
-    profileBackToRsvp = !!(sheet && sheet.classList.contains('active') && formStep && !formStep.hidden);
-    const p = account.player;
-    const hcp = p.handicap === null || p.handicap === undefined || p.handicap === '' ? null : Number(p.handicap);
-    document.getElementById('profile-name').textContent = p.name;
-    document.getElementById('ghin-number').value = realGhin(p.ghin) || '';
+// The player's own GHIN and handicap (his account row: the public roster has no GHIN numbers).
+// `p` null: blank, with no name, while the login is still being checked.
+function fillProfileForm(p) {
+    const hcp = !p || p.handicap === null || p.handicap === undefined || p.handicap === '' ? null : Number(p.handicap);
+    document.getElementById('profile-name').textContent = p ? p.name : '';
+    // Not known yet (the login is still being checked): the row keeps its place, blank
+    const who = document.getElementById('profile-who');
+    if (who) who.classList.toggle('is-unknown', !p);
+    document.getElementById('ghin-number').value = p ? realGhin(p.ghin) || '' : '';
     // Plus handicaps are stored as negatives: show the number plus a ticked "plus" box
     document.getElementById('handicap').value = hcp === null || isNaN(hcp) ? '' : Math.abs(hcp).toFixed(1);
     document.getElementById('handicap-plus').checked = hcp !== null && hcp < 0;
     setFieldError('profile-error', '');
-    // Open the profile before closing the sheet, so focus doesn't drop onto the page in between
-    openDialog(elements.registrationModal, '#ghin-number');
-    closeDialog(sheet);
+}
+
+function setProfileLoading(on) {
+    const form = elements.registrationForm;
+    if (!form) return;
+    // Cancel stays a way out while it loads
+    setFormLoading(form, form, [form.querySelector('.form-row'), document.getElementById('profile-submit')],
+        'profile-loading', 'Loading your golf profile…', on, document.getElementById('cancel-btn'));
+}
+
+let profileOpenSeq = 0; // the latest openProfile; an older one that finishes later does nothing
+
+async function openProfile() {
+    const modal = elements.registrationModal;
+    const sheet = elements.rsvpModal;
+    const seq = ++profileOpenSeq;
+    const formStep = document.getElementById('rsvp-step-form');
+    const fromRsvpForm = !!(sheet && sheet.classList.contains('active') && formStep && !formStep.hidden);
+    // As with the RSVP sheet: unless they're known to be signed out, open now, locked, with what we
+    // already have, while the login is re-checked
+    const loading = !(account.checked && !account.error && !account.user);
+    if (loading) {
+        profileBackToRsvp = fromRsvpForm;
+        fillProfileForm(account.player);
+        setProfileLoading(true);
+        // Open the profile before closing the sheet, so focus doesn't drop onto the page in between
+        openDialog(modal, '#registration-title');
+        closeDialog(sheet);
+    }
+    const stale = () => seq !== profileOpenSeq || (loading && !modal.classList.contains('active'));
+    try {
+        await ensureFreshAccount();
+        if (stale()) return;
+        if (!account.player) {
+            // Log in first: the account step is in the RSVP sheet
+            profileBackToRsvp = false;
+            showAccountStep('profile');
+            if (loading) {
+                closeDialog(modal);
+                if (elements.registrationForm) elements.registrationForm.reset();
+            }
+            return;
+        }
+        fillProfileForm(account.player);
+        if (!loading) {
+            profileBackToRsvp = fromRsvpForm;
+            openDialog(modal, '#ghin-number');
+            closeDialog(sheet);
+        } else {
+            // Focus moves from the title to the GHIN box, unless they went to Close or Cancel meanwhile
+            const a = document.activeElement;
+            if (!(a && (a.id === 'modal-close' || a.id === 'cancel-btn'))) {
+                setTimeout(() => { const g = document.getElementById('ghin-number'); if (g && modal.classList.contains('active')) g.focus(); }, 30);
+            }
+        }
+    } finally {
+        if (seq === profileOpenSeq) setProfileLoading(false);
+    }
 }
 
 // Cancel, close, Escape, or a moment after Save
@@ -2338,9 +2550,13 @@ async function closeProfile() {
     if (!modal || !modal.classList.contains('active')) return;
     const back = profileBackToRsvp;
     profileBackToRsvp = false;
-    if (back) await openRsvp(true); // opens over the profile, so focus goes straight to the form
+    // Back to the RSVP form: openRsvp shows the sheet at once (before any network wait), so the profile
+    // closes straight away and focus goes to the sheet, not the page. A profile still loading then sees
+    // it was closed and stands down.
+    const reopening = back ? openRsvp(true) : null;
     closeDialog(modal);
     if (elements.registrationForm) elements.registrationForm.reset();
+    await reopening;
 }
 
 // "9.4" -> 9.4, "+2.1" or "2.1" with the plus box ticked -> -2.1. A comma decimal ("9,4",
@@ -2354,6 +2570,7 @@ function parseHandicap(text, plusTicked) {
 
 async function handleProfileSubmit(e) {
     e.preventDefault();
+    if (elements.registrationForm && elements.registrationForm.hasAttribute('aria-busy')) return; // still loading
     const ghinInput = document.getElementById('ghin-number');
     const hcpInput = document.getElementById('handicap');
     const ghin = ghinInput.value.replace(/\D/g, '');
@@ -2380,8 +2597,9 @@ async function handleProfileSubmit(e) {
             throw error;
         }
         Object.assign(account.player, { ghin: data ? data.ghin : ghin || null, handicap: data ? data.handicap : handicap });
+        // The crew list's copy has the handicap only (no GHIN on public lists)
         const onRoster = roster.confirmed.find(p => p.id === account.player.id);
-        if (onRoster) Object.assign(onRoster, { ghin: account.player.ghin, handicap: account.player.handicap === null ? null : parseFloat(account.player.handicap) });
+        if (onRoster) onRoster.handicap = account.player.handicap === null ? null : parseFloat(account.player.handicap);
         renderPersonal();
         btn.textContent = 'Saved';
         setTimeout(closeProfile, 700);
@@ -2611,7 +2829,7 @@ function roundTablesHTML(roundScores) {
     return html;
 }
 
-// The confirmed roster ranked by handicap
+// The confirmed roster ranked by handicap (handicaps only: GHIN numbers are for the captains and Admin)
 function rosterListHTML() {
     const sortedRoster = [...roster.confirmed].sort((a, b) => {
         if (a.handicap === null) return 1;
@@ -2624,15 +2842,15 @@ function rosterListHTML() {
                 <div class="col-rank">Rank</div>
                 <div class="col-player">Player</div>
                 <div class="col-hcp">Handicap</div>
-                <div class="col-ghin">GHIN</div>
             </div>
             ${!sortedRoster.length ? `<div class="leaderboard-row"><div class="col-player">${roster.error ? 'Couldn’t load the crew right now.' : roster.loaded ? 'No one on the roster yet.' : 'Loading the crew…'}</div></div>` : ''}
             ${sortedRoster.map((player, index) => `
                 <div class="leaderboard-row">
                     <div class="col-rank">${index + 1}</div>
                     <div class="col-player" style="color: var(--ink); font-weight: 700;">${esc(player.name)}</div>
-                    <div class="col-hcp" style="color: var(--fairway); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.1rem;">${player.handicap !== null && !isNaN(player.handicap) ? esc(fmtHcp(player.handicap)) : '-'}</div>
-                    <div class="col-ghin" style="font-variant-numeric: tabular-nums; color: var(--ink-dim);">${esc(realGhin(player.ghin) || '-')}</div>
+                    ${player.handicap !== null && !isNaN(player.handicap)
+                        ? `<div class="col-hcp" style="color: var(--fairway); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.1rem;">${esc(fmtHcp(player.handicap))}</div>`
+                        : '<div class="col-hcp hcp-none">No HCP</div>'}
                 </div>`).join('')}
         </div>`;
 }

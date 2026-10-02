@@ -3,7 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
-    <script>document.documentElement.classList.add('js');</script>
+    <script>
+        document.documentElement.classList.add('js');
+        // Safety net for a weak signal: script.js runs only after the supabase-js download below, and
+        // until it starts, the headings and copy that fade in on scroll (.js .reveal in home.css) stay
+        // invisible. If it hasn't started within 3 seconds (slow or blocked), 'reveals-shown' shows them
+        // as plain text, for good (nothing hides them again). It touches only the reveals: the 'js' class
+        // stays, so the trip-day buttons and countdown stay hidden until the phase script below picks them.
+        setTimeout(function () {
+            if (!window.__homeInit) document.documentElement.classList.add('reveals-shown');
+        }, 3000);
+    </script>
     <script>
         // Email links (invite, confirm, password reset, expired-link errors) default to the
         // homepage; The Bookie is the page that finishes them, so send them there.
@@ -24,9 +34,11 @@
     <meta name="twitter:image" content="https://bros-before-boges.vercel.app/assets/courses/og-card.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- supabase-js (end of the page): open the connection now so the download starts sooner -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.9">
-    <link rel="stylesheet" href="home.css?v=2027.12">
+    <link rel="stylesheet" href="style.css?v=2027.10">
+    <link rel="stylesheet" href="home.css?v=2027.13">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -91,7 +103,8 @@
                                 Standings
                             </button>
                         </li>
-                        <li>
+                        <!-- data-admin-link: Admin shows only to admins (script.js asks is_trip_admin once the login is known) -->
+                        <li data-admin-link hidden>
                             <a href="admin.html">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                                 Admin
@@ -141,7 +154,7 @@
         <div class="drawer-sub">
             <a href="round_tracker.html#setup" data-phase="pre">Keep score</a>
             <button type="button" class="drawer-link" data-action="scoreboard" data-phase="trip wrap" hidden>Standings</button>
-            <a href="admin.html">Admin</a>
+            <a href="admin.html" data-admin-link hidden>Admin</a>
         </div>
         <!-- Player account row: filled by script.js once the login is checked -->
         <div class="drawer-account" id="drawer-account" hidden></div>
@@ -374,7 +387,7 @@
                     <li><button type="button" data-action="scoreboard">Standings</button></li>
                     <li><a href="round_tracker.html#board">Live scores</a></li>
                     <li><a href="round_tracker.html#setup">Keep score</a></li>
-                    <li><a href="admin.html">Admin</a></li>
+                    <li data-admin-link hidden><a href="admin.html">Admin</a></li>
                 </ul>
                 <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
             </div>
@@ -429,11 +442,11 @@
 
             <div id="rsvp-step-form">
                 <p class="eyebrow rsvp-eyebrow" id="rsvp-eyebrow">2027 · Scottsdale · Apr 8–11</p>
-                <h2 id="rsvp-title" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
+                <h2 id="rsvp-title" tabindex="-1" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
                 <!-- Before the trip, with an RSVP-by date (rsvp.lockBy), script.js leads with the date and swaps
                      "any time" for a line that doesn't argue with it. This text is the one used otherwise. -->
                 <p class="modal-lede" id="rsvp-form-lede">Change your answer any time. We count your latest one.</p>
-                <p class="rsvp-who">RSVPing as <b id="rsvp-who-name"></b>
+                <p class="rsvp-who" id="rsvp-who">RSVPing as <b id="rsvp-who-name"></b>
                     <span class="rsvp-who-links">
                         <button type="button" class="link-btn" data-action="profile">Golf profile</button>
                         <span aria-hidden="true">·</span>
@@ -445,6 +458,10 @@
 
                     <fieldset class="rsvp-choices" aria-describedby="rsvp-status-error">
                         <legend>Are you going?</legend>
+                        <!-- The sheet opens on the tap. On a slow signal (still loading after a moment) script.js
+                             dims the locked form and shows "Loading your RSVP…" here, over the choices, so nothing
+                             moves. Always in the page (empty when idle) so screen readers announce it. -->
+                        <p class="form-loading" id="rsvp-loading" role="status"></p>
                         <label class="rsvp-choice in">
                             <input type="radio" name="status" value="in" required>
                             <span class="rc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span>
@@ -499,22 +516,28 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
             <p class="eyebrow">2027 · Scottsdale</p>
-            <h2 id="registration-title" style="margin-bottom: 14px;">Your golf <em>profile</em></h2>
-            <p class="modal-lede">Add your GHIN and handicap so the captains can draft fair teams.</p>
-            <p class="rsvp-who">Updating <b id="profile-name"></b></p>
+            <h2 id="registration-title" tabindex="-1" style="margin-bottom: 14px;">Your golf <em>profile</em></h2>
+            <!-- The crew list shows handicaps only (no GHIN numbers); Admin has the GHINs -->
+            <p class="modal-lede" id="profile-lede">The captains use your GHIN to draft fair teams; the crew list shows only your handicap.</p>
+            <p class="rsvp-who" id="profile-who">Updating <b id="profile-name"></b></p>
             <form id="registration-form" class="registration-form" novalidate>
                 <div class="form-row">
+                    <!-- As in the RSVP sheet: "Loading your golf profile…" over the locked form on a slow signal -->
+                    <p class="form-loading" id="profile-loading" role="status"></p>
                     <div class="form-group">
                         <label for="ghin-number">GHIN number <span class="req">Optional</span></label>
-                        <input type="text" id="ghin-number" name="ghinNumber" class="field-input" inputmode="numeric" autocomplete="off">
+                        <input type="text" id="ghin-number" name="ghinNumber" class="field-input" inputmode="numeric" autocomplete="off" aria-describedby="ghin-hint">
+                        <p class="field-hint" id="ghin-hint">In your GHIN app or on your club card. No GHIN? Leave it blank.</p>
                     </div>
                     <div class="form-group">
                         <label for="handicap">Handicap <span class="req">Optional</span></label>
-                        <input type="text" id="handicap" name="handicap" class="field-input" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="e.g. 9.4">
+                        <input type="text" id="handicap" name="handicap" class="field-input" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="e.g. 9.4" aria-describedby="handicap-hint">
+                        <!-- The plus box sits right under the number it changes; the hint follows -->
                         <label class="rsvp-check hcp-plus" for="handicap-plus">
                             <input type="checkbox" id="handicap-plus" name="handicapPlus">
                             <span>Plus handicap (+)</span>
                         </label>
+                        <p class="field-hint" id="handicap-hint">No official handicap? Give your best guess; the captains can adjust.</p>
                     </div>
                 </div>
                 <p class="form-error" id="profile-error" role="alert" hidden></p>
@@ -544,7 +567,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.11"></script>
+    <script src="trip-config.js?v=2027.12"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -572,7 +595,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.12"></script>
+    <script src="script.js?v=2027.13"></script>
 </body>
 
 </html>

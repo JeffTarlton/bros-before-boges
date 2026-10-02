@@ -290,6 +290,7 @@ img { max-width: 100%; display: block; }
     width: 100%;
     align-items: center;
     gap: 10px;
+    min-height: 44px;
     padding: 12px 14px;
     border-radius: 10px;
     color: var(--ink);
@@ -474,6 +475,8 @@ body.drawer-open { overflow: hidden; }
     transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
 }
 .reveal.is-in { opacity: 1; transform: none; }
+/* index.html's safety net: script.js hasn't started after 3 s (weak signal or blocked), so show them */
+.js.reveals-shown .reveal { opacity: 1; transform: none; }
 .reveal-delay-1 { transition-delay: 0.08s; }
 .reveal-delay-2 { transition-delay: 0.16s; }
 .reveal-delay-3 { transition-delay: 0.24s; }
@@ -2328,9 +2331,6 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 /* visual-desktop-7: even crew rows */
 .crew-grid { grid-auto-rows: 1fr; }
 
-/* visual-desktop-9: scoreboard GHIN column */
-.leaderboard-row .col-ghin { flex-basis: 120px; text-align: right; }
-
 /* visual-mobile-1: form buttons wrap instead of overflowing */
 .form-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .form-actions .btn[type="submit"] { flex: 1 1 auto; }
@@ -3274,3 +3274,91 @@ a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgb
 .hc-due.is-past svg { color: var(--ink-dim); }
 .rsvp-due { color: var(--ink); font-weight: 600; }
 .rsvp-due.is-past { color: inherit; font-weight: inherit; }
+
+
+/* --------------------------------------------------------------------------
+   Crew list handicaps, golf profile hints, and the RSVP sheet / profile loading state
+   -------------------------------------------------------------------------- */
+/* Crew cards show the handicap only (no GHIN numbers). No handicap: a quiet "No HCP" in its place. */
+.player-hcp.is-none span { display: block; font-size: 0.62rem; line-height: 1.3; white-space: nowrap; }
+/* Standings roster: the same "No HCP" in the Handicap column */
+.leaderboard-row .col-hcp.hcp-none { color: var(--ink-dim); font: 700 0.68rem var(--sans); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+
+/* Golf profile: a hint under each box (where to find a GHIN, what to do without a handicap). The
+   "Plus handicap" box sits right under the Handicap box it changes, with that hint below it. */
+#registration-form .field-input { margin-bottom: 0; }
+#registration-form .form-group { margin-bottom: 20px; }
+#registration-form .rsvp-check.hcp-plus { margin-top: 12px; }
+.field-hint { margin-top: 7px; font-size: 0.82rem; line-height: 1.4; color: var(--ink-dim); text-wrap: pretty; }
+/* Phones: a little tighter, and Save / Cancel side by side (as on desktop), so with the hints the
+   whole profile, Save included, still fits a small phone (375 x 667) without scrolling */
+@media (max-width: 640px) {
+    #registration-modal .rsvp-who { margin-bottom: 12px; }
+    #registration-form .form-group { margin-bottom: 12px; }
+    #registration-form .rsvp-check.hcp-plus { margin-top: 10px; }
+    #registration-form .field-hint { margin-top: 5px; }
+    #registration-form .form-actions { margin-top: 4px; flex-wrap: nowrap; }
+    #registration-form .form-actions .btn { flex: 1 1 0; min-width: 0; }
+}
+
+/* Loading: the sheet and the profile open on the tap. Until the login (and the player's RSVP) are in,
+   the form is locked (aria-busy, inert), which doesn't change how it looks. Only if it's still loading
+   after a moment does script.js add .is-loading (controls disabled): the form dims and a "Loading…"
+   pill shows over it. So a quick load shows no change at all, and nothing moves either way. */
+#rsvp-form .rsvp-choices,
+#registration-form .form-row { position: relative; }
+.form-loading {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    pointer-events: none;
+}
+.is-loading .form-loading:not(:empty) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: rgba(20, 16, 13, 0.94);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color: var(--ink);
+    font: 600 0.92rem var(--sans);
+    white-space: nowrap;
+    animation: form-loading-in 0.2s both;
+}
+@keyframes form-loading-in { from { opacity: 0; } to { opacity: 1; } }
+.form-spinner {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(232, 184, 107, 0.28);
+    border-top-color: var(--gold);
+    animation: form-spin 0.8s linear infinite;
+}
+@keyframes form-spin { to { transform: rotate(360deg); } }
+#rsvp-step-form.is-loading .rsvp-who,
+#rsvp-step-form.is-loading .rsvp-choices > :not(.form-loading),
+#rsvp-step-form.is-loading #rsvp-form > :not(.rsvp-choices),
+#registration-form.is-loading .form-row > .form-group,
+#registration-form.is-loading #profile-submit {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+#rsvp-step-form[aria-busy] .rsvp-choice,
+#rsvp-step-form[aria-busy] .rsvp-check,
+#rsvp-step-form[aria-busy] .btn,
+#rsvp-step-form[aria-busy] .link-btn,
+#registration-form[aria-busy] .rsvp-check,
+#registration-form[aria-busy] #profile-submit { cursor: progress; }
+#rsvp-step-form[aria-busy] .btn:hover,
+#registration-form[aria-busy] #profile-submit:hover { transform: none; }
+/* Who's RSVPing / updating, while the login is still being checked: the row keeps its place */
+.rsvp-who.is-unknown { visibility: hidden; }
+/* The titles take focus while it loads (the controls are locked); no ring on a heading */
+#rsvp-title:focus,
+#registration-title:focus { outline: none; }

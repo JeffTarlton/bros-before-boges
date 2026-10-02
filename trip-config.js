@@ -114,6 +114,7 @@ window.BBB = {
 
     // The Bookie (side bets). Bets made before seasonStart belong to earlier trips: they move to
     // the "Past Trips" tab and drop out of this year's ledger. Move the date up after each trip.
+    // Settle or cancel open bets before moving this date: older bets become Past Trips and can't be settled.
     bookie: { seasonStart: '2026-06-01' },
 
     hero: {

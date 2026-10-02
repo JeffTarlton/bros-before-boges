@@ -604,7 +604,8 @@ async function joinRoster(name, email) {
         await sendAlert(`BBB new player: ${data.name} (needs approval)`, {
             name: data.name,
             email: email || '—',
-            next_step: 'Approve them in Admin → RSVPs so they show on the site.'
+            next_step: 'Approve them in Admin → RSVPs (link below) so they show on the site.',
+            admin_link: 'https://bros-before-boges.vercel.app/admin#rsvps'
         });
     }
     return data;
