@@ -1101,6 +1101,7 @@ function openAuthModal(mode) {
     authMode = mode;
     setAuthMessage('');
     authForm.reset();
+    authForm.classList.remove('is-sent');
     showModalForm('auth');
 
     const isRegister = mode === 'register';
@@ -1158,6 +1159,11 @@ function friendlyAuthError(err) {
     if (/email not confirmed/i.test(msg)) return 'Confirm your email first: open the link we sent you, then log in here. Link expired? Tap “Forgot password?” below for a fresh one.';
     if (/already registered/i.test(msg)) return 'That email already has a login (maybe from keeping score or Admin). Log in with it instead, then pick your name to link it.';
     if (/password should be at least/i.test(msg)) return 'Pick a password with at least 6 characters.';
+    // Supabase sends one email per address per minute
+    const wait = msg.match(/only request this after (\d+) seconds?/i);
+    if (wait) return `We just sent an email to that address. Check the inbox and spam folder for it. Nothing there? You can ask for another in ${wait[1]} seconds.`;
+    if (/email rate limit|over_email_send_rate_limit/i.test(msg)) return 'Too many emails have gone out from the site this hour. Try again later, or ask the commissioner.';
+    if (/error sending (confirmation|recovery|magic link)? ?email/i.test(msg)) return 'We couldn’t send the email just now. Try again in a few minutes, or ask the commissioner.';
     if (isMissingFunction(err)) return 'This part of the site is still being set up. Try again in a few minutes, or text the commissioner.';
     return msg;
 }
@@ -1253,7 +1259,7 @@ async function handleAuthSubmit(e) {
             const result = await registerAccount(playerId, email, password, newName);
             if (result === 'confirm') {
                 // The email's link logs them in and brings them back here (with ?next= kept)
-                setAuthMessage(`Almost done: check ${email} for “Confirm your email” from Bros before Boges. Tap the link in it and you’ll be logged in${NEXT === 'rsvp' ? ' and taken straight to the RSVP' : ''}. Nothing after a few minutes? Check spam, or ask the commissioner.`, false);
+                showSignupSent(`Almost done: check ${email} for “Confirm your email” from Bros before Boges. Tap the link in it and you’ll be logged in${NEXT === 'rsvp' ? ' and taken straight to the RSVP' : ''}. Nothing after a few minutes? Check spam, or ask the commissioner.`);
                 return;
             }
             if (result === 'held') showToast('Account created. The commissioner checks it’s really you first.', 'info');
@@ -1286,12 +1292,25 @@ async function handleAuthSubmit(e) {
                 if (picker && !picker.hidden) showToast(friendlyAuthError(err), 'error');
                 return;
             }
+            // Tapped again within a minute: the first tap already sent the confirmation email
+            if (/only request this after \d+ seconds?/i.test((err && err.message) || '')) {
+                showSignupSent(`We already sent “Confirm your email” to ${email}. Check the inbox and spam folder, then tap the link in it to log in.`);
+                return;
+            }
         }
         setAuthMessage(friendlyAuthError(err), true);
     } finally {
         authSubmitBtn.disabled = false;
         authSubmitBtn.textContent = idleLabel;
     }
+}
+
+// After sign-up only the "check your email" note shows, so nobody taps "Create my account" twice
+function showSignupSent(text) {
+    authForm.classList.add('is-sent');
+    modalTitle.textContent = 'Check your email';
+    setAuthMessage(text, false);
+    toggleAuthModeBtn.textContent = 'Confirmed your email? Log in';
 }
 
 async function sendPasswordReset(e) {
