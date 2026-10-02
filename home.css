@@ -3467,3 +3467,106 @@ a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgb
 @media (max-width: 640px) {
     .cost-meta .cost-paid { margin-top: 12px; font-size: 0.88rem; }
 }
+
+/* --------------------------------------------------------------------------
+   Your checklist (deposits_2027.sql): the signed-in player's card at the top of The Trip, before the
+   trip. script.js fills it (renderChecklist): RSVP, deposit, golf profile, Venmo; or one compact row
+   (all set, can't make it, waiting for approval).
+   -------------------------------------------------------------------------- */
+.checklist {
+    margin: 0 0 clamp(28px, 4vw, 40px);
+    padding: clamp(18px, 2.6vw, 28px);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(226, 125, 79, 0.28);
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(226, 125, 79, 0.12), transparent 55%),
+        linear-gradient(160deg, var(--surface-2), var(--surface));
+    color: var(--ink);
+}
+.checklist[hidden] { display: none; }
+.checklist-eyebrow { font: 700 0.72rem var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--copper); margin: 0 0 6px; }
+.checklist-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; margin-bottom: 16px; }
+.checklist-head .checklist-eyebrow { flex: 1 0 100%; }
+#checklist-title { font-family: var(--serif); font-weight: 500; font-size: clamp(1.45rem, 2.6vw, 1.85rem); line-height: 1.15; letter-spacing: -0.01em; color: var(--ink); margin: 0; }
+#checklist-title:focus { outline: none; }
+#checklist-title:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 4px; }
+.checklist-count { color: var(--ink-muted); font-size: 0.92rem; margin: 0; }
+
+.checklist-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.check-item {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(14, 11, 9, 0.35);
+    border: 1px solid var(--line);
+}
+@media (min-width: 900px) {
+    .checklist-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .check-item[data-item="deposit"]:is([data-state="pay"], [data-state="ask"], [data-state="sent"]) { grid-column: 1 / -1; }
+    /* ...and then the RSVP above it too, so it doesn't sit alone beside an empty half */
+    .checklist-items:has(> .check-item[data-item="deposit"]:is([data-state="pay"], [data-state="ask"], [data-state="sent"])) > .check-item[data-item="rsvp"] { grid-column: 1 / -1; }
+}
+
+/* The round mark: a tick when done, a dashed ring to do, a clock while an admin checks, a lock, or info */
+.check-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex: none;
+    border: 1.5px dashed var(--ink-dim);
+    color: #140e0a;
+}
+.check-mark svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.is-done > .check-mark, .check-mark.is-allset { background: var(--fairway); border: 0; }
+.is-waiting > .check-mark { background: var(--gold); border: 0; }
+.is-locked > .check-mark, .check-mark.is-held, .check-mark.is-out { background: none; border: 1.5px solid var(--ink-dim); color: var(--ink-dim); }
+.is-alert > .check-mark { background: var(--red-team); border: 0; }
+.is-alert { border-color: rgba(255, 123, 114, 0.35); }
+
+.check-body { min-width: 0; }
+.check-title { font-weight: 600; color: var(--ink); line-height: 1.35; margin: 3px 0 0; }
+.is-locked .check-title { color: var(--ink-muted); }
+.check-detail, .check-note { color: var(--ink-muted); font-size: 0.9rem; line-height: 1.45; margin: 4px 0 0; overflow-wrap: anywhere; }
+.check-note { color: var(--ink-dim); }
+.check-handle { overflow-wrap: anywhere; }
+.check-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; }
+.check-actions:empty { display: none; }
+.check-also { color: var(--ink-muted); font-size: 0.9rem; margin: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; }
+.checklist .link-btn { margin-left: 0; min-height: 44px; display: inline-flex; align-items: center; }
+.checklist .link-btn:disabled, .checklist .btn:disabled { opacity: 0.6; cursor: progress; transform: none; }
+.checklist a.link-btn { text-decoration: underline; }
+.check-ask, .check-rejected { margin-top: 10px; padding: 10px 14px; border-radius: 12px; font-size: 0.92rem; line-height: 1.45; }
+.check-ask { border: 1px solid rgba(226, 125, 79, 0.45); background: rgba(226, 125, 79, 0.08); color: var(--ink); }
+.check-ask-q { margin: 0; font-weight: 600; }
+.check-ask-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
+.check-rejected { border: 1px solid rgba(255, 123, 114, 0.45); background: rgba(255, 123, 114, 0.09); color: var(--ink); }
+.check-error { color: var(--red-team); font-size: 0.88rem; margin: 8px 0 0; }
+.check-error:empty { display: none; }
+.check-admin { margin: 14px 0 0; color: var(--ink-muted); font-size: 0.9rem; }
+.check-admin a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; min-height: 44px; }
+
+/* One row: the mark, the text, the button (all set, can't make it, waiting for approval) */
+.checklist.is-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.checklist.is-compact .check-body { flex: 1 1 260px; }
+.checklist.is-compact #checklist-title { font-size: clamp(1.15rem, 2vw, 1.35rem); }
+.checklist.is-compact .check-actions { margin-top: 0; }
+.checklist.is-compact .check-admin { margin-top: 6px; }
+
+/* The hero row's "· 3 to do" (a 44px tap area without changing the row) and the cost line's action */
+.hero-you-todo { position: relative; color: var(--gold); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.hero-you-todo::after { content: ''; position: absolute; inset: -13px -4px; }
+.cost-pay-action a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 640px) {
+    .check-actions .check-pay { flex: 1 1 100%; width: 100%; }
+    .check-also { flex: 1 1 100%; }
+}
+@media (max-width: 380px) {
+    .check-item { grid-template-columns: 1fr; gap: 8px; }
+    .check-ask-actions .btn { flex: 1 1 100%; }
+    .checklist.is-compact .check-actions, .checklist.is-compact .check-actions .btn { width: 100%; }
+}

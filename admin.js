@@ -76,7 +76,8 @@ const EDITOR_TABS = ['tab-roster', 'tab-drafting', 'tab-matchups', 'tab-potentia
 const payData = {
     trip: { state: 'idle', rows: [], error: '', job: 0, reading: false },              // trip_payments, every year
     venmo: { state: 'idle', byPlayer: new Map(), error: '', job: 0, reading: false },  // player_venmo
-    logins: { state: 'idle', byPlayer: new Map(), error: '', job: 0, reading: false }  // admin_roster_logins()
+    logins: { state: 'idle', byPlayer: new Map(), error: '', job: 0, reading: false }, // admin_roster_logins()
+    claims: { state: 'idle', rows: [], error: '', job: 0, reading: false }              // admin_deposit_claims() (deposits_2027.sql)
 };
 let rsvpLoading = false; // an RSVP load is running (it draws the table itself when it's done)
 let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
@@ -2259,6 +2260,7 @@ async function loadRsvpAdmin() {
     // when they land (payments_2027.sql; until it has run they say "Being set up")
     loadRosterLogins();
     loadTripPayments();
+    loadDepositClaims(); // Deposits to confirm (deposits_2027.sql)
     // The roster is re-read here too, so players who signed up after this page opened show
     // up (with Approve). It's kept apart from the roster tab so unsaved edits there survive.
     const [rsvpResult, rosterResult] = await Promise.all([
@@ -2532,6 +2534,8 @@ function renderRsvpAdmin() {
             pill('Sunday round', count(e => e.latest && e.latest.sunday_round && e.answer !== 'out')),
             pill('Needs approval', count(e => e.needsApproval)),
             paidPillHtml(pill),
+            claimsPillHtml(pill),
+            depositPillHtml(pill, entries),
             rsvpDuePillHtml()
         ].filter(Boolean).join('');
     }
@@ -2668,9 +2672,21 @@ function exportRsvpCsv() {
     // What each player has paid toward the trip, once trip payments are set up (a number, in dollars)
     const withPaid = payData.trip.state === 'ok';
     if (withPaid) header.push(`Paid toward trip (${paymentsYear()})`);
+    // Each player's latest "I sent it" this trip (deposits_2027.sql), once that's loaded
+    const withClaims = payData.claims.state === 'ok';
+    if (withClaims) header.push(`Deposit claim (${paymentsYear()})`);
+    const claimText = id => {
+        const c = id ? latestClaimOf(id) : null;
+        if (!c) return '';
+        if (c.status === 'sent') return `Sent ${shortDay(c.sent_at)} (waiting)`;
+        if (c.status === 'confirmed') return `Confirmed ${shortDay(c.resolved_at)}`;
+        if (c.status === 'rejected') return `Not received (${shortDay(c.resolved_at)})`;
+        return c.status === 'withdrawn' ? 'Taken back' : '';
+    };
     const rows = rsvpEntries().map(e => {
         const p = e.player || {};
         const paid = withPaid ? [e.player && p.id ? paidCentsOf(p.id) / 100 : ''] : [];
+        if (withClaims) paid.push(claimText(e.player && p.id));
         return [
             e.name,
             e.latest ? RSVP_ANSWERS[e.answer] : 'No reply',
@@ -2821,11 +2837,14 @@ function paymentsChanged(part) {
         keepFocusIn(elements.potentialList, renderPotentialUI);
     }
     if (rsvpLoaded && !rsvpLoading) keepFocusIn(document.getElementById('rsvp-admin-tbody'), renderRsvpAdmin);
-    if (part === 'trip' && paySheet.playerId) renderPaySheet();
+    if ((part === 'trip' || part === 'claims') && paySheet.playerId) renderPaySheet();
+    // Deposits to confirm (its "Already in Paid" follows the trip payments) and an open Confirm sheet
+    if (part === 'claims' || part === 'trip') keepFocusIn(document.getElementById('deposit-claims'), renderDepositClaims);
+    if (claimSheet.id) renderClaimSheet();
 }
 
 function focusKey(el) {
-    const attr = ['data-pay', 'data-approve', 'data-release', 'data-approve-pick', 'data-venmo', 'data-pay-delete']
+    const attr = ['data-pay', 'data-approve', 'data-release', 'data-approve-pick', 'data-venmo', 'data-pay-delete', 'data-claim-confirm', 'data-claim-reject', 'data-claim-reopen']
         .find(a => el && el.hasAttribute && el.hasAttribute(a));
     return attr ? `[${attr}="${CSS.escape(el.getAttribute(attr))}"]` : null;
 }
@@ -2864,6 +2883,7 @@ function retryPaymentLoads() {
     if (payData.venmo.state === 'error') loadVenmo();
     if (payData.trip.state === 'error') loadTripPayments();
     if (payData.logins.state === 'error') loadRosterLogins();
+    if (payData.claims.state === 'error') loadDepositClaims();
 }
 
 // ---- Money and dates ----
@@ -3058,10 +3078,13 @@ function paidCellHtml(p, name) {
     const rows = tripPaymentsOf(p.id);
     const who = escHtml(name || p.name);
     const id = escHtml(p.id);
-    if (!rows.length) return `<button type="button" class="cell-btn is-empty" data-pay="${id}">Add<span class="sr-only"> a trip payment for ${who}</span></button>`;
+    // He tapped "I sent it" on the homepage and it's waiting under Deposits to confirm
+    const open = openClaimOf(p.id);
+    const flag = open ? `<span class="claim-flag" title="Tapped I sent it ${escHtml(fmtWhen(open.sent_at))}">Says sent ${money(centsOf(open.amount))}</span>` : '';
+    if (!rows.length) return `<button type="button" class="cell-btn is-empty" data-pay="${id}">Add<span class="sr-only"> a trip payment for ${who}</span></button>${flag}`;
     const total = rows.reduce((sum, r) => sum + centsOf(r.amount), 0);
     const count = `${rows.length} payment${rows.length === 1 ? '' : 's'}`;
-    return `<button type="button" class="cell-btn" data-pay="${id}" title="${count}">${money(total)}<span class="sr-only">: ${who}’s trip payments (${count})</span></button>`;
+    return `<button type="button" class="cell-btn" data-pay="${id}" title="${count}">${money(total)}<span class="sr-only">: ${who}’s trip payments (${count})</span></button>${flag}`;
 }
 
 // An email that may wrap: at the @ first, rather than mid-word
@@ -3131,6 +3154,13 @@ function renderPaySheet() {
     const cost = tripCost();
     const of = cost ? ` <span>of ${cost.approx ? 'about ' : ''}${money(cost.cents)}</span>` : '';
     totalEl.innerHTML = rows.length ? `Paid ${money(total)}${of}` : `Nothing recorded yet.${cost ? ` <span>The trip is ${cost.approx ? 'about ' : ''}${money(cost.cents)} per person.</span>` : ''}`;
+    // A deposit he says he sent: confirming it there records it and closes his claim
+    const claimEl = document.getElementById('pay-sheet-claim');
+    if (claimEl) {
+        const open = openClaimOf(id);
+        claimEl.textContent = open ? `He tapped “I sent it” for ${money(centsOf(open.amount))} on ${shortDay(open.sent_at)}. Confirm it under Deposits to confirm instead of adding it here, so his claim closes too.` : '';
+        claimEl.hidden = !open;
+    }
     const sheet = document.getElementById('pay-sheet');
     const had = sheet && sheet.contains(document.activeElement) ? focusKey(document.activeElement) : null;
     const item = (r, trip) => {
@@ -3265,6 +3295,441 @@ async function deleteTripPayment(id, btn) {
     (left[Math.min(at, left.length - 1)] || document.getElementById('pay-amount')).focus();
     if (rsvpLoaded && !rsvpLoading) renderRsvpAdmin();
     window.showToast(escHtml(said), 'success');
+}
+
+// ---- Deposits to confirm (deposits_2027.sql): "I sent it" from the homepage ----
+// A player taps Pay on Venmo on his checklist, then "I sent it". His claim waits here until an admin
+// checks the payee's Venmo and confirms it (recorded in Paid, which ticks his checklist) or marks it not
+// received. Names come from admin_deposit_claims and the roster already loaded (never emails or GHINs).
+
+async function loadDepositClaims() {
+    await loadPayPart(payData.claims, () => supabaseInstance.rpc('admin_deposit_claims', { p_trip_year: paymentsYear() }),
+        rows => { payData.claims.rows = rows; });
+    paymentsChanged('claims');
+}
+
+// trip-config's deposit (trip.cost.payment.amount) in cents, or null
+function depositCents() {
+    const pay = window.BBB && window.BBB.trip && window.BBB.trip.cost && window.BBB.trip.cost.payment;
+    const n = pay && typeof pay === 'object' ? Number(pay.amount) : NaN;
+    return typeof (pay && pay.amount) === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+}
+
+// Who collects it (trip-config's payment.payTo)
+function payeeName() {
+    const pay = window.BBB && window.BBB.trip && window.BBB.trip.cost && window.BBB.trip.cost.payment;
+    const name = pay && typeof pay === 'object' && typeof pay.payTo === 'string' ? pay.payTo.trim() : '';
+    return name || 'the payee';
+}
+
+// His claim waiting for an admin, or null (also while the claims aren't loaded)
+function openClaimOf(playerId) {
+    if (!playerId || payData.claims.state !== 'ok') return null;
+    return payData.claims.rows.find(c => c.player_id === playerId && c.status === 'sent') || null;
+}
+
+// His newest claim this trip, or null
+function latestClaimOf(playerId) {
+    if (!playerId || payData.claims.state !== 'ok') return null;
+    return payData.claims.rows.filter(c => c.player_id === playerId)
+        .sort((a, b) => (Date.parse(b.sent_at) - Date.parse(a.sent_at)) || (String(a.id) < String(b.id) ? 1 : -1))[0] || null;
+}
+
+// The trip's 'YYYY-MM-DD' at an instant (the day he tapped it, where the trip is)
+function tripDateOf(iso) {
+    const tz = (window.BBB && window.BBB.trip && window.BBB.trip.timeZone) || 'America/Phoenix';
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) return localDate();
+    try {
+        const p = {};
+        new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+            .formatToParts(new Date(ms)).forEach(x => { p[x.type] = x.value; });
+        return `${p.year}-${p.month}-${p.day}`;
+    } catch (e) {
+        return new Date(ms - 7 * 3600000).toISOString().slice(0, 10);
+    }
+}
+
+// "Oct 3", in this computer's time
+function shortDay(iso) {
+    const ms = Date.parse(iso);
+    return Number.isFinite(ms) ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+}
+
+// What's been recorded for him this trip since he tapped I sent it (admin_confirm_deposit refuses to add
+// another payment then: it may be the same money)
+function sinceCentsOf(claim) {
+    if (!claim || payData.trip.state !== 'ok') return 0;
+    const sent = Date.parse(claim.sent_at);
+    return tripPaymentsOf(claim.player_id).filter(r => Date.parse(r.created_at) >= sent).reduce((sum, r) => sum + centsOf(r.amount), 0);
+}
+
+// What he's paid this trip: the Paid column's total when it's loaded, else what the claim list says
+function claimPaidCents(claim) {
+    return payData.trip.state === 'ok' ? paidCentsOf(claim.player_id) : centsOf(claim.paid_total);
+}
+
+function claimName(claim) {
+    const p = findRosterPlayer(claim.player_id);
+    return claim.player_name || (p && p.name) || 'This player';
+}
+
+function renderDepositClaims() {
+    const el = document.getElementById('deposit-claims');
+    const hint = document.getElementById('deposit-claims-hint');
+    const countEl = document.getElementById('deposit-claims-count');
+    const list = document.getElementById('deposit-claims-list');
+    const recent = document.getElementById('deposit-claims-recent');
+    const recentList = document.getElementById('deposit-claims-recent-list');
+    if (!el || !hint || !countEl || !list || !recent || !recentList) return;
+    const part = payData.claims;
+    const setHint = (html, alert) => {
+        if (hint.dataset.html !== html) {
+            hint.dataset.html = html;
+            hint.innerHTML = html;
+        }
+        if (alert) hint.setAttribute('role', 'alert');
+        else hint.removeAttribute('role');
+    };
+    const empty = () => {
+        countEl.textContent = '';
+        list.innerHTML = '';
+        recentList.innerHTML = '';
+        recent.hidden = true;
+        el.classList.remove('has-open');
+    };
+    const state = supabaseInstance ? part.state : 'idle';
+    // Not loaded yet; or the payments script hasn't run either (#rsvp-pay-note already says so)
+    if (state === 'idle' || state === 'loading' || (state === 'missing' && payData.trip.state === 'missing')) {
+        el.hidden = true;
+        return;
+    }
+    if (state === 'missing' || state === 'error') {
+        empty();
+        el.setAttribute('data-state', state);
+        setHint(state === 'missing'
+            ? '“I sent it” deposits are being set up (run deposits_2027.sql).'
+            : `Couldn’t load deposit claims: ${escHtml(part.error)} <button type="button" class="admin-btn secondary" data-retry-pay>Retry</button>`, state === 'error');
+        el.hidden = false;
+        return;
+    }
+    const rows = part.rows || [];
+    if (!rows.length) {
+        el.hidden = true;
+        return;
+    }
+    el.setAttribute('data-state', 'ok');
+    setHint(escHtml(`They tapped “I sent it” on the homepage. Check ${payeeName()}’s Venmo, then Confirm (it’s recorded in Paid and ticks their checklist) or Not received.`), false);
+    const waiting = rows.filter(c => c.status === 'sent');
+    countEl.textContent = String(waiting.length);
+    el.classList.toggle('has-open', waiting.length > 0);
+    list.innerHTML = waiting.length ? waiting.map(c => {
+        const id = escHtml(c.id);
+        const name = escHtml(claimName(c));
+        const amount = money(centsOf(c.amount));
+        const paid = claimPaidCents(c);
+        return `<li class="claim" data-claim-id="${id}">
+            <div class="claim-body">
+                <div class="claim-main"><b>${name}</b> · <b>${amount}</b> <span class="claim-when">sent ${escHtml(fmtWhen(c.sent_at))}</span></div>
+                <div class="claim-meta">${c.venmo ? `Venmo @${escHtml(c.venmo)}` : 'no Venmo saved'}${paid > 0 ? ` · Already in Paid: ${money(paid)}` : ''}</div>
+            </div>
+            <div class="claim-actions">
+                <button type="button" class="admin-btn" data-claim-confirm="${id}">Confirm<span class="sr-only"> ${name}’s ${amount}</span></button>
+                <button type="button" class="admin-btn secondary" data-claim-reject="${id}">Not received<span class="sr-only">: ${name}’s ${amount}</span></button>
+            </div>
+        </li>`;
+    }).join('') : '<li class="claims-empty">Nothing waiting.</li>';
+    // Recently handled: the 10 newest, by when they were handled
+    const when = c => Date.parse(c.resolved_at || c.sent_at) || 0;
+    const done = rows.filter(c => c.status !== 'sent').sort((a, b) => when(b) - when(a)).slice(0, 10);
+    recentList.innerHTML = done.map(c => {
+        const id = escHtml(c.id);
+        const name = escHtml(claimName(c));
+        const amount = money(centsOf(c.amount));
+        const day = escHtml(shortDay(c.resolved_at));
+        const who = escHtml(c.resolved_by_name || 'an admin');
+        let text;
+        let reopen = '';
+        if (c.status === 'confirmed' && c.trip_payment_id) {
+            const got = c.recorded_amount === null || c.recorded_amount === undefined ? centsOf(c.amount) : centsOf(c.recorded_amount);
+            text = `${name} · confirmed ${money(got)}${got !== centsOf(c.amount) ? ` (said ${amount})` : ''} · ${day} by ${who}`;
+        } else if (c.status === 'confirmed') {
+            text = `${name} · ${amount} · closed (already in Paid) ${day} by ${who}`;
+        } else if (c.status === 'rejected') {
+            text = `${name} · ${amount} · not received ${day} by ${who}`;
+            // Only his latest, and only when nothing of his is waiting (else handle that one)
+            const latest = latestClaimOf(c.player_id);
+            if (latest && latest.id === c.id && !openClaimOf(c.player_id)) {
+                reopen = `<button type="button" class="admin-btn secondary" data-claim-reopen="${id}">Reopen<span class="sr-only"> ${name}’s ${amount}</span></button>`;
+            }
+        } else {
+            text = `${name} · ${amount} · taken back ${day}`;
+        }
+        return `<li class="claim-done" data-claim-id="${id}" data-status="${escHtml(c.status)}"><span>${text}</span>${reopen}</li>`;
+    }).join('');
+    recent.hidden = !done.length;
+    el.hidden = false;
+}
+
+// "Deposits to confirm 2" while any wait
+function claimsPillHtml(pill) {
+    if (!supabaseInstance || payData.claims.state !== 'ok') return '';
+    const n = payData.claims.rows.filter(c => c.status === 'sent').length;
+    return n > 0 ? pill('Deposits to confirm', n).replace('class="rsvp-pill"', 'class="rsvp-pill rsvp-pill-claims"') : '';
+}
+
+// "Deposit paid 1/3 (of those in)": of the roster players who said In, how many have the deposit in Paid
+function depositPillHtml(pill, entries) {
+    const dep = depositCents();
+    if (!supabaseInstance || payData.trip.state !== 'ok' || !dep) return '';
+    const inList = (entries || rsvpEntries()).filter(e => e.answer === 'in' && e.player);
+    const paid = inList.filter(e => paidCentsOf(e.player.id) >= dep).length;
+    // (a space after the count: "1/3 Deposit paid" reads as two words)
+    return pill(' Deposit paid', `${paid}/${inList.length}`, 'of those in').replace('class="rsvp-pill"', 'class="rsvp-pill rsvp-pill-deposit"');
+}
+
+// The Confirm sheet: what came in, and whether it's already in Paid (then it just closes the claim)
+const claimSheet = { id: null, busy: false };
+
+function openClaimSheet(id, opener) {
+    const c = payData.claims.rows.find(r => r.id === id);
+    if (!c || c.status !== 'sent') return;
+    if (payData.trip.state !== 'ok') {
+        window.showToast('Trip payments haven’t loaded yet. Refresh and try again.', 'error');
+        return;
+    }
+    const sheet = document.getElementById('claim-sheet');
+    const title = document.getElementById('claim-sheet-title');
+    const amountEl = document.getElementById('claim-amount');
+    const dateEl = document.getElementById('claim-date');
+    const box = document.getElementById('claim-already');
+    if (!sheet || !title || !amountEl || !dateEl || !box) return;
+    claimSheet.id = id;
+    const name = claimName(c);
+    const cents = centsOf(c.amount);
+    title.textContent = `Confirm ${name}’s deposit`;
+    document.getElementById('claim-sheet-sub').textContent =
+        `Says ${money(cents)} was sent ${fmtWhen(c.sent_at)}${c.venmo ? `, from @${c.venmo}` : ''}. Check ${payeeName()}’s Venmo first.`;
+    amountEl.value = cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100);
+    dateEl.value = tripDateOf(c.sent_at);
+    dateEl.max = localDate(365);
+    document.getElementById('claim-note').value = 'Deposit (Venmo)';
+    // Ticked to start with when he'd already paid the deposit before tapping (still his to change)
+    const dep = depositCents();
+    box.disabled = false;
+    box.checked = !!(dep && claimPaidCents(c) >= dep);
+    setSheetError('claim-error', '');
+    renderClaimSheet();
+    const touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const first = [amountEl, box, document.getElementById('claim-confirm-btn')].find(x => x && !x.disabled);
+    openSheet(sheet, opener, touch ? title : first || title);
+}
+
+function renderClaimSheet() {
+    const id = claimSheet.id;
+    if (!id) return;
+    const row = document.getElementById('claim-already-row');
+    const box = document.getElementById('claim-already');
+    const why = document.getElementById('claim-already-why');
+    const btn = document.getElementById('claim-confirm-btn');
+    const fields = ['claim-amount', 'claim-date', 'claim-note'].map(x => document.getElementById(x));
+    if (!row || !box || !why || !btn || fields.some(x => !x)) return;
+    const c = payData.claims.rows.find(r => r.id === id);
+    if (!c || c.status !== 'sent') {
+        // Another admin (or he) got there first: say so, and leave nothing to submit
+        const what = !c ? 'it isn’t there any more' : c.status === 'confirmed' ? 'confirmed' : c.status === 'rejected' ? 'marked not received' : 'taken back';
+        setSheetError('claim-error', `This one was already handled (${what}). Close this.`);
+        [...fields, box].forEach(x => { x.disabled = true; });
+        btn.disabled = true;
+        return;
+    }
+    const paid = claimPaidCents(c);
+    const since = sinceCentsOf(c);
+    document.getElementById('claim-already-label').textContent =
+        `Already recorded in Paid (${money(paid)} so far). Just close this, don’t add another payment.`;
+    row.hidden = !(paid > 0);
+    if (since > 0) {
+        // Recorded after he tapped it: probably the same money, and the database won't add another
+        box.checked = true;
+        box.disabled = true;
+        why.textContent = `${money(since)} was recorded for him after he tapped I sent it, so this is probably the same money. If it’s other money, close this and add it in his Paid column.`;
+    } else {
+        box.disabled = false;
+        why.textContent = '';
+        if (row.hidden) box.checked = false;
+    }
+    fields.forEach(x => { x.disabled = box.checked; });
+    btn.disabled = claimSheet.busy;
+    claimButtonLabel();
+}
+
+// "Close it" while it's already in Paid, else "Record $500" (what's typed), else "Record payment"
+function claimButtonLabel() {
+    const btn = document.getElementById('claim-confirm-btn');
+    const box = document.getElementById('claim-already');
+    const row = document.getElementById('claim-already-row');
+    if (!btn || claimSheet.busy || btn.disabled) return;
+    if (box && box.checked && row && !row.hidden) {
+        btn.textContent = 'Close it';
+        return;
+    }
+    const cents = parseAmount(document.getElementById('claim-amount').value);
+    btn.textContent = cents !== null && cents >= 1 && cents <= 1000000 ? `Record ${money(cents)}` : 'Record payment';
+}
+
+// After the row a button was on has gone: the next waiting Confirm, else the panel's heading
+function focusNextClaim() {
+    const next = document.querySelector('#deposit-claims-list [data-claim-confirm]') || document.getElementById('deposit-claims-title');
+    if (next && next.getClientRects().length) next.focus();
+}
+
+function redrawClaimViews() {
+    keepFocusIn(document.getElementById('deposit-claims'), renderDepositClaims);
+    if (rsvpLoaded && !rsvpLoading) keepFocusIn(document.getElementById('rsvp-admin-tbody'), renderRsvpAdmin);
+}
+
+async function saveClaimSheet(e) {
+    e.preventDefault();
+    const id = claimSheet.id;
+    if (claimSheet.busy || !id) return;
+    const c = payData.claims.rows.find(r => r.id === id);
+    if (!c || c.status !== 'sent') return renderClaimSheet();
+    const amountEl = document.getElementById('claim-amount');
+    const dateEl = document.getElementById('claim-date');
+    const noteEl = document.getElementById('claim-note');
+    const box = document.getElementById('claim-already');
+    const btn = document.getElementById('claim-confirm-btn');
+    const already = !!(box.checked && !document.getElementById('claim-already-row').hidden);
+    const fail = (text, el) => { setSheetError('claim-error', text); if (el && !el.disabled) el.focus(); };
+    let cents = null;
+    let day = null;
+    let note = '';
+    if (!already) {
+        cents = parseAmount(amountEl.value);
+        if (cents === null) return fail('Enter the amount in dollars, like 500 or 250.50.', amountEl);
+        if (cents < 1 || cents > 1000000) return fail('The amount should be between $0.01 and $10,000.', amountEl);
+        day = dateEl.value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return fail('Pick the day he paid.', dateEl);
+        if (day < '2020-01-01' || day > localDate(365)) return fail('That payment date doesn’t look right.', dateEl);
+        note = noteEl.value.trim();
+        if (note.length > 200) return fail('Keep the note to 200 characters.', noteEl);
+    }
+    setSheetError('claim-error', '');
+    const name = claimName(c);
+    claimSheet.busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_confirm_deposit', {
+            p_claim: id, p_amount: already ? null : cents / 100, p_paid_on: already ? null : day, p_note: already ? null : (note || null), p_add_payment: !already
+        });
+    } catch (err) {
+        res = { error: err };
+    }
+    claimSheet.busy = false;
+    btn.disabled = false;
+    if (res.error || !res.data) {
+        const err = res.error || new Error('Nothing came back. Refresh to check whether it saved.');
+        const code = String(err.code || '');
+        renderClaimSheet();
+        fail(isSetupMissing(err) ? '“I sent it” deposits are being set up.' : code === '22007' ? 'That payment date doesn’t look right.' : plainError(err), amountEl);
+        // Handled elsewhere, or money recorded since he tapped it: reload, and the sheet follows
+        if (code === '55000' || code === 'P0002') {
+            loadTripPayments();
+            loadDepositClaims();
+        }
+        return;
+    }
+    const data = res.data;
+    if (data.duplicate) {
+        closeSheet();
+        window.showToast('Already confirmed (another admin got there first).', 'success');
+        loadDepositClaims();
+        loadTripPayments();
+        if (document.activeElement === document.body || !document.activeElement) focusNextClaim();
+        return;
+    }
+    dropStaleReads(payData.trip, loadTripPayments);
+    if (data.payment) payData.trip.rows = payData.trip.rows.filter(r => r.id !== data.payment.id).concat([data.payment]).sort(byPaidOn);
+    dropStaleReads(payData.claims, loadDepositClaims);
+    const row = payData.claims.rows.find(r => r.id === id);
+    const done = data.claim || {};
+    if (row) {
+        Object.assign(row, {
+            status: done.status || 'confirmed', resolved_at: done.resolved_at || new Date().toISOString(), resolved_by: done.resolved_by || null,
+            trip_payment_id: done.trip_payment_id || null, note: done.note === undefined ? row.note : done.note,
+            recorded_amount: data.payment ? data.payment.amount : null
+        });
+    }
+    closeSheet();
+    redrawClaimViews();
+    if (!document.activeElement || document.activeElement === document.body) focusNextClaim();
+    window.showToast(escHtml(data.payment
+        ? `Recorded ${name}’s ${money(centsOf(data.payment.amount))} deposit (${fmtDay(data.payment.paid_on)}). His checklist ticks next time he looks.`
+        : `Closed ${name}’s claim (already in Paid).`), 'success');
+    loadDepositClaims(); // who confirmed it (resolved_by_name)
+}
+
+// Not received: he sees "Not received yet" on the homepage and can tap I sent it again
+async function rejectClaim(id, btn) {
+    const c = payData.claims.rows.find(r => r.id === id);
+    if (!c || c.status !== 'sent') return;
+    const name = claimName(c);
+    const amount = money(centsOf(c.amount));
+    if (!confirm(`Mark ${name}’s ${amount} as not received?\n\nHe’ll see “Not received yet” on the homepage and can tap I sent it again once it goes through.`)) return;
+    btn.disabled = true;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_reject_deposit', { p_claim: id, p_note: null });
+    } catch (err) {
+        res = { error: err };
+    }
+    if (res.error || !res.data) {
+        const err = res.error || new Error('Nothing came back. Refresh to check whether it saved.');
+        btn.disabled = false;
+        window.showToast(escHtml(isSetupMissing(err) ? '“I sent it” deposits are being set up.' : `Couldn’t mark it: ${plainError(err)}`), 'error');
+        loadDepositClaims();
+        if (String(err.code || '') === '55000') loadTripPayments();
+        return;
+    }
+    const done = res.data.claim || {};
+    dropStaleReads(payData.claims, loadDepositClaims);
+    const row = payData.claims.rows.find(r => r.id === id);
+    if (row) Object.assign(row, { status: done.status || 'rejected', resolved_at: done.resolved_at || new Date().toISOString(), resolved_by: done.resolved_by || null, note: done.note === undefined ? row.note : done.note });
+    redrawClaimViews();
+    window.showToast(escHtml(`Marked ${name}’s ${amount} not received. He’ll see that on the homepage.`), 'success');
+    focusNextClaim();
+    loadDepositClaims();
+}
+
+// Reopen a "not received" (it came through after all): back under Deposits to confirm
+async function reopenClaim(id, btn) {
+    const c = payData.claims.rows.find(r => r.id === id);
+    if (!c) return;
+    const name = claimName(c);
+    const amount = money(centsOf(c.amount));
+    btn.disabled = true;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('admin_reopen_deposit', { p_claim: id });
+    } catch (err) {
+        res = { error: err };
+    }
+    if (res.error || !res.data) {
+        const err = res.error || new Error('Nothing came back. Refresh to check whether it saved.');
+        btn.disabled = false;
+        window.showToast(escHtml(isSetupMissing(err) ? '“I sent it” deposits are being set up.' : `Couldn’t reopen it: ${plainError(err)}`), 'error');
+        loadDepositClaims();
+        return;
+    }
+    dropStaleReads(payData.claims, loadDepositClaims);
+    Object.assign(c, { status: 'sent', resolved_at: null, resolved_by: null, resolved_by_name: null, note: null });
+    redrawClaimViews();
+    window.showToast(escHtml(`Reopened ${name}’s ${amount}. It’s back under Deposits to confirm.`), 'success');
+    const again = document.querySelector(`#deposit-claims [data-claim-confirm="${CSS.escape(id)}"]`);
+    if (again) again.focus();
+    loadDepositClaims();
 }
 
 // ---- Venmo usernames: the roster's Venmo column and its sheet ----
@@ -3415,6 +3880,7 @@ function closeSheet(restoreFocus = true) {
     el.classList.remove('open');
     if (el.id === 'pay-sheet') paySheet.playerId = null;
     if (el.id === 'venmo-sheet') venmoSheet.playerId = null;
+    if (el.id === 'claim-sheet') claimSheet.id = null;
     const page = document.querySelector('.admin-container');
     if (page) page.inert = false;
     document.documentElement.style.overflow = '';
@@ -3425,7 +3891,7 @@ function closeSheet(restoreFocus = true) {
 }
 
 function sheetBusy() {
-    return paySheet.busy || venmoSheet.busy;
+    return paySheet.busy || venmoSheet.busy || claimSheet.busy;
 }
 
 function setupPaymentListeners() {
@@ -3442,7 +3908,7 @@ function setupPaymentListeners() {
         const release = e.target.closest('[data-release]');
         if (release) releaseClaim(release.dataset.release, release);
     });
-    ['pay-sheet', 'venmo-sheet'].forEach(id => {
+    ['pay-sheet', 'venmo-sheet', 'claim-sheet'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', (e) => {
@@ -3457,6 +3923,18 @@ function setupPaymentListeners() {
         if (btn) deleteTripPayment(btn.dataset.payDelete, btn);
     });
     document.getElementById('venmo-form')?.addEventListener('submit', saveVenmoSheet);
+    // Deposits to confirm: Confirm (the sheet), Not received, Reopen
+    document.getElementById('deposit-claims')?.addEventListener('click', (e) => {
+        const confirmBtn = e.target.closest('[data-claim-confirm]');
+        if (confirmBtn) { openClaimSheet(confirmBtn.dataset.claimConfirm, confirmBtn); return; }
+        const reject = e.target.closest('[data-claim-reject]');
+        if (reject && !reject.disabled) { rejectClaim(reject.dataset.claimReject, reject); return; }
+        const reopen = e.target.closest('[data-claim-reopen]');
+        if (reopen && !reopen.disabled) reopenClaim(reopen.dataset.claimReopen, reopen);
+    });
+    document.getElementById('claim-form')?.addEventListener('submit', saveClaimSheet);
+    document.getElementById('claim-already')?.addEventListener('change', () => renderClaimSheet());
+    document.getElementById('claim-amount')?.addEventListener('input', claimButtonLabel);
     document.getElementById('venmo-input')?.addEventListener('input', () => {
         updateVenmoCheck();
         setSheetError('venmo-error', '');

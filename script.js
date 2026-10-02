@@ -84,7 +84,8 @@ const ICON_PATHS = {
     question: '<path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
     user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
-    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
 };
 
 function icon(name) {
@@ -486,20 +487,24 @@ function tipPartsHTML(parts) {
 // don't send money yet.
 function paymentTipHTML(cost) {
     const pay = cost.payment;
+    // No Venmo @username on this public line: the Pay button gets the payee's username from his roster
+    // row (my_deposit), for signed-in crew only
+    const noHandle = s => s.replace(/@[A-Za-z0-9_-]+/g, '').replace(/\s{2,}/g, ' ').trim();
     let parts = [];
     if (typeof pay === 'string') {
-        parts = [pay.trim()];
+        parts = [noHandle(pay.trim())];
     } else if (pay && typeof pay === 'object') {
         const label = configText(pay.label);
         const amount = typeof pay.amount === 'number' ? configMoney(pay.amount) : configText(pay.amount);
         const due = configText(pay.due);
         const dueText = due ? `${label || amount ? 'due' : 'Due'} ${configDate(due) ? monthDay(due) : due}` : '';
-        parts = [[label, amount, dueText].filter(Boolean).join(' '), configText(pay.how), configText(pay.note)];
+        parts = [[label, amount, dueText].filter(Boolean).join(' '), noHandle(configText(pay.how)), noHandle(configText(pay.note))];
     }
     if (!parts.some(Boolean)) {
         return `<p class="fact-tip"${phaseAttrs('pre')}>${icon('wallet')}<span>Don’t send money yet. Payment details come with the final breakdown.</span></p>`;
     }
-    return `<p class="fact-tip is-set">${icon('wallet')}<span>${tipPartsHTML(parts)}</span></p>`;
+    // #cost-pay-action: "· Log in to pay", "· Pay from your checklist"… (renderCostPayAction)
+    return `<p class="fact-tip is-set">${icon('wallet')}<span>${tipPartsHTML(parts)}<span class="cost-pay-action" id="cost-pay-action"></span></span></p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1745,7 +1750,7 @@ function viewer() {
 // Re-render everything that depends on who's looking. Runs after the first account check, and
 // again after an RSVP, a profile save, a log out, or any later account re-check.
 function renderPersonal() {
-    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid].forEach(fn => {
+    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
     });
 }
@@ -2540,7 +2545,8 @@ function setProfileLoading(on) {
 
 let profileOpenSeq = 0; // the latest openProfile; an older one that finishes later does nothing
 
-async function openProfile() {
+// focus 'venmo' (the checklist's Venmo item): once his username has loaded, the Venmo box gets focus
+async function openProfile(focus) {
     const modal = elements.registrationModal;
     const sheet = elements.rsvpModal;
     const seq = ++profileOpenSeq;
@@ -2588,6 +2594,17 @@ async function openProfile() {
     } finally {
         if (seq === profileOpenSeq) setProfileLoading(false);
     }
+    if (focus !== 'venmo') return;
+    // (a no-op when it's loaded; otherwise wait for the load already on its way, a few seconds at most)
+    await loadMyVenmo();
+    for (let i = 0; i < 60 && venmoStateFor(account.player) === 'loading'; i++) await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 60)); // after the GHIN box's own focus above
+    const a = document.activeElement;
+    const box = document.getElementById('venmo-handle');
+    if (seq !== profileOpenSeq || !modal.classList.contains('active') || !box || box.disabled) return;
+    if (a && a !== document.body && a.id !== 'ghin-number' && a.id !== 'registration-title') return; // he moved on
+    box.focus();
+    box.scrollIntoView({ block: 'center' });
 }
 
 // Cancel, close, Escape, or a moment after Save
@@ -2842,6 +2859,7 @@ async function loadMyVenmo() {
     // The box was off while this loaded, so nothing typed is lost
     if (input && input.disabled) fillVenmoField(account.player);
     renderVenmoField();
+    renderDepositParts();
 }
 
 // Saves his own username (null clears it). Returns {} when saved, {message, field} to show (field:
@@ -2858,6 +2876,7 @@ async function saveMyVenmo(handle, playerId) {
         if (myVenmo.playerId === playerId) Object.assign(myVenmo, { state: 'ready', handle: data && data.handle ? String(data.handle) : null });
         fillVenmoField(account.player);
         renderVenmoField();
+        renderDepositParts(); // ticks the checklist's Venmo item
         return {};
     }
     console.error('Venmo save failed:', error);
@@ -2920,6 +2939,7 @@ async function loadMyTripPayments(playerId) {
     if (seq !== myTripPay.seq) return; // signed out or switched player meanwhile
     Object.assign(myTripPay, { state, rows });
     renderTripPaid();
+    renderDepositParts();
 }
 
 // "Trip cost: $1,600 paid (Oct 15)", or "$800 paid so far" while it's less than the per-man cost; with
@@ -2951,6 +2971,666 @@ function renderTripPaid() {
     el.classList.toggle('is-part', !inFull);
     el.innerHTML = `${icon(inFull ? 'check' : 'wallet')}<span>Trip cost: <strong>${esc(configMoney(cents / 100))} paid</strong>${inFull ? '' : ' so far'}${when}</span>`;
     el.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Your checklist and the deposit (deposits_2027.sql)
+// ---------------------------------------------------------------------------
+// The signed-in player's card at the top of The Trip, before the trip: RSVP, deposit, golf profile and
+// Venmo. The deposit item's "Pay $500 on Venmo" opens Venmo prefilled, to the payee's username, which
+// only my_deposit gives (signed-in crew only: never in trip-config.js or on the public page). He taps
+// "I sent it" (claim_deposit), an admin checks the payee's Venmo and confirms it in Admin → RSVPs, which
+// records it as a trip payment, and the item ticks. Until deposits_2027.sql has run (PGRST202) the item
+// says paying on the site is being set up; everything else works as before.
+
+// trip.cost.payment as the deposit needs it, or null (no numeric amount: no deposit item, no button)
+function depositConfig() {
+    const pay = TRIP.cost && TRIP.cost.payment;
+    if (!pay || typeof pay !== 'object' || typeof pay.amount !== 'number' || !Number.isFinite(pay.amount)) return null;
+    const cents = Math.round(pay.amount * 100);
+    if (cents < 1 || cents > 1000000) return null;
+    const due = configDate(pay.due);
+    return { label: configText(pay.label) || 'Deposit', cents, due, dueText: due ? '' : configText(pay.due), payTo: configText(pay.payTo) };
+}
+const DEPOSIT = depositConfig();
+// state: 'idle' | 'loading' | 'ready' | 'missing' (PGRST202: deposits_2027.sql not run) | 'failed'
+const myDeposit = { playerId: null, state: 'idle', data: null, seq: 0, loadedAt: 0, busy: '', error: '', warned: '', lastClaimStatus: null };
+const DEPOSIT_MARKER = 'bbb-deposit-opened';
+const depositAccountReloads = new Set(); // "status pairs" already re-checked with loadAccount (once each per page)
+
+// A Venmo username Venmo's pay link takes (the same rule as set_my_venmo)
+function venmoHandleOk(handle) {
+    return /^[A-Za-z0-9_-]{5,30}$/.test(String(handle || ''));
+}
+
+// Everything that follows the deposit: the card and the cost line's action. Never renderPersonal or
+// refreshDeposit (the loaders call this, so that would loop).
+function renderDepositParts() {
+    [renderChecklist, renderCostPayAction].forEach(fn => {
+        try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
+    });
+}
+
+// From renderPersonal: load for whoever is signed in now (a different player, or after a failure). His
+// Venmo loads too, so the Venmo item knows his username.
+function refreshDeposit() {
+    const player = account.player;
+    const on = !!(personalReady && supabaseInstance && player && phase.name === 'pre');
+    if (!on || !DEPOSIT) {
+        myDeposit.seq++; // drop any load still on its way
+        Object.assign(myDeposit, { playerId: null, state: 'idle', data: null, error: '' });
+    } else if (myDeposit.playerId !== player.id || myDeposit.state === 'failed') {
+        loadMyDeposit(player.id);
+    }
+    // (once per player: 'missing', 'held' and 'failed' are answers too, and Try again / the golf profile
+    // load it again)
+    if (on && venmoStateFor(player) === 'idle') loadMyVenmo();
+}
+
+// my_deposit: his row's status, whether he can pay, the payee (crew only), his latest claim, and for
+// admins the number of claims waiting. A re-check keeps the old answer showing while it loads.
+async function loadMyDeposit(playerId, force) {
+    if (!supabaseInstance || !DEPOSIT || !playerId) return;
+    if (!force && myDeposit.playerId === playerId && myDeposit.state === 'loading') return;
+    const seq = ++myDeposit.seq;
+    if (myDeposit.playerId !== playerId) Object.assign(myDeposit, { data: null, loadedAt: 0, error: '', warned: '', lastClaimStatus: null });
+    Object.assign(myDeposit, { playerId, state: 'loading' });
+    let res;
+    try {
+        res = await supabaseInstance.rpc('my_deposit', { p_trip_year: TRIP.year, p_payee: DEPOSIT.payTo || null });
+    } catch (e) {
+        res = { data: null, error: e };
+    }
+    if (seq !== myDeposit.seq) return; // signed out, switched player, or a newer load meanwhile
+    const { data, error } = res || {};
+    if (error || !data || typeof data !== 'object') {
+        if (error && paymentsMissing(error)) Object.assign(myDeposit, { state: 'missing', data: null });
+        else {
+            myDeposit.state = 'failed';
+            console.warn('Could not load your deposit:', error || data);
+        }
+        renderDepositParts();
+        return;
+    }
+    Object.assign(myDeposit, { state: 'ready', data, loadedAt: Date.now() });
+    // His row's status changed since the page loaded it (approved during the visit, say): re-read the
+    // account once, so the deposit and the hero row unlock
+    const player = account.player;
+    if (player && data.player_id === player.id) {
+        const was = player.status || 'confirmed';
+        const pair = `${player.id}|${data.status || null}|${was}`;
+        if ((data.status || null) !== was && !depositAccountReloads.has(pair)) {
+            depositAccountReloads.add(pair);
+            loadAccount();
+        }
+    }
+    // No payee for the Pay button (trip-config's payTo isn't one approved player with a Venmo username)
+    const problem = data.payee_problem || (data.payee && !venmoHandleOk(data.payee.handle) ? 'bad_handle' : '');
+    if (problem && !myDeposit.warned.split(',').includes(problem)) {
+        myDeposit.warned = myDeposit.warned ? `${myDeposit.warned},${problem}` : problem;
+        console.warn('Deposit payee problem:', problem);
+    }
+    // An admin handled his claim while the page was open
+    const status = data.claim ? data.claim.status : null;
+    if (myDeposit.lastClaimStatus === 'sent' && status === 'rejected') announce('Not received yet. Check your Venmo and tap I sent it again once it goes through.');
+    if (myDeposit.lastClaimStatus === 'sent' && status === 'confirmed') announce('Your deposit is confirmed. Thanks!');
+    myDeposit.lastClaimStatus = status;
+    renderDepositParts();
+}
+
+// What he's paid toward the trip so far (my_trip_payments), as the deposit needs it: { state } until it's
+// loaded; then cents, and doneOn, the paid_on of the payment that took the running total to the deposit
+function depositPaid() {
+    const player = account.player;
+    const state = player && myTripPay.playerId === player.id ? myTripPay.state : 'idle';
+    if (state !== 'ready') return { state: state === 'idle' ? 'loading' : state };
+    let cents = 0;
+    let doneOn = null;
+    let reached = false;
+    myTripPay.rows.forEach(r => {
+        const c = Math.round(Number(r && r.amount) * 100);
+        if (Number.isFinite(c)) cents += c;
+        if (!reached && DEPOSIT && cents >= DEPOSIT.cents) {
+            reached = true;
+            doneOn = configDate(r && r.paid_on);
+        }
+    });
+    return { state: 'ready', cents, doneOn };
+}
+
+// What the Pay button asks for: the rest of the deposit after a partial payment, else all of it
+function depositOwed(paid) {
+    const p = paid || depositPaid();
+    return p.state === 'ready' && p.cents > 0 && p.cents < DEPOSIT.cents ? DEPOSIT.cents - p.cents : DEPOSIT.cents;
+}
+
+// https://venmo.com/<handle>?txn=pay&amount=500.00&note=…&audience=private. Phones: Venmo's server sends the app
+// (venmo://paycharge…); desktops: its web pay page (sign in, then the prefilled Pay form). Path form only:
+// /u/<handle> ignores amount and note. Never a leading @ (Venmo 404s). Each value with encodeURIComponent.
+function venmoPayUrl(handle, cents, note) {
+    if (!/^[A-Za-z0-9_-]{5,30}$/.test(String(handle || '')) || !(cents > 0)) return null;
+    const q = [['txn', 'pay'], ['amount', (cents / 100).toFixed(2)], ['note', note], ['audience', 'private']]
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    return `https://venmo.com/${encodeURIComponent(handle)}?${q}`;
+}
+function depositNote() { return `BBB ${TRIP.year} ${DEPOSIT.label.toLowerCase()} · ${account.player.name}`.slice(0, 280); }
+
+// "He opened Venmo from here" (this device, 24 hours): back on the page, the item asks "Did your $500 go
+// through?" instead of showing Pay again. op: none, his fresh marker ({p, y, at}) or null; 'set'; 'clear'.
+// The page works the same without storage.
+function depositMarker(op) {
+    try {
+        if (op === 'clear') {
+            localStorage.removeItem(DEPOSIT_MARKER);
+            return null;
+        }
+        const id = account.player ? account.player.id : null;
+        if (op === 'set') {
+            if (id) localStorage.setItem(DEPOSIT_MARKER, JSON.stringify({ p: id, y: TRIP.year, at: Date.now() }));
+            return null;
+        }
+        const m = JSON.parse(localStorage.getItem(DEPOSIT_MARKER) || 'null');
+        const fresh = m && id && m.p === id && m.y === TRIP.year && typeof m.at === 'number' && Date.now() - m.at < 86400000;
+        return fresh ? m : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// The "Did it go through?" prompt: he opened Venmo from here, hasn't tapped I sent it, and isn't paid up
+function depositAsk() {
+    if (!DEPOSIT || !depositMarker()) return false;
+    const claim = myDeposit.data && myDeposit.data.claim;
+    const paid = depositPaid();
+    return !(claim && claim.status === 'sent') && !(paid.state === 'ready' && paid.cents >= DEPOSIT.cents);
+}
+
+// 'Oct 2': the day an instant falls on in Arizona
+function tripMonthDay(iso) {
+    const ms = Date.parse(iso);
+    return Number.isFinite(ms) ? monthDay(tripClock(ms).date) : '';
+}
+
+const CHECK_MARKS = { done: 'tick', todo: '', waiting: 'clock', locked: 'lock', alert: 'info' };
+const CHECK_SR = { done: 'Done: ', todo: 'To do: ', alert: 'To do: ', waiting: 'Waiting: ', locked: 'Locked: ' };
+
+// A control in the card: kind 'link' (link-btn), 'line' or 'copper' (small buttons). The deposit control
+// being saved (myDeposit.busy) is off and reads "Saving…".
+function checkButton(kind, id, attrs, text, aria) {
+    const busy = !!myDeposit.busy && attrs === `data-deposit="${myDeposit.busy}"`;
+    const cls = kind === 'link' ? 'link-btn' : `btn btn-${kind} btn-sm`;
+    return `<button type="button" class="${cls}" id="${id}" ${attrs}${aria && !busy ? ` aria-label="${esc(aria)}"` : ''}${busy ? ' disabled' : ''}>${busy ? 'Saving…' : esc(text)}</button>`;
+}
+
+// The card as data: { variant: 'hidden'|'full'|'allset'|'out'|'held', items, done, total, todo, adminOpen }.
+// Reads the page's state only; no DOM.
+function checklistModel() {
+    const model = { variant: 'hidden', items: [], done: 0, total: 0, todo: 0, adminOpen: 0, pending: false, outNote: false };
+    if (!personalReady || !supabaseInstance || phase.name !== 'pre') return model;
+    const v = viewer();
+    if (!v || !v.signedIn || !v.player) return model;
+    const player = v.player;
+    const md = myDeposit.playerId === player.id ? myDeposit : null;
+    // my_deposit has answered (a re-check keeps its last answer while it loads)
+    const data = md && md.data && (md.state === 'ready' || md.state === 'loading') ? md.data : null;
+    const venmo = venmoStateFor(player);
+    model.adminOpen = data && Number(data.admin_open) > 0 ? Number(data.admin_open) : 0;
+    // A name another login picked, still waiting for the commissioner: no checklist yet
+    if (data ? data.own_ok === false : venmo === 'held') {
+        model.variant = 'held';
+        model.adminOpen = 0;
+        return model;
+    }
+    // A sign-up still waiting: don't show the list until we know he isn't a held pick
+    if (player.status === 'potential' && !data && venmo !== 'ready' && venmo !== 'held') return model;
+    const pending = data ? data.status === 'potential' && data.own_ok === true : player.status === 'potential';
+    model.pending = pending;
+    const paid = DEPOSIT ? depositPaid() : { state: 'idle' };
+    const claim = data && data.claim ? data.claim : null;
+    if (v.known && v.status === 'out') {
+        model.variant = 'out';
+        model.outNote = !!((paid.state === 'ready' && paid.cents > 0) || (claim && claim.status === 'sent'));
+        return model;
+    }
+
+    const items = [];
+    // 1. RSVP
+    const due = rsvpDeadline();
+    const late = !!(due && due.passed);
+    if (!v.known) {
+        items.push({ key: 'rsvp', state: 'unknown', tone: 'todo', title: 'RSVP', detail: esc('Couldn’t check your RSVP just now.'), actions: checkButton('line', 'check-rsvp-btn', 'data-action="rsvp"', 'RSVP') });
+    } else if (v.status === 'in') {
+        items.push({ key: 'rsvp', state: 'in', tone: 'done', title: 'You’re in', detail: pending ? esc('Shows on the list once the commissioner approves you.') : '', actions: checkButton('link', 'check-rsvp-btn', 'data-action="rsvp"', 'Change', 'Change your RSVP') });
+    } else if (v.status === 'maybe') {
+        items.push({ key: 'rsvp', state: 'maybe', tone: late ? 'alert' : 'todo', title: 'Lock in your RSVP', detail: esc(`You’re a probably. ${due ? due.text : 'Lock it in when you know.'}`), actions: checkButton('line', 'check-rsvp-btn', 'data-action="rsvp"', 'Change', 'Change your RSVP') });
+    } else {
+        items.push({ key: 'rsvp', state: 'none', tone: late ? 'alert' : 'todo', title: 'RSVP', detail: esc(due ? due.text : 'Let us know if you’re in.'), actions: checkButton('copper', 'check-rsvp-btn', 'data-action="rsvp"', 'RSVP') });
+    }
+
+    // 2. The deposit (not for the player who collects it)
+    const isPayee = data ? !!(data.payee && data.payee.player_id === player.id)
+        : !!DEPOSIT && !!DEPOSIT.payTo && normName(player.name) === normName(DEPOSIT.payTo) && player.status !== 'potential';
+    if (DEPOSIT && !isPayee) items.push(depositItem({ md, data, paid, claim, pending }));
+
+    // 3. Golf profile: the handicap (never the GHIN, which a held pick doesn't get)
+    const hcp = player.handicap;
+    if (hcp !== null && hcp !== undefined && hcp !== '') {
+        items.push({ key: 'golf', state: 'done', tone: 'done', title: `Handicap ${fmtHcp(hcp)}`, actions: checkButton('link', 'check-golf-btn', 'data-action="profile"', 'Edit', 'Edit your golf profile') });
+    } else {
+        items.push({ key: 'golf', state: 'todo', tone: 'todo', title: 'Add your handicap', detail: esc('So the captains can draft fair teams.'), actions: checkButton('line', 'check-golf-btn', 'data-action="profile"', 'Golf profile') });
+    }
+
+    // 4. Venmo, so the crew can pay him after the trip
+    const venmoBtn = (kind, text, aria) => checkButton(kind, 'check-venmo-btn', 'data-action="venmo"', text, aria);
+    if (venmo === 'ready' && myVenmo.handle) {
+        items.push({ key: 'venmo', state: 'done', tone: 'done', title: `Venmo @${myVenmo.handle}`, actions: venmoBtn('link', 'Edit', 'Edit your Venmo username') });
+    } else if (venmo === 'ready') {
+        items.push({ key: 'venmo', state: 'todo', tone: 'todo', title: 'Add your Venmo', detail: esc('So the crew can pay you after the trip. Only signed-in crew see it.'), actions: venmoBtn('line', 'Add Venmo') });
+    } else if (venmo === 'missing') {
+        items.push({ key: 'venmo', state: 'missing', tone: 'todo', title: 'Add your Venmo', detail: esc('Venmo is being set up.') });
+    } else if (venmo === 'failed') {
+        items.push({ key: 'venmo', state: 'failed', tone: 'todo', title: 'Add your Venmo', detail: esc('Couldn’t check your Venmo just now.'), actions: venmoBtn('line', 'Golf profile') });
+    } else {
+        items.push({ key: 'venmo', state: 'loading', tone: 'todo', title: 'Venmo', detail: esc('Checking…') });
+    }
+
+    const todoStates = { rsvp: ['unknown', 'maybe', 'none'], deposit: ['pay', 'ask', 'nopayee', 'failed'], golf: ['todo'], venmo: ['todo', 'failed'] };
+    model.items = items;
+    model.total = items.length;
+    model.done = items.filter(i => i.tone === 'done').length;
+    model.todo = items.filter(i => (todoStates[i.key] || []).includes(i.state)).length;
+    model.variant = model.done === model.total ? 'allset' : 'full';
+    return model;
+}
+
+// The deposit item, in this order: paid, waiting for approval, loading, being set up, couldn't load,
+// can't pay, sent (waiting for an admin), no payee to pay, then Pay (or "Did it go through?")
+function depositItem({ md, data, paid, claim, pending }) {
+    const amount = configMoney(DEPOSIT.cents / 100);
+    const payTitle = `Pay your ${amount} deposit`;
+    const it = (state, tone, title, extra) => Object.assign({ key: 'deposit', state, tone, title, error: myDeposit.error }, extra || {});
+    const dState = md ? md.state : 'idle';
+    const approve = { detail: esc('You can pay your deposit once you’re approved.') };
+    if (paid.state === 'ready' && paid.cents >= DEPOSIT.cents) return it('done', 'done', `Deposit paid${paid.doneOn ? ` (${monthDay(paid.doneOn)})` : ''}`, { error: '' });
+    if (pending) return it('pending', 'locked', payTitle, approve);
+    if (paid.state === 'loading' || ((dState === 'idle' || dState === 'loading') && !data)) return it('loading', 'todo', payTitle, { detail: esc('Checking…') });
+    if (paid.state === 'missing' || dState === 'missing') return it('setup', 'todo', payTitle, { detail: esc('Paying on the site is being set up. Check back soon.') });
+    if (paid.state === 'failed' || dState === 'failed') {
+        return it('failed', 'todo', payTitle, { detail: esc('Couldn’t load your deposit just now.'), actions: checkButton('link', 'check-deposit-retry', 'data-deposit="retry"', 'Try again') });
+    }
+    if (!data.can_pay) return it('locked', 'locked', payTitle, approve);
+    const payee = data.payee || null;
+    const first = (payee && payee.name ? String(payee.name) : DEPOSIT.payTo || 'the payee').trim().split(/\s+/)[0];
+    const sentBtn = (kind, text) => checkButton(kind, 'check-deposit-sent', 'data-deposit="sent"', text);
+    if (claim && claim.status === 'sent') {
+        const claimCents = Math.round(Number(claim.amount) * 100);
+        const title = claimCents > 0 && claimCents < DEPOSIT.cents ? `Your ${configMoney(claimCents / 100)} payment` : `Your ${amount} deposit`;
+        return it('sent', 'waiting', title, {
+            detail: esc(`Sent ${tripMonthDay(claim.sent_at)} · waiting for confirmation`),
+            note: `An admin ticks this once it shows up in ${first}’s Venmo.`,
+            actions: checkButton('link', 'check-deposit-undo', 'data-deposit="undo"', 'Undo', 'Undo: I haven’t sent it')
+        });
+    }
+    if (data.payee_problem || !payee || !venmoHandleOk(payee.handle)) {
+        return it('nopayee', 'todo', payTitle, {
+            detail: esc('The Pay on Venmo button isn’t ready yet. Check back soon.'),
+            actions: `<p class="check-also">Already sent it? ${sentBtn('link', 'I sent it')}</p>`
+        });
+    }
+    const owed = depositOwed(paid);
+    const partial = owed < DEPOSIT.cents;
+    const dueDay = DEPOSIT.due ? monthDay(DEPOSIT.due) : DEPOSIT.dueText;
+    const pastDue = !!DEPOSIT.due && tripClock(nowMs()).date > DEPOSIT.due;
+    const rejected = !!(claim && claim.status === 'rejected');
+    const to = `to ${esc(payee.name)} <span class="check-handle">(@${esc(payee.handle)})</span>`;
+    const dueText = dueDay ? `${pastDue ? 'was due' : 'due'} ${esc(dueDay)}` : '';
+    const detail = partial
+        ? [`${esc(configMoney((DEPOSIT.cents - owed) / 100))} of ${esc(amount)} recorded`, dueText, to].filter(Boolean).join(' · ')
+        : dueText ? `${dueText.charAt(0).toUpperCase()}${dueText.slice(1)} · ${to}` : `T${to.slice(1)}`;
+    const owedText = configMoney(owed / 100);
+    const pay = (cls, text) => `<a class="${cls}" id="check-deposit-pay" data-deposit="pay" rel="noopener noreferrer" referrerpolicy="no-referrer">${esc(text)}</a>`;
+    const extra = {
+        detail,
+        rejected: rejected ? 'Not received yet. Check your Venmo and tap I sent it again once it goes through.' : '',
+        payUrl: venmoPayUrl(payee.handle, owed, depositNote())
+    };
+    const tone = pastDue || rejected ? 'alert' : 'todo';
+    const title = partial ? 'Pay the rest of your deposit' : payTitle;
+    if (depositAsk()) {
+        return it('ask', tone, title, Object.assign(extra, {
+            ask: `<div class="check-ask"><p class="check-ask-q">Did your ${esc(owedText)} go through to ${esc(first)}?</p>`
+                + `<div class="check-ask-actions">${sentBtn('copper', 'Yes, I sent it')}${checkButton('line', 'check-deposit-notyet', 'data-deposit="not-yet"', 'Not yet')}${pay('link-btn', 'Open Venmo again')}</div></div>`
+        }));
+    }
+    return it('pay', tone, title, Object.assign(extra, {
+        actions: `${pay('btn btn-copper check-pay', `Pay ${owedText} on Venmo`)}<p class="check-also">Already sent it? ${sentBtn('link', 'I sent it')}</p>`
+    }));
+}
+
+function checkItemHTML(i) {
+    const mark = CHECK_MARKS[i.tone];
+    return `<li class="check-item is-${i.tone}" data-item="${i.key}" data-state="${i.state}">`
+        + `<span class="check-mark" aria-hidden="true">${mark ? icon(mark) : ''}</span>`
+        + '<div class="check-body">'
+        + `<p class="check-title"><span class="sr-only">${CHECK_SR[i.tone]}</span>${esc(i.title)}</p>`
+        + (i.detail ? `<p class="check-detail">${i.detail}</p>` : '')
+        + (i.note ? `<p class="check-note">${esc(i.note)}</p>` : '')
+        + (i.rejected ? `<div class="check-rejected">${esc(i.rejected)}</div>` : '')
+        + (i.ask || '')
+        + (i.actions ? `<div class="check-actions">${i.actions}</div>` : '')
+        + `<p class="check-error">${esc(i.error || '')}</p>`
+        + '</div></li>';
+}
+
+function checklistHTMLOf(model) {
+    const city = String(TRIP.location || '').split(',')[0].trim() || 'the trip';
+    const eyebrow = `<p class="checklist-eyebrow">Before ${esc(city)}</p>`;
+    const n = model.adminOpen;
+    const admin = n > 0 ? `<p class="check-admin">${n} deposit${n === 1 ? '' : 's'} waiting for an admin to confirm. <a href="admin.html#rsvps">Open Admin ›</a></p>` : '';
+    if (model.variant === 'full') {
+        return `<div class="checklist-head">${eyebrow}<h2 id="checklist-title" tabindex="-1">Your checklist</h2>`
+            + `<p class="checklist-count">${model.done} of ${model.total} done</p></div>`
+            + `<ol class="checklist-items">${model.items.map(checkItemHTML).join('')}</ol>${admin}`;
+    }
+    let mark = 'tick';
+    let title = '';
+    let note = '';
+    let action = '';
+    if (model.variant === 'allset') {
+        const names = { rsvp: 'RSVP', deposit: 'deposit', golf: 'golf profile', venmo: 'Venmo' };
+        const list = model.items.map(i => names[i.key]);
+        title = `You’re all set for ${city}.`;
+        note = `${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} ${list.length > 1 ? 'are' : 'is'} all in.`;
+        action = checkButton('link', 'check-rsvp-btn', 'data-action="rsvp"', 'Change my RSVP');
+    } else if (model.variant === 'out') {
+        mark = 'x';
+        title = 'You can’t make it this year.';
+        note = model.outNote ? 'Talk to the commissioner about your deposit.' : '';
+        action = checkButton('line', 'check-rsvp-btn', 'data-action="rsvp"', 'Change my RSVP');
+    } else {
+        mark = 'lock';
+        title = 'Your roster name is waiting for the commissioner’s approval. Your checklist opens once you’re approved.';
+    }
+    return `<span class="check-mark is-${model.variant}" aria-hidden="true">${icon(mark)}</span>`
+        + `<div class="check-body">${eyebrow}<h2 id="checklist-title" tabindex="-1">${esc(title)}</h2>`
+        + (note ? `<p class="check-note">${esc(note)}</p>` : '')
+        + (model.variant === 'held' ? '' : admin) + '</div>'
+        + (action ? `<div class="check-actions">${action}</div>` : '');
+}
+
+let checklistShown = ''; // the card's HTML as last rendered: unchanged, it isn't redrawn
+function renderChecklist() {
+    const el = document.getElementById('checklist');
+    if (!el) return;
+    const model = checklistModel();
+    if (model.variant === 'hidden') {
+        el.hidden = true;
+        if (checklistShown || el.innerHTML) el.innerHTML = '';
+        checklistShown = '';
+        el.removeAttribute('data-variant');
+        el.removeAttribute('aria-busy');
+        syncHeroTodo(model);
+        return;
+    }
+    el.className = `checklist${model.variant === 'full' ? '' : ' is-compact'}`;
+    el.setAttribute('data-variant', model.variant);
+    if (myDeposit.busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+    const html = checklistHTMLOf(model);
+    const dep = model.items.find(i => i.key === 'deposit');
+    if (html !== checklistShown) {
+        // Keep focus: the same control (by id) in the new card, else the first one in its item, else the title
+        const a = document.activeElement;
+        const keep = a && a !== el && el.contains(a) ? { id: a.id, item: a.closest('[data-item]') ? a.closest('[data-item]').getAttribute('data-item') : '' } : null;
+        el.innerHTML = html;
+        checklistShown = html;
+        fillPayLink(el, dep);
+        if (keep) {
+            const usable = n => !!n && el.contains(n) && !n.disabled && n.getClientRects().length > 0;
+            const same = keep.id ? document.getElementById(keep.id) : null;
+            let t = same;
+            // (Still there but off while it saves: the title, never the button next to it)
+            if (!usable(t) && !(same && el.contains(same))) t = keep.item ? [...el.querySelectorAll(`[data-item="${keep.item}"] button, [data-item="${keep.item}"] a[href]`)].find(usable) : null;
+            if (!usable(t)) t = document.getElementById('checklist-title');
+            if (t) t.focus({ preventScroll: true });
+        }
+    } else {
+        fillPayLink(el, dep);
+    }
+    el.hidden = false;
+    if (dep && dep.state === 'done') depositMarker('clear');
+    syncHeroTodo(model);
+}
+
+// The pay link's address, set on the element (never pasted into the HTML). Phones: the same tab hands
+// off to the Venmo app and the page stays; desktops: a new tab, the site still open behind it.
+function fillPayLink(el, dep) {
+    const a = el.querySelector('#check-deposit-pay');
+    if (!a || !dep || !dep.payUrl) return;
+    if (a.href !== dep.payUrl) a.href = dep.payUrl;
+    let coarse = false;
+    try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) { /* treated as desktop */ }
+    if (coarse) a.removeAttribute('target');
+    else a.target = '_blank';
+}
+
+// The hero row's "· 3 to do" link to the card, once he's said In or Probably (renderYouRow redraws the
+// row first, so this runs after every render)
+function syncHeroTodo(model) {
+    document.querySelectorAll('.hero-you-todo-wrap, .hero-you-todo').forEach(n => n.remove());
+    const v = viewer();
+    const text = document.querySelector('#hero-you .hero-you-text');
+    if (!text || model.variant !== 'full' || !(model.todo > 0) || model.pending || !v || !(v.status === 'in' || v.status === 'maybe')) return;
+    text.insertAdjacentHTML('beforeend', `<span class="hero-you-todo-wrap"> · <a class="hero-you-todo" href="#checklist">${model.todo} to do</a></span>`);
+}
+
+// The cost card's payment line ends with what he can do about the deposit: log in, pay from the card, or
+// that it's sent. Nothing when there's nothing to do (paid, the payee himself, still loading, after the trip).
+function renderCostPayAction() {
+    const el = document.getElementById('cost-pay-action');
+    if (!el) return;
+    let html = '';
+    const v = DEPOSIT && phase.name === 'pre' && personalReady ? viewer() : null;
+    if (v && !v.signedIn) {
+        html = ` · <a href="${accountUrl('home', 'login')}">Log in to pay</a>`;
+    } else if (v && v.player) {
+        const model = checklistModel();
+        const dep = model.items.find(i => i.key === 'deposit');
+        const claim = myDeposit.data && myDeposit.data.claim;
+        if (model.variant === 'held' || (model.variant !== 'hidden' && model.pending)) html = ' · You can pay once you’re approved';
+        else if (model.variant === 'full' && dep && ['pay', 'ask', 'nopayee'].includes(dep.state)) html = ' · <a href="#checklist">Pay from your checklist</a>';
+        else if (dep && dep.state === 'sent' && claim) html = ` · Sent ${esc(tripMonthDay(claim.sent_at))}, waiting for confirmation`;
+    }
+    if (el.innerHTML !== html) el.innerHTML = html;
+}
+
+// Back on the page (from Venmo, or another tab), and once a minute: re-check a deposit that's waiting
+// (or one he may just have paid), at most once a minute. The minute's check only runs while the page
+// shows and his I sent it is less than 30 minutes old. Then the card redraws, so "Did it go through?"
+// shows on return.
+function depositOnReturn(reason) {
+    const player = account.player;
+    if (player && myDeposit.playerId === player.id && (myDeposit.state === 'ready' || myDeposit.state === 'failed')) {
+        const variant = checklistModel().variant;
+        const claim = myDeposit.data && myDeposit.data.claim;
+        const sent = !!(claim && claim.status === 'sent');
+        const stale = Date.now() - myDeposit.loadedAt > 60000;
+        const recheck = reason === 'tick'
+            ? !document.hidden && sent && Date.parse(claim.sent_at) > Date.now() - 30 * 60000 && stale
+            : (sent || !!depositMarker()) && stale;
+        if ((variant === 'full' || variant === 'allset') && recheck) {
+            loadMyDeposit(player.id, true);
+            loadMyTripPayments(player.id);
+        }
+    }
+    renderDepositParts();
+}
+
+// The card's deposit controls (delegated: the card is redrawn)
+function onChecklistClick(e) {
+    const b = e.target.closest('[data-deposit]');
+    if (!b || b.disabled) return;
+    const what = b.getAttribute('data-deposit');
+    if (what === 'pay') {
+        // The link goes on to Venmo (never cancelled here). The card changes a moment later, not under his finger.
+        depositMarker('set');
+        setTimeout(renderDepositParts, 1500);
+    } else if (what === 'sent') {
+        sendDepositClaim();
+    } else if (what === 'undo') {
+        undoDepositClaim();
+    } else if (what === 'not-yet') {
+        depositMarker('clear');
+        renderDepositParts();
+        document.getElementById('check-deposit-sent')?.focus();
+        announce('OK. Tap I sent it once you’ve paid.');
+    } else if (what === 'retry') {
+        const player = account.player;
+        if (!player) return;
+        myDeposit.error = '';
+        loadMyDeposit(player.id, true);
+        loadMyTripPayments(player.id);
+        if (venmoStateFor(player) === 'failed') loadMyVenmo();
+        renderDepositParts();
+    }
+}
+
+// Before an I sent it or Undo: is the player the card is for still the one logged in? If not, re-read
+// the account (the card follows) and say so. Not stillSignedIn, which opens the RSVP sheet.
+async function depositSessionOk() {
+    const shownId = account.player ? account.player.id : null;
+    let session = null;
+    try {
+        ({ data: { session } } = await supabaseInstance.auth.getSession());
+    } catch (e) { /* treated as signed out */ }
+    if (session && session.user && account.user && session.user.id === account.user.id && account.player) return true;
+    await loadAccount();
+    if (account.player && account.player.id === shownId) return true; // the same player after all
+    if (!account.user) announce('You’re logged out. Log in to pay your deposit.');
+    else announce(`You’re now logged in as ${account.player ? account.player.name : 'someone else'}. Check your checklist.`);
+    return false;
+}
+
+// An I sent it or Undo that didn't save: the message under the item, said once
+async function depositSaveFailed(error, undo) {
+    const code = String(error && error.code || '');
+    const message = (error && error.message) || '';
+    const say = text => {
+        myDeposit.error = text;
+        announce(text);
+    };
+    const player = account.player;
+    if (paymentsMissing(error)) {
+        myDeposit.state = 'missing';
+        myDeposit.error = '';
+        announce('Paying on the site is being set up. Check back soon.');
+    } else if (isWaitingApproval(error)) {
+        say(message);
+        if (player) loadMyDeposit(player.id, true);
+    } else if (looksSignedOut(error) || /not linked/i.test(message)) {
+        await loadAccount();
+        say(account.user && message ? message : 'You’re logged out. Log in to pay your deposit.');
+    } else if (undo && (code === '55000' || code === 'P0002') && message) {
+        // An admin got there first (a Confirm turns the item into paid)
+        say(message);
+        if (player) {
+            loadMyDeposit(player.id, true);
+            loadMyTripPayments(player.id);
+        }
+    } else if ((code === '54000' || code === '22023') && message) {
+        say(message);
+    } else {
+        console.warn('Deposit save failed:', error);
+        say('That didn’t save. Check your connection and try again.');
+    }
+}
+
+// "I sent it": claim_deposit, for what the Pay button asks (the rest, after a partial payment). An admin
+// then confirms it; the alerts inbox hears about a new one (not a repeat tap).
+async function sendDepositClaim() {
+    if (myDeposit.busy || !DEPOSIT || !account.player || !supabaseInstance) return;
+    const player = account.player;
+    const owed = depositOwed();
+    const payee = myDeposit.data && myDeposit.data.payee ? myDeposit.data.payee : null;
+    let after = null;
+    Object.assign(myDeposit, { busy: 'sent', error: '' });
+    renderDepositParts();
+    try {
+        if (!(await depositSessionOk())) return;
+        let res;
+        try {
+            res = await supabaseInstance.rpc('claim_deposit', { p_trip_year: TRIP.year, p_amount: owed / 100 });
+        } catch (e) {
+            res = { data: null, error: e };
+        }
+        const { data, error } = res || {};
+        if (error || !data) {
+            await depositSaveFailed(error || {}, false);
+            return;
+        }
+        const { duplicate, ...claim } = data;
+        if (!account.player || account.player.id !== player.id) return;
+        if (myDeposit.data) myDeposit.data.claim = claim;
+        myDeposit.lastClaimStatus = 'sent';
+        depositMarker('clear');
+        const first = (payee && payee.name ? String(payee.name) : DEPOSIT.payTo || 'the payee').trim().split(/\s+/)[0];
+        after = () => {
+            document.getElementById('check-deposit-undo')?.focus();
+            announce(`Got it. An admin ticks your deposit once it shows up in ${first}’s Venmo.`);
+        };
+        if (duplicate === false) {
+            const name = player.name;
+            sendAlert(`BBB ${TRIP.year} deposit sent: ${name}, ${configMoney(owed / 100)}`, {
+                player: name,
+                amount: configMoney(owed / 100),
+                sent: new Date(claim.sent_at).toLocaleString('en-US', { timeZone: TRIP_TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ` (${TRIP_TZ_NAME})`,
+                paid_to: payee ? `${payee.name}${payee.handle ? ` (@${payee.handle})` : ''}` : (DEPOSIT.payTo || '—'),
+                their_venmo: venmoStateFor(account.player) === 'ready' && myVenmo.handle ? `@${myVenmo.handle}` : '—',
+                what_to_do: `Check ${payee ? payee.name : DEPOSIT.payTo || 'the payee'}’s Venmo, then tap Confirm or Not received in Admin → RSVPs (link below)`,
+                admin_link: ADMIN_RSVPS_URL
+            });
+        }
+    } finally {
+        myDeposit.busy = '';
+        renderDepositParts();
+        if (after) after();
+    }
+}
+
+// Undo ("I haven't sent it"): withdraws his waiting claim
+async function undoDepositClaim() {
+    const claim = myDeposit.data && myDeposit.data.claim;
+    if (myDeposit.busy || !claim || !account.player || !supabaseInstance) return;
+    const player = account.player;
+    let after = null;
+    Object.assign(myDeposit, { busy: 'undo', error: '' });
+    renderDepositParts();
+    try {
+        if (!(await depositSessionOk())) return;
+        let res;
+        try {
+            res = await supabaseInstance.rpc('undo_deposit_claim', { p_claim: claim.id });
+        } catch (e) {
+            res = { data: null, error: e };
+        }
+        const { data, error } = res || {};
+        if (error || !data) {
+            await depositSaveFailed(error || {}, true);
+            return;
+        }
+        const { duplicate, ...withdrawn } = data;
+        if (!account.player || account.player.id !== player.id) return;
+        if (myDeposit.data) myDeposit.data.claim = withdrawn;
+        myDeposit.lastClaimStatus = withdrawn.status || 'withdrawn';
+        after = () => {
+            document.getElementById('check-deposit-sent')?.focus();
+            announce('Undone. Tap I sent it once you’ve paid.');
+        };
+    } finally {
+        myDeposit.busy = '';
+        renderDepositParts();
+        if (after) after();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -3358,6 +4038,7 @@ function runAction(action) {
     setClubhouse(false);
     if (action === 'rsvp') openRsvp();
     if (action === 'profile' || action === 'signup') openProfile();
+    if (action === 'venmo') openProfile('venmo'); // the checklist's Venmo item: straight to the Venmo box
     if (action === 'scoreboard') {
         openDialog(elements.leaderboardModal, '#leaderboard-close');
         renderDynamicScoreboard();
@@ -3452,8 +4133,15 @@ function setupEventListeners() {
     window.addEventListener('pageshow', (e) => {
         if (!e.persisted) return;
         checkPhase();
-        if (personalReady) ensureFreshAccount();
+        if (personalReady) ensureFreshAccount().then(() => depositOnReturn('return'));
     });
+
+    // Your checklist: back from Venmo (or another app), re-check a deposit that's waiting; and while one
+    // he sent in the last half hour waits, once a minute (depositOnReturn)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) depositOnReturn('return'); });
+    setInterval(() => depositOnReturn('tick'), 60000);
+    // Its deposit controls (the [data-action] buttons go through the click handler above)
+    document.getElementById('checklist')?.addEventListener('click', onChecklistClick);
 
     // Wherever home.css shows the full nav: the exact opposite of its hamburger rule, (max-width: 1099.98px)
     const desktopNav = window.matchMedia('not all and (max-width: 1099.98px)');

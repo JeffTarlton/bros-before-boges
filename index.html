@@ -38,7 +38,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.10">
-    <link rel="stylesheet" href="home.css?v=2027.15">
+    <link rel="stylesheet" href="home.css?v=2027.16">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -237,6 +237,10 @@
 
         <!-- ============================== THE TRIP ============================== -->
         <section class="section" id="overview">
+            <!-- Your checklist (deposits_2027.sql): signed-in players, before the trip. script.js fills it (renderChecklist). -->
+            <div class="wrap checklist-wrap" data-phase="pre">
+                <section class="checklist" id="checklist" aria-labelledby="checklist-title" hidden></section>
+            </div>
             <!-- Trip updates (trip.updates, newest first) and Still to come (trip.stillToCome, before the trip
                  only), filled by script.js. Stays hidden when trip-config.js has neither. -->
             <div class="wrap">
@@ -579,7 +583,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.13"></script>
+    <script src="trip-config.js?v=2027.14"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -611,7 +615,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.16"></script>
+    <script src="script.js?v=2027.17"></script>
 </body>
 
 </html>

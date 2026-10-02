@@ -61,11 +61,16 @@ window.BBB = {
                 { label: 'Camelback Ambiente · Sat', amount: 250 },
                 { label: 'Room · 3 nights, 2 to a room', amount: 263 }
             ],
-            // How to pay, once there's something to pay; leave out any part, e.g. { label: 'Deposit', amount: 500,
-            // due: '2026-12-15', how: 'Venmo @handle', note: 'Balance due Mar 1.' } ("Deposit $500 due Dec 15 · Venmo
-            // @handle · Balance due Mar 1."). amount is shown exactly (203.13 is $203.13); due is 'YYYY-MM-DD' or text.
-            // null: "Don't send money yet. Payment details come with the final breakdown."
-            payment: { label: 'Deposit', amount: 500, due: '2026-11-30', how: 'Venmo @Westin-Tucker' }
+            // How to pay, once there's something to pay; leave out any part. The public cost line reads
+            // "Deposit $500 due Nov 30 · Venmo · Log in to pay". Never put a Venmo @username in how or note
+            // (anyone can read this file, and the page drops any @username from that line anyway). payTo is
+            // the roster name of the player who collects it: signed-in, approved players get a "Pay $500 on
+            // Venmo" button to that player's Venmo username (from his roster row: his Golf profile, or Admin's
+            // Venmo column; deposits_2027.sql saved Westin's), tap "I sent it", and an admin confirms it in
+            // Admin → RSVPs. Changing who collects it: change payTo here AND the two names in that year's
+            // deposits SQL (section 5 and the check), then run it. amount is shown exactly (203.13 is $203.13);
+            // due is 'YYYY-MM-DD' or text. null: "Don't send money yet. Payment details come with the final breakdown."
+            payment: { label: 'Deposit', amount: 500, due: '2026-11-30', how: 'Venmo', payTo: 'Westin Tucker' }
         },
         intro: [
             'The Sonoran Desert in April: 80-degree days, cool nights, and some of the best public golf in the country. This year we trade the Texas Hill Country for saguaros, Four Peaks, and firm, fast desert fairways.',
@@ -78,7 +83,7 @@ window.BBB = {
         updates: [
             { date: '2026-10-02', text: 'Thursday at Talking Stick is now a practice round: no Cup points. The Cup is three rounds: We-Ko-Pa Cholla Friday morning, Saguaro Friday afternoon, and Camelback Ambiente on Saturday.' },
             { date: '2026-10-02', text: 'Planning numbers: rooms are running about $175 a night, two to a room (about $263 each for the three nights), and American’s nonstop from Lubbock is about $450 round trip. Both are estimates, not final prices.' },
-            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. Venmo it to Westin (@Westin-Tucker). Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
+            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30, by Venmo to Westin. Log in and pay it from Your checklist on the homepage: one tap opens Venmo with the amount filled in. Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Nov 30 so we can book rooms.' }
         ],
         // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. 'Tee times';

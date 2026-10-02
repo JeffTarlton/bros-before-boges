@@ -1183,6 +1183,88 @@
                 flex: 1;
             }
         }
+
+        /* Deposits to confirm (RSVPs tab): "I sent it" taps from the homepage, waiting for an admin */
+        .claims {
+            margin: 0 0 18px;
+            padding: 16px 18px;
+            border-radius: 14px;
+            background: var(--admin-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .claims.has-open { border-left: 4px solid var(--admin-gold); }
+        .claims[hidden] { display: none; }
+        .claims h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #fff; }
+        .claims h3:focus { outline: none; }
+        .claims h3:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 3px; border-radius: 4px; }
+        .claims-count:empty { display: none; }
+        .claims-count {
+            display: inline-block;
+            min-width: 24px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(251, 191, 36, 0.18);
+            color: #fbbf24;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-align: center;
+        }
+        .claims-hint { margin: 6px 0 12px; font-size: 0.85rem; line-height: 1.5; color: rgba(255, 255, 255, 0.65); }
+        .claims[data-state="error"] .claims-hint { color: #fecaca; }
+        .claims-hint .admin-btn { width: auto; min-height: 44px; margin: 0 0 0 10px; padding: 6px 14px; font-size: 0.8rem; }
+        .claims-list,
+        #deposit-claims-recent-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+        .claim {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px 16px;
+            align-items: center;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .claims-list > li:first-child { border-top: 0; padding-top: 0; }
+        .claim-main { font-size: 0.95rem; color: #fff; overflow-wrap: anywhere; }
+        .claim-main b { font-weight: 700; }
+        .claim-when { color: rgba(255, 255, 255, 0.6); font-size: 0.85rem; white-space: nowrap; }
+        .claim-meta { margin-top: 2px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.65); overflow-wrap: anywhere; }
+        .claim-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .claim-actions .admin-btn,
+        .claim-done .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 8px 16px; font-size: 0.85rem; }
+        .claims-empty { color: rgba(255, 255, 255, 0.6); font-size: 0.9rem; }
+        .claims-recent { margin-top: 12px; }
+        .claims-recent[hidden] { display: none; }
+        .claims-recent summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: rgba(255, 255, 255, 0.8); }
+        .claims-recent summary { list-style: none; gap: 8px; }
+        .claims-recent summary::-webkit-details-marker { display: none; }
+        .claims-recent summary::before { content: '▸'; color: rgba(255, 255, 255, 0.55); }
+        .claims-recent[open] summary::before { content: '▾'; }
+        .claims-recent summary:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; border-radius: 6px; }
+        .claim-done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); overflow-wrap: anywhere; }
+        .claim-done > span { flex: 1 1 220px; min-width: 0; }
+        .claim-flag {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(251, 191, 36, 0.18);
+            color: #fbbf24;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .pay-claim-note { margin: -4px 0 12px; padding: 10px 12px; border-radius: 10px; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.35); color: #fde68a; font-size: 0.85rem; line-height: 1.45; }
+        .pay-claim-note[hidden] { display: none; }
+        .claim-already { margin: 0 0 14px; }
+        .claim-already[hidden] { display: none; }
+        .claim-already label { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; font-size: 0.9rem; line-height: 1.45; color: #fff; cursor: pointer; }
+        .claim-already input { width: 22px; height: 22px; flex: none; margin: 1px 0 0; accent-color: var(--admin-gold); }
+        .claim-already .field-hint { margin-left: 32px; }
+        @media (max-width: 640px) {
+            .claim { grid-template-columns: minmax(0, 1fr); }
+            .claim-actions { justify-content: stretch; }
+            .claim-actions .admin-btn { flex: 1 1 100%; }
+            .claims { padding: 14px; }
+        }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1299,7 +1381,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
                         <div style="flex: 1; min-width: 240px;">
                             <h2>RSVPs <span id="rsvp-admin-year" style="color: var(--admin-accent);"></span></h2>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Each player’s latest answer, from their own login. Notes are only visible here. New sign-ups stay off the public head count until you approve them. Paid is what you’ve recorded toward the trip; each player sees only his own.</p>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Each player’s latest answer, from their own login. Notes are only visible here. New sign-ups stay off the public head count until you approve them. Paid is what you’ve recorded toward the trip; each player sees only his own. Deposits players say they’ve sent on the homepage wait under Deposits to confirm.</p>
                         </div>
                         <div class="rsvp-tools">
                             <button type="button" id="rsvp-invite-btn" class="admin-btn secondary">Copy invite link</button>
@@ -1310,6 +1392,16 @@
                     <div class="rsvp-summary" id="rsvp-summary"></div>
                     <!-- Trip payments: why the Paid column has nothing to show yet -->
                     <div class="setup-note" id="rsvp-pay-note" hidden></div>
+                    <!-- Deposits players say they've sent from the homepage (deposits_2027.sql): filled by admin.js (renderDepositClaims) -->
+                    <section class="claims" id="deposit-claims" aria-labelledby="deposit-claims-title" hidden>
+                        <h3 id="deposit-claims-title" tabindex="-1">Deposits to confirm <span class="claims-count" id="deposit-claims-count"></span></h3>
+                        <p class="claims-hint" id="deposit-claims-hint"></p>
+                        <ul class="claims-list" id="deposit-claims-list"></ul>
+                        <details class="claims-recent" id="deposit-claims-recent" hidden>
+                            <summary>Recently handled</summary>
+                            <ul id="deposit-claims-recent-list"></ul>
+                        </details>
+                    </section>
                     <div class="rsvp-filters" id="rsvp-filters" role="toolbar" aria-label="Filter RSVPs">
                         <button type="button" data-rsvp-filter="all" aria-pressed="true">Everyone</button>
                         <button type="button" data-rsvp-filter="in" aria-pressed="false">In</button>
@@ -1554,6 +1646,7 @@
             <h3 id="pay-sheet-title">Trip payments</h3>
             <p class="modal-sub" id="pay-sheet-sub"></p>
             <p class="pay-total" id="pay-sheet-total"></p>
+            <p class="pay-claim-note" id="pay-sheet-claim" hidden></p>
             <ul class="pay-list" id="pay-sheet-list" aria-label="Payments recorded"></ul>
             <form id="pay-form" class="pay-form" novalidate>
                 <h4>Add a payment</h4>
@@ -1622,14 +1715,52 @@
         </div>
     </div>
 
+    <!-- Confirm a deposit a player says he sent (RSVPs tab, Deposits to confirm): records it in Paid and closes his claim -->
+    <div id="claim-sheet" class="modal-overlay sheet" role="dialog" aria-modal="true" aria-labelledby="claim-sheet-title" aria-describedby="claim-sheet-sub">
+        <div class="modal-box sheet-box">
+            <button type="button" class="sheet-close" data-sheet-close aria-label="Close">×</button>
+            <h3 id="claim-sheet-title" tabindex="-1">Confirm deposit</h3>
+            <p class="modal-sub" id="claim-sheet-sub"></p>
+            <form id="claim-form" class="pay-form" novalidate>
+                <div class="claim-already" id="claim-already-row" hidden>
+                    <label><input type="checkbox" id="claim-already"> <span id="claim-already-label"></span></label>
+                    <p class="field-hint is-warn" id="claim-already-why"></p>
+                </div>
+                <div class="pay-form-row">
+                    <div class="modal-field">
+                        <label for="claim-amount">Amount received</label>
+                        <div class="money-wrap">
+                            <span aria-hidden="true">$</span>
+                            <input type="text" id="claim-amount" class="admin-input" inputmode="decimal" autocomplete="off" aria-describedby="claim-error">
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label for="claim-date">Paid on</label>
+                        <input type="date" id="claim-date" class="admin-input" min="2020-01-01" aria-describedby="claim-error">
+                    </div>
+                </div>
+                <div class="modal-field">
+                    <label for="claim-note">Note</label>
+                    <input type="text" id="claim-note" class="admin-input" maxlength="200" autocomplete="off" aria-describedby="claim-note-hint claim-error">
+                    <p class="field-hint is-warn" id="claim-note-hint">The player can see this note.</p>
+                </div>
+                <p class="sheet-error" id="claim-error" role="alert" hidden></p>
+                <div class="modal-actions">
+                    <button type="button" class="admin-btn secondary" data-sheet-close>Cancel</button>
+                    <button type="submit" class="admin-btn" id="claim-confirm-btn">Record payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="toast-container" style="top: 20px; bottom: auto; align-items: flex-end;"></div>
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.13"></script>
+    <script src="trip-config.js?v=2027.14"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.14"></script>
+    <script src="admin.js?v=2027.15"></script>
 </body>
 
 </html>
