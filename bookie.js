@@ -26,7 +26,15 @@ const BET_LINK = /^[\w-]{1,80}$/.test(LINK_PARAMS.get('bet') || '') ? LINK_PARAM
 // `round` (keep score) and `board` (live scores) both go to the tracker, but someone who only
 // came to watch lands back on the scores, not on "Who is this phone scoring?".
 const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', board: 'round_tracker.html#board', admin: 'admin.html' };
-const NEXT = NEXT_PAGES[LINK_PARAMS.get('next')] ? LINK_PARAMS.get('next') : null;
+// An invite from the Supabase dashboard is someone new to the trip: like a sign-up link, it
+// ends on the RSVP unless the link says otherwise
+const NEXT_PARAM = LINK_PARAMS.get('next') || (LINK_PARAMS.get('type') === 'invite' ? 'rsvp' : null);
+const NEXT = NEXT_PAGES[NEXT_PARAM] ? NEXT_PARAM : null;
+// Admin's section (?next=admin&tab=rsvps) rides along through a password reset, so the
+// commissioner lands back where he was (admin.js opens admin.html#rsvps on that tab)
+const ADMIN_TAB = NEXT === 'admin' && /^(roster|rsvps|drafting|matchups|scores|score-entry|potential)$/.test(LINK_PARAMS.get('tab') || '')
+    ? LINK_PARAMS.get('tab') : null;
+if (ADMIN_TAB) NEXT_PAGES.admin = `admin.html#${ADMIN_TAB}`;
 const START_MODE = ['login', 'register'].includes(LINK_PARAMS.get('mode')) ? LINK_PARAMS.get('mode') : null;
 const NEW_PLAYER = '__new';
 const ALERTS = BBB.alerts || {};
@@ -364,9 +372,11 @@ function setupEventListeners() {
     openWagerBtn.addEventListener('click', openWagerModal);
     wagerTypeSelect.addEventListener('change', syncWagerTypeFields);
     wagerAmtInput.addEventListener('input', updateOddsPreview);
-    wagerOddsInput.addEventListener('input', updateOddsPreview);
+    // Typing a number is a custom line: the box stays open even as "15" becomes "150"
+    wagerOddsInput.addEventListener('input', () => { customLine = true; syncWagerTypeFields(); });
     wagerTargetSelect.addEventListener('change', syncWagerTypeFields);
     createWagerForm.querySelectorAll('input[name="odds-side"]').forEach(r => r.addEventListener('change', syncWagerTypeFields));
+    createWagerForm.querySelectorAll('.line-chip').forEach(chip => chip.addEventListener('click', () => pickLine(chip.dataset.line)));
     createWagerForm.addEventListener('input', () => showCreateError(''));
     createWagerForm.addEventListener('submit', handleCreateWager);
 
@@ -520,6 +530,7 @@ function closeModal() {
 function pageUrl() {
     const query = [];
     if (NEXT) query.push(`next=${NEXT}`);
+    if (ADMIN_TAB) query.push(`tab=${ADMIN_TAB}`);
     if (BET_LINK) query.push(`bet=${encodeURIComponent(BET_LINK)}`);
     return window.location.origin + window.location.pathname + (query.length ? `?${query.join('&')}` : '');
 }
@@ -1317,7 +1328,10 @@ function focusCard(id) {
     if (document.activeElement && document.activeElement !== document.body && !wagersContainer.contains(document.activeElement)) return;
     const card = document.getElementById(`wager-card-${id}`);
     if (!card) {
-        const next = wagersContainer.querySelector('[id^="wager-card-"] button:not([disabled])') || document.querySelector('.bookie-nav button.active');
+        // The list's own button: a chip, or on a phone (where Board and My Bets are only in the bottom bar) the tab
+        const shown = el => !!el && el.getClientRects().length > 0;
+        const next = wagersContainer.querySelector('[id^="wager-card-"] button:not([disabled])') ||
+            [...document.querySelectorAll('.bookie-nav button.active, .bottom-nav-btn.active')].find(shown);
         if (next) next.focus({ preventScroll: true });
         return;
     }
@@ -1330,7 +1344,8 @@ function focusCard(id) {
 function revealCard(id) {
     const card = document.getElementById(`wager-card-${id}`);
     if (!card) return;
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
     card.classList.remove('success-pop');
     void card.offsetWidth;
     card.classList.add('success-pop');
@@ -1377,6 +1392,10 @@ function renderDashboard() {
     updateNotificationBadges();
 }
 
+// The page heading on a phone names the list you're in, since the chips for All bets and My Bets
+// give way to the bottom bar there ("The Board" on wider screens, where the chips show it)
+const FILTER_TITLES = { pools: ['Pools & ', 'Props'], h2h: ['Head-to-', 'Head'], me: ['My ', 'Bets'], past: ['Past ', 'Trips'] };
+
 function setFilter(filter) {
     currentFilter = filter;
     document.querySelectorAll('.bookie-nav button[data-filter], .bottom-nav-btn[data-filter]').forEach(b => {
@@ -1384,6 +1403,13 @@ function setFilter(filter) {
         b.classList.toggle('active', on);
         b.setAttribute('aria-pressed', String(on));
     });
+    dashboard.dataset.filter = filter;
+    const title = FILTER_TITLES[filter];
+    const filterTitle = document.getElementById('dash-title-filter');
+    if (filterTitle && title) {
+        filterTitle.firstChild.textContent = title[0];
+        filterTitle.lastChild.textContent = title[1];
+    }
     // The Cup card belongs on the main board only
     const cupCard = document.getElementById('cup-card');
     if (cupCard) cupCard.hidden = filter !== 'all';
@@ -1625,6 +1651,9 @@ function statusBadge(wager) {
     const me = currentUser ? currentUser.id : null;
     const inBet = !!me && involvesMe(wager);
     if (needsMe(wager)) return wager.status === 'proposed' ? ['Your call', 'red'] : ['Needs a result', 'red'];
+    // Left open when the season moved on (Past Trips): nobody can settle it now. A challenge
+    // nobody accepted was never a bet, so it says that instead.
+    if (neverSettled(wager)) return [wager.status === 'proposed' ? 'Never answered' : 'Never settled', 'gold'];
     switch (wager.status) {
         case 'proposed': // the challenge's answer is up to its target, whoever's looking
             return wager.target_id
@@ -1791,6 +1820,28 @@ function isJustMine(wager) {
         (wager.type !== 'h2h' && wager.status === 'open' && (wager.participants || []).length <= 1));
 }
 
+// The players who run a bet without admin powers: its creator, and (for recording who won) either
+// player in a head-to-head. Anyone else acting on it is an admin overriding them.
+function runsBet(wager, eitherPlayer) {
+    if (!currentUser) return false;
+    const me = currentUser.id;
+    return wager.creator_id === me || (!!eitherPlayer && wager.type === 'h2h' && wager.target_id === me);
+}
+
+// The first line of an admin's confirm on someone else's bet ("Admin override: this is Kelly
+// Dennard’s bet."). Plain text for a native dialog, so names aren't escaped.
+function overrideLine(wager, eitherPlayer) {
+    if (!currentUser || !currentUser.is_admin || runsBet(wager, eitherPlayer)) return '';
+    const owner = wager.type === 'h2h' && wager.target_id
+        ? `${getPlayerName(wager.creator_id)} and ${getPlayerName(wager.target_id)}`
+        : getPlayerName(wager.creator_id);
+    return `Admin override: this is ${owner}’s bet.\n\n`;
+}
+
+// Bets from an earlier trip that never got a result (the season date moved past them)
+const UNFINISHED = ['proposed', 'open', 'active'];
+const neverSettled = w => !isCurrentSeason(w) && UNFINISHED.includes(w.status);
+
 function actionsHTML(wager) {
     const me = currentUser ? currentUser.id : null;
     const parts = wager.participants || [];
@@ -1800,21 +1851,25 @@ function actionsHTML(wager) {
     const isAdmin = !!(currentUser && currentUser.is_admin);
     const takers = parts.filter(id => id !== wager.creator_id);
     const id = escHtml(wager.id);
-    const RED = 'background: rgba(239, 68, 68, 0.08); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);';
+    // #f87171 on the red tint: 6:1 (#ef4444 was 4.4:1)
+    const RED = 'background: rgba(239, 68, 68, 0.08); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.35);';
     const GREEN = 'background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border: 1px solid var(--accent-emerald);';
-    const row = buttons => `<div style="display: flex; gap: 10px; margin-top: 15px;">${buttons}</div>`;
+    const row = buttons => `<div class="bet-actions" style="display: flex; gap: 10px; margin-top: 15px;">${buttons}</div>`;
     const note = text => `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">${text}</div>`;
+    // Buttons that only show because you're an admin say so, as Reopen (admin) does
+    const asAdmin = (label, override) => (override ? `${label} (admin)` : label);
     const cancelBtn = isJustMine(wager)
         ? actionButton('Cancel bet', 'fa-ban', `window.deleteWager('${id}')`, RED, 'cancel-btn delete-ok')
-        : actionButton('Cancel bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn');
-    const whoWonBtn = actionButton('Who won?', 'fa-trophy', `window.openSettleModal('${id}')`, GREEN, 'who-won-btn');
+        : actionButton(asAdmin('Cancel bet', !isCreator), 'fa-ban', `window.cancelWager('${id}')`, RED, isCreator ? 'cancel-btn' : 'cancel-btn admin-override');
+    const whoWonBtn = actionButton(asAdmin('Who won?', !runsBet(wager, true)), 'fa-trophy', `window.openSettleModal('${id}')`, GREEN, 'who-won-btn');
 
     // Last trip's leftovers don't count toward this year's ledger: no joining or settling them,
-    // but their creator (or an admin) can still clear them off.
+    // but their creator (or an admin) can still clear them off. Everyone sees one never settled.
     if (!isCurrentSeason(wager)) {
-        const unfinished = ['proposed', 'open', 'active'].includes(wager.status);
-        if (unfinished && (isCreator || isAdmin)) return row(cancelBtn) + note(`From the ${seasonYear(wager)} trip. It doesn’t count toward this year’s ledger.`);
-        return '';
+        if (!neverSettled(wager)) return '';
+        if (isCreator || isAdmin) return row(cancelBtn) + note(`From the ${seasonYear(wager)} trip. It doesn’t count toward this year’s ledger.`);
+        const why = wager.status === 'proposed' ? 'The challenge was never accepted' : 'Nobody recorded a result';
+        return note(`From the ${seasonYear(wager)} trip. ${why}, so no money changes hands.`);
     }
 
     // An admin can reopen a finished bet that was settled wrong
@@ -1856,7 +1911,7 @@ function actionsHTML(wager) {
         }
         if (canManage) {
             const enough = wager.type === 'prop' ? takers.length >= 1 : parts.length >= 2;
-            html += row((enough ? actionButton('Close betting', 'fa-lock', `window.closeBetting('${id}')`, GREEN) : '') + cancelBtn);
+            html += row((enough ? actionButton(asAdmin('Close betting', !isCreator), 'fa-lock', `window.closeBetting('${id}')`, GREEN, isCreator ? '' : 'admin-override') : '') + cancelBtn);
             if (!enough && isCreator) html += note(wager.type === 'prop' ? 'Waiting for someone to bet it doesn’t.' : 'Waiting for others to join.');
         }
         return html;
@@ -2081,7 +2136,7 @@ window.cancelWager = async function (id) {
     const question = wager.status === 'proposed'
         ? `Cancel the challenge “${wager.description}” before it’s accepted?`
         : `Cancel “${wager.description}”?${others ? ' Everyone who joined is out and no money changes hands.' : ''}`;
-    if (!confirm(question)) return;
+    if (!confirm(overrideLine(wager) + question)) return;
 
     await withBusyWager(id, async () => {
         try {
@@ -2106,7 +2161,7 @@ window.closeBetting = async function (id) {
     if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
-    if (!confirm(`Close betting on “${wager.description}”? Nobody else can join after this. Once the result is in, tap “Who won?” on the bet.`)) return;
+    if (!confirm(`${overrideLine(wager)}Close betting on “${wager.description}”? Nobody else can join after this. Once the result is in, tap “Who won?” on the bet.`)) return;
 
     await withBusyWager(id, async () => {
         try {
@@ -2174,7 +2229,7 @@ window.reopenWager = async function (id) {
     if (!currentUser || !currentUser.is_admin || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
-    if (!confirm(`Reopen “${wager.description}”? It goes back to having no result and drops out of the ledger until someone records who won again.`)) return;
+    if (!confirm(`${overrideLine(wager, true)}Reopen “${wager.description}”? It goes back to having no result and drops out of the ledger until someone records who won again.`)) return;
 
     await withBusyWager(id, async () => {
         try {
@@ -2262,11 +2317,15 @@ window.openSettleModal = function (id) {
     document.getElementById('settle-wager-id').value = id;
     setSettleBusy(false);
 
+    // Live scores can only settle a head-to-head about the 18-hole gross score; the note under
+    // the button says so before anyone taps it (the confirm says it again)
     const autoBtn = document.getElementById('settle-auto-btn');
     if (autoBtn) {
         autoBtn.style.display = wager.type === 'h2h' ? 'block' : 'none';
         autoBtn.onclick = () => handleAutoSettle(wager);
     }
+    const autoNote = document.getElementById('settle-auto-note');
+    if (autoNote) autoNote.hidden = wager.type !== 'h2h';
 
     const container = document.getElementById('settle-wager-winners-container');
     const parts = wager.participants || [];
@@ -2391,7 +2450,7 @@ async function handleSettleSubmit(e) {
     }
 
     // A result moves money, so say exactly what will happen first
-    if (!confirm(`${resultConfirmText(wager, winnerIds)}\n\nSave this result for “${wager.description}”? The ledger updates right away.`)) return;
+    if (!confirm(`${overrideLine(wager, true)}${resultConfirmText(wager, winnerIds)}\n\nSave this result for “${wager.description}”? The ledger updates right away.`)) return;
 
     setSettleBusy(true);
     try {
@@ -2417,9 +2476,9 @@ async function handleAlternativeSettle(statusType) {
     const wagerId = document.getElementById('settle-wager-id').value;
     const wager = findWager(wagerId);
     const what = wager ? `“${wager.description}”` : 'this bet';
-    if (!confirm(statusType === 'push'
+    if (!confirm((wager ? overrideLine(wager, true) : '') + (statusType === 'push'
         ? `Call ${what} a push (tie)? No money changes hands.`
-        : `Void ${what}? It's called off and no money changes hands.`)) return;
+        : `Void ${what}? It's called off and no money changes hands.`))) return;
 
     setSettleBusy(true);
     try {
@@ -2509,7 +2568,7 @@ async function handleAutoSettle(wager) {
 
         const isPush = cScore === tScore;
         const winnerId = cScore < tScore ? wager.creator_id : wager.target_id;
-        if (!confirm(`${summary}\n\n${isPush ? 'All square. Declare a push?' : `Record ${getPlayerName(winnerId)} as the winner?`}\n\nOnly OK this if the bet was about this round's score.`)) return;
+        if (!confirm(`${overrideLine(wager, true)}${summary}\n\n${isPush ? 'All square. Declare a push?' : `Record ${getPlayerName(winnerId)} as the winner?`}\n\nOnly OK this if the bet was about this round's score.`)) return;
 
         const values = isPush ? { status: 'push' } : { status: 'settled', winner_id: winnerId, winner_ids: [winnerId] };
         await withBusyWager(wager.id, async () => {
@@ -2991,18 +3050,47 @@ const AMOUNT_LABELS = { pool: 'Buy-in ($)', h2h: 'Bet amount ($)', prop: 'Amount
 const DESC_PLACEHOLDERS = { pool: 'E.g., Low net, Round 2', h2h: 'E.g., Lower gross, Round 1', prop: 'E.g., Someone makes an ace this trip' };
 const ODDS_HELP = 'Odds start at 100. For 3 to 2, type 150.';
 
+// '' while a line is picked but not yet who's the underdog
 function oddsSide() {
     const picked = createWagerForm.querySelector('input[name="odds-side"]:checked');
-    return picked ? picked.value : 'even';
+    return picked ? picked.value : '';
 }
 
 // The line is quoted for the opponent: +150 when they're the underdog, -150 when they're favored
 function readOdds() {
     const side = oddsSide();
     if (side === 'even') return 100;
+    if (!side) return NaN;
     const n = parseDollars(wagerOddsInput.value.replace(/^\s*[+\-−–]\s*/, ''));
     if (!Number.isInteger(n)) return NaN;
     return side === 'dog' ? n : -n;
+}
+
+// Quick lines: Even, 3:2, 2:1 or Custom (the number box). They only set the side and the number,
+// which readOdds() reads as before. Leaving even money doesn't guess who the underdog is.
+let customLine = false; // Custom picked: the number box stays open, even on 150 or 200
+const LINE_PRESETS = ['150', '200'];
+
+function lineChoice() {
+    if (oddsSide() === 'even') return 'even';
+    const typed = wagerOddsInput.value.replace(/^\s*[+\-−–]\s*/, '').trim();
+    return !customLine && LINE_PRESETS.includes(typed) ? typed : 'custom';
+}
+
+function pickLine(line) {
+    const sideRadio = value => createWagerForm.querySelector(`input[name="odds-side"][value="${value}"]`);
+    const fromEven = oddsSide() === 'even';
+    customLine = line === 'custom';
+    if (line === 'even') {
+        sideRadio('even').checked = true;
+    } else {
+        if (fromEven) sideRadio('even').checked = false;
+        if (!customLine) wagerOddsInput.value = line;
+    }
+    showCreateError('');
+    syncWagerTypeFields();
+    // Custom with a side already picked: straight to the number box
+    if (customLine && oddsSide()) wagerOddsInput.focus();
 }
 
 function syncWagerTypeFields() {
@@ -3011,10 +3099,17 @@ function syncWagerTypeFields() {
     h2hTargetContainer.style.display = isH2H ? 'block' : 'none';
     wagerTargetSelect.required = isH2H;
 
+    const choice = lineChoice();
+    const lined = isH2H && choice !== 'even';
     const hint = document.getElementById('wager-type-hint');
     if (hint) hint.textContent = TYPE_HINTS[type] || '';
+    // With a line, the amount is the underdog's side of it (h2hPayouts); the favorite puts up more
     const amtLabel = document.getElementById('wager-amt-label');
-    if (amtLabel) amtLabel.textContent = AMOUNT_LABELS[type] || 'Bet amount ($)';
+    if (amtLabel) amtLabel.textContent = lined ? 'Underdog’s stake ($)' : (AMOUNT_LABELS[type] || 'Bet amount ($)');
+    const amtHint = document.getElementById('wager-amt-hint');
+    if (amtHint) amtHint.hidden = !lined;
+    if (lined) wagerAmtInput.setAttribute('aria-describedby', 'wager-amt-hint');
+    else wagerAmtInput.removeAttribute('aria-describedby');
     wagerDescInput.placeholder = DESC_PLACEHOLDERS[type] || '';
 
     // "Kelly's the underdog" reads better than "They're the underdog" once someone is picked
@@ -3025,7 +3120,10 @@ function syncWagerTypeFields() {
     if (dogLabel) dogLabel.textContent = opp ? `${opp}’s the underdog` : 'They’re the underdog';
     if (favLabel) favLabel.textContent = opp ? `${opp}’s the favorite` : 'They’re the favorite';
     if (legend) legend.textContent = opp ? `The line on ${opp}` : 'The line';
-    if (oddsNumberWrap) oddsNumberWrap.hidden = oddsSide() === 'even';
+    createWagerForm.querySelectorAll('.line-chip').forEach(chip => chip.setAttribute('aria-pressed', String(chip.dataset.line === choice)));
+    const sideOptions = document.getElementById('odds-side-options');
+    if (sideOptions) sideOptions.hidden = choice === 'even';
+    if (oddsNumberWrap) oddsNumberWrap.hidden = choice !== 'custom';
 
     updateOddsPreview();
 }
@@ -3045,18 +3143,25 @@ function updateOddsPreview() {
         previewEl.textContent = 'Whole dollars only.';
         return;
     }
+    const name = wagerTargetSelect.value ? getPlayerName(wagerTargetSelect.value) : '';
+    if (!oddsSide()) {
+        previewEl.textContent = `Pick whether ${name || 'your opponent'} is the underdog or the favorite.`;
+        return;
+    }
     const odds = readOdds();
     if (!isValidOdds(odds)) {
         previewEl.textContent = ODDS_HELP;
         return;
     }
 
-    const name = wagerTargetSelect.value ? escHtml(getPlayerName(wagerTargetSelect.value)) : '';
-    const opp = name || 'your opponent';
-    const Opp = name || 'Your opponent';
+    // The money first: what you put up and what you take (h2hPayouts), then their side and the line
+    const Opp = name ? escHtml(name) : 'Your opponent';
     const { creatorWins, targetWins } = h2hPayouts(amount, odds);
-    const line = Math.abs(odds) === 100 ? 'Even money.' : `${Opp} is the ${odds > 0 ? 'underdog' : 'favorite'} at ${fmtOdds(odds)}.`;
-    previewEl.innerHTML = `${line}<br><strong>You win:</strong> ${opp} pays you ${fmtMoney(creatorWins)}.<br><strong>${Opp} wins:</strong> you pay ${fmtMoney(targetWins)}.`;
+    const theirStake = `risks ${fmtMoney(creatorWins)} to win ${fmtMoney(targetWins)}`;
+    const theirSide = Math.abs(odds) === 100
+        ? `Even money: ${Opp} ${theirStake}.`
+        : `${Opp} is the ${odds > 0 ? 'underdog' : 'favorite'} at ${fmtOdds(odds)} and ${theirStake}.`;
+    previewEl.innerHTML = `<strong>You risk ${fmtMoney(targetWins)} to win ${fmtMoney(creatorWins)}.</strong><br>${theirSide}`;
 }
 
 // Errors show right above the button, and the field that needs fixing gets focus
@@ -3065,7 +3170,7 @@ function showCreateError(message, field) {
     wagerErrorEl.textContent = message;
     wagerErrorEl.style.display = message ? 'block' : 'none';
     if (message && field) {
-        (field.closest('#odds-number-wrap') || field).after(wagerErrorEl);
+        (field.closest('#odds-number-wrap, .odds-side') || field).after(wagerErrorEl);
         field.focus();
         wagerErrorEl.scrollIntoView({ block: 'nearest' });
     } else if (message) {
@@ -3078,6 +3183,7 @@ function showCreateError(message, field) {
 function resetCreateForm() {
     createWagerForm.reset();
     wagerOddsInput.value = '';
+    customLine = false;
     pendingWagerId = null;
     pendingWagerTerms = null;
     showCreateError('');
@@ -3126,6 +3232,9 @@ async function handleCreateWager(e) {
     const odds = type === 'h2h' ? readOdds() : 100;
 
     if (type === 'h2h' && !targetId) return showCreateError('Pick who you’re challenging.', wagerTargetSelect);
+    if (type === 'h2h' && !oddsSide()) {
+        return showCreateError('Pick who’s the underdog.', createWagerForm.querySelector('input[name="odds-side"][value="dog"]'));
+    }
     if (type === 'h2h' && !isValidOdds(odds)) return showCreateError(ODDS_HELP, wagerOddsInput);
     if (!desc) return showCreateError('Spell out the terms of the bet.', wagerDescInput);
     if (!Number.isInteger(amount) || amount < 1) return showCreateError('Enter whole dollars, $1 or more.', wagerAmtInput);

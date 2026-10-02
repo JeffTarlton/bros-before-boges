@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.9">
+    <link rel="stylesheet" href="style.css?v=2027.10">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -218,14 +218,17 @@
             box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
         }
 
+        /* Dark text on a lighter emerald, so labels read in the sun: 7.4:1 at the darker end (white on
+           the old #10b981 → #059669 was 2.5:1). The dark text also keeps buttons that set their own
+           background inline (Save Scores, the red To T2) at 5:1 or better. */
         .admin-btn {
             width: 100%;
             padding: 15px;
             margin-top: 20px;
-            background: linear-gradient(135deg, var(--admin-accent), #059669);
+            background: linear-gradient(135deg, #34d399, var(--admin-accent));
             border: none;
             border-radius: 12px;
-            color: white;
+            color: #1a0f08;
             font-weight: 700;
             font-size: 1rem;
             cursor: pointer;
@@ -239,6 +242,7 @@
 
         .admin-btn.secondary {
             background: rgba(255, 255, 255, 0.1);
+            color: #fff;
         }
 
         .dashboard {
@@ -981,7 +985,7 @@
                     <button type="submit" id="login-btn" class="admin-btn">Log in</button>
                 </form>
                 <div class="login-links">
-                    <a href="bookie.html?next=admin&amp;mode=login">Forgot password?</a>
+                    <a href="bookie.html?next=admin&amp;mode=login" id="admin-forgot-link">Forgot password?</a>
                     <a href="index.html">← Back to the site</a>
                 </div>
                 </div>
@@ -1183,7 +1187,7 @@
                             <h2>Ryder Cup Official Score</h2>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Configure the live points here. Both the Home page and the Bookie page actively listen to this value.</p>
                         </div>
-                        <button id="save-scores-btn" class="admin-btn" style="width: auto; padding: 10px 20px; margin-top: 0; background: linear-gradient(135deg, var(--accent-emerald), #059669);">Save Scores</button>
+                        <button id="save-scores-btn" class="admin-btn" style="width: auto; padding: 10px 20px; margin-top: 0;">Save Scores</button>
                     </div>
 
                     <div style="background: rgba(255,255,255,0.02); padding: 25px 15px; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); margin-top: 20px;">
@@ -1247,7 +1251,7 @@
                         <button id="fill-from-tracker-btn" class="admin-btn secondary" style="width: auto; padding: 12px 24px; margin: 0;" title="Copy this round's scorecards from the Round Tracker into the table. Nothing saves until you press Save.">
                             ⛳ Fill from Round Tracker
                         </button>
-                        <button id="save-score-entry-btn" class="admin-btn" style="width: auto; padding: 12px 30px; margin: 0; background: linear-gradient(135deg, var(--admin-accent), #059669);">
+                        <button id="save-score-entry-btn" class="admin-btn" style="width: auto; padding: 12px 30px; margin: 0;">
                             💾 Save Round Scores
                         </button>
                     </div>
@@ -1307,7 +1311,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.10"></script>
+    <script src="admin.js?v=2027.11"></script>
 </body>
 
 </html>

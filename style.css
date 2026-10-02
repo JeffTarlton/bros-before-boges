@@ -266,9 +266,11 @@ a {
     font-weight: 600;
 }
 
+/* Dark text on copper, as the homepage's buttons, so it reads in the sun: 5.7:1 at the darker end
+   (white on the old #e27d4f → #b9582f was 2.9:1). home.css restyles this on the homepage. */
 .btn-primary {
-    background: linear-gradient(135deg, #e27d4f, #b9582f);
-    color: white;
+    background: linear-gradient(135deg, #ec8b5d, #d9703f);
+    color: #1a0f08;
     padding: 18px 45px;
     border-radius: 14px;
     font-weight: 800;
@@ -1280,6 +1282,17 @@ input, select, textarea {
 .skeleton-title { height: 24px; margin-bottom: 15px; width: 70%; }
 .skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; }
 
+/* Reduced motion (the same block as home.css): no sliding sheets or toasts, no looping shimmer or
+   spinning icons, no smooth scrolling on The Bookie, Live scores and Admin */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 /* --- APP PAGES (Bookie, Round Tracker) ---
    These pages don't load home.css, so .btn needs a base style here. */
 .app-page .btn {
@@ -1302,12 +1315,16 @@ input, select, textarea {
     font-size: 0.95rem;
 }
 .app-page .btn-primary { border: none; }
+/* Emerald buttons (Join, Accept, + New bet, Save result): dark text on a lighter emerald, 7.4:1 at
+   the darker end (white on the old #10b981 → #059669 was 2.5:1) */
 .app-page .btn.join-btn,
-.app-page .btn.accept-btn {
-    background: linear-gradient(135deg, var(--accent-emerald), #059669);
+.app-page .btn.accept-btn,
+.app-page .btn.btn-emerald {
+    background: linear-gradient(135deg, #34d399, var(--accent-emerald));
     border: none;
-    color: #fff;
+    color: #1a0f08;
 }
+.app-page .btn.btn-emerald { box-shadow: 0 10px 25px rgba(16, 185, 129, 0.25); }
 .app-page .btn:hover { border-color: rgba(255, 255, 255, 0.25); }
 .app-page .btn:active { transform: scale(0.98); }
 .app-page .btn:disabled { opacity: 0.6; cursor: wait; }

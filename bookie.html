@@ -24,18 +24,25 @@
     <script>
         // Here to log in for the RSVP, golf profile or homepage: show the site's name instead of
         // The Bookie's from the first paint (bookie.js applies the same rule as ACCOUNT_MODE)
-        if (/[?&]next=(rsvp|profile|home)(&|$)/.test(location.search)) document.documentElement.classList.add('account-mode');
+        // (an invite email with no ?next ends on the RSVP too)
+        if (/[?&]next=(rsvp|profile|home)(&|$)/.test(location.search) ||
+            (!/[?&]next=/.test(location.search) && /[#&]type=invite(&|$)/.test(location.hash))) document.documentElement.classList.add('account-mode');
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Font Awesome: the stylesheet and (crossorigin) its icon font come from cdnjs -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.9">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=2027.10">
+    <!-- Icons never hold up the first paint: loaded as "print" (non-blocking), switched on when it arrives -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     <style>
         html {
-            scroll-padding-top: 100px;
+            scroll-padding-top: calc(100px + env(safe-area-inset-top));
         }
 
         /* Home-screen mode draws under the iPhone status bar */
@@ -61,9 +68,10 @@
             }
         }
 
-        /* The fixed header is about 87px tall; keep the first bet close under it */
+        /* The fixed header is about 87px tall; keep the first bet close under it. In home-screen
+           mode the header also grows by the status bar (safe-area inset), so the page does too. */
         main.section-padding.bookie-main {
-            padding-top: 120px;
+            padding-top: calc(120px + env(safe-area-inset-top));
         }
 
         #bookie-dashboard .section-title::after {
@@ -148,7 +156,7 @@
             }
 
             main.section-padding.bookie-main {
-                padding-top: 100px;
+                padding-top: calc(100px + env(safe-area-inset-top));
             }
 
             /* 'Main Event / Stakes TBA' says nothing new on a small screen */
@@ -182,6 +190,49 @@
                 padding: 10px 16px !important;
                 font-size: 0.9rem;
             }
+
+            /* Only the lists the bottom bar lacks show here (Board and My Bets are down there),
+               each with its count badge; the row wraps (see the phone .bookie-nav rule below) */
+            .bookie-nav button[data-filter="all"],
+            .bookie-nav button[data-filter="me"] {
+                display: none;
+            }
+
+            /* ...so the heading names the list you're in ("My Bets", "Past Trips") */
+            #bookie-dashboard:not([data-filter="all"]) .dash-title-board {
+                display: none;
+            }
+
+            #bookie-dashboard:not([data-filter="all"]) .dash-title-filter {
+                display: inline;
+            }
+        }
+
+        .dash-title-filter {
+            display: none;
+        }
+
+        /* Small phones: three chips in two rows, not one each */
+        @media (max-width: 360px) {
+            .bookie-nav button {
+                padding: 10px 12px !important;
+            }
+
+            .line-chip {
+                font-size: 0.88rem;
+            }
+        }
+
+        /* Phones: an admin's override buttons ("Close betting (admin)") get a row each, so the label
+           stays on one line */
+        @media (max-width: 600px) {
+            .bet-actions {
+                flex-wrap: wrap;
+            }
+
+            .bet-actions .admin-override {
+                flex-basis: 100% !important;
+            }
         }
 
         /* Tablets and small laptops: give the ledger a usable width */
@@ -195,7 +246,7 @@
         @media (min-width: 769px) {
             #ledger-panel {
                 position: sticky;
-                top: 100px;
+                top: calc(100px + env(safe-area-inset-top));
                 max-height: calc(100vh - 120px);
                 overflow-y: auto;
             }
@@ -242,6 +293,16 @@
             }
         }
 
+        /* Phones: the chips wrap instead of running off the side, and nothing clips their focus
+           ring. It sits after the base .bookie-nav rule so it wins. */
+        @media (max-width: 768px) {
+            .bookie-nav {
+                flex-wrap: wrap;
+                overflow-x: visible;
+                padding-bottom: 0;
+            }
+        }
+
         a.bottom-nav-btn {
             text-decoration: none;
         }
@@ -256,7 +317,8 @@
             padding: 0 6px;
             margin-left: 6px;
             border-radius: 99px;
-            background: #ef4444;
+            /* White on #dc2626: 4.8:1 (#ef4444 was 3.8:1) */
+            background: #dc2626;
             color: #fff;
             font-size: 0.72rem;
             font-weight: 800;
@@ -453,6 +515,47 @@
         .odds-side-options input:focus-visible + span {
             outline: 2px solid var(--accent-gold);
             outline-offset: 2px;
+        }
+
+        /* Quick lines: Even, 3:2, 2:1, Custom. Who's the underdog shows under them once it matters. */
+        .line-chips {
+            display: flex;
+            gap: 8px;
+        }
+
+        .line-chip {
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 48px;
+            padding: 6px 4px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font: inherit;
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+        }
+
+        .line-chip[aria-pressed="true"] {
+            border-color: var(--accent-gold);
+            background: rgba(251, 191, 36, 0.12);
+            color: var(--accent-gold);
+        }
+
+        .line-chips + .odds-side-options {
+            margin-top: 10px;
+        }
+
+        /* Live scores can only judge an 18-hole gross score: said under its button */
+        .settle-auto-note {
+            margin: 8px 0 0;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            line-height: 1.4;
+            text-align: center;
         }
 
         #wager-error {
@@ -1241,17 +1344,17 @@
             </div>
 
             <!-- Main Dashboard (Hidden until auth) -->
-            <div id="bookie-dashboard" style="display: none;">
+            <div id="bookie-dashboard" data-filter="all" style="display: none;">
                 <div class="dash-head" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
                     <div>
-                        <h2 class="section-title" style="margin-bottom: 0;">The <span class="text-stroke">Board</span></h2>
+                        <h2 class="section-title" style="margin-bottom: 0;"><span class="dash-title-board">The <span class="text-stroke">Board</span></span><span id="dash-title-filter" class="dash-title-filter">My <span class="text-stroke">Bets</span></span></h2>
                         <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
                         <!-- Your net for the trip; tapping it goes to the Ledger (bookie.js fills it in) -->
                         <button type="button" id="my-net-btn" class="my-net-btn" hidden><span><span id="my-net-label">Your net</span>: <strong id="my-net-amount">Even</strong><span class="sr-only">. Show the Ledger</span></span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" id="refresh-board-btn" class="refresh-btn" aria-label="Refresh the board"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>Refresh</span></button>
-                        <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ New bet</button>
+                        <button id="create-wager-btn" class="btn btn-primary btn-emerald" style="padding: 12px 24px;">+ New bet</button>
                     </div>
                 </div>
 
@@ -1417,8 +1520,16 @@
 
                     <fieldset class="odds-side">
                         <legend id="odds-side-legend">The line</legend>
-                        <div class="odds-side-options">
-                            <label><input type="radio" name="odds-side" value="even" checked><span>Even money</span></label>
+                        <!-- Quick lines. Even checks the Even money radio; 3:2 and 2:1 fill the number box;
+                             Custom opens it. Who's the underdog is asked under them (never guessed). -->
+                        <div class="line-chips" role="group" aria-label="Odds">
+                            <button type="button" class="line-chip" data-line="even" aria-pressed="true">Even</button>
+                            <button type="button" class="line-chip" data-line="150" aria-pressed="false">3:2</button>
+                            <button type="button" class="line-chip" data-line="200" aria-pressed="false">2:1</button>
+                            <button type="button" class="line-chip" data-line="custom" aria-pressed="false">Custom</button>
+                        </div>
+                        <div class="odds-side-options" id="odds-side-options" hidden>
+                            <label hidden><input type="radio" name="odds-side" value="even" checked><span>Even money</span></label>
                             <label><input type="radio" name="odds-side" value="dog"><span id="odds-dog-label">They’re the underdog</span></label>
                             <label><input type="radio" name="odds-side" value="fav"><span id="odds-fav-label">They’re the favorite</span></label>
                         </div>
@@ -1436,6 +1547,7 @@
 
                 <label for="wager-amt" id="wager-amt-label">Buy-in ($)</label>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" id="wager-amt" required placeholder="20">
+                <p id="wager-amt-hint" class="field-hint" hidden>The favorite risks more.</p>
 
                 <div id="odds-preview-text" aria-live="polite" style="font-size: 0.85rem; color: var(--accent-gold); display: none; margin-bottom: 20px; line-height: 1.5; padding: 10px; background: rgba(251,191,36,0.05); border-radius: 8px; border: 1px solid rgba(251,191,36,0.2);"></div>
                 <p id="wager-error" class="auth-message" role="alert"></p>
@@ -1453,14 +1565,15 @@
                     </div>
                 </fieldset>
 
-                <button type="submit" id="settle-submit-btn" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Save result</button>
+                <button type="submit" id="settle-submit-btn" class="btn btn-primary btn-emerald" style="width: 100%; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Save result</button>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                     <button type="button" id="settle-push-btn" class="btn" style="flex: 1; background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.3);">Call it a push</button>
-                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Void bet</button>
+                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.35);">Void bet</button>
                 </div>
-                <button type="button" id="settle-auto-btn" class="btn" style="width: 100%; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px dashed #60a5fa; display: none;">
+                <button type="button" id="settle-auto-btn" class="btn" aria-describedby="settle-auto-note" style="width: 100%; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px dashed #60a5fa; display: none;">
                     <i class="fas fa-bolt" style="margin-right: 5px;" aria-hidden="true"></i> Use Live scores (18-hole gross)
                 </button>
+                <p id="settle-auto-note" class="settle-auto-note" hidden>Only for bets about an 18-hole gross score.</p>
             </form>
         </div>
     </div>
@@ -1470,7 +1583,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
-    <script src="bookie.js?v=2027.12" defer></script>
+    <script src="bookie.js?v=2027.13" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
