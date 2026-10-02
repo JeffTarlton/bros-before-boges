@@ -7,7 +7,7 @@ line from the table and paste the whole file into the message body (HTML).
 | Supabase template      | File                     | Subject                                      |
 |------------------------|--------------------------|----------------------------------------------|
 | Confirm sign up        | `confirm-signup.html`    | Confirm your email · Bros before Boges       |
-| Invite user            | `invite-user.html`       | You’re in: Bros before Boges 2027            |
+| Invite user            | `invite-user.html`       | You’re in: Bros before Boges                 |
 | Magic link             | `magic-link.html`        | Your login link · Bros before Boges          |
 | Change email address   | `change-email.html`      | Confirm your new email · Bros before Boges   |
 | Reset password         | `reset-password.html`    | Reset your password · Bros before Boges      |
@@ -21,6 +21,27 @@ Notes
   paths when redesigning, or update the templates.
 - Every link lands on the site. The homepage forwards sign-in links to `bookie.html`, which handles
   confirmations, invites (choose a password), resets and expired links.
+- The templates and subjects name no year or place, so a new trip needs no email changes. The
+  header photo is the site's `og-card.jpg`: update that for the new trip and the emails follow.
+
+**Yearly checklist:** re-paste any edited templates (and changed subject lines) into
+Supabase → Authentication → Emails → Templates. Editing a file here changes nothing until it's
+pasted there.
+
+**Changing a player's login email** (rare; there's no button for it on the site):
+1. Supabase → Authentication → Users: search his old email to find his login. If the user panel
+   lets you edit the email, change it there. If it doesn't, run this in the SQL Editor (both
+   addresses in lower case): `update auth.users set email = 'new@example.com' where lower(email) = 'old@example.com';`
+2. Admin → Confirmed Roster: change the Email on his row to the same address and save. The
+   roster email is separate from the login, and admin rights and the sign-up name match go by
+   it. (Someone still waiting under New sign-ups has no email box there: approve him first, or
+   edit his `email` in Supabase → Table Editor → `players`.)
+3. He logs out and back in with the new email and the same password (“Forgot password?” works
+   with the new address).
+
+Changing your own login? Do step 2 in Supabase → Table Editor → `players` instead of Admin.
+Admin only lets you in when your login email matches an admin row on the roster, so after step 1
+it won't recognise you until the two match.
 
 Sending setup (Google Workspace account brosbeforeboges@lokdit.net):
 Authentication → Emails → SMTP Settings: host `smtp.gmail.com`, port `465`, username

@@ -1,5 +1,37 @@
 {
     "cleanUrls": true,
+    "redirects": [
+        {
+            "source": "/rsvp",
+            "destination": "/#rsvp",
+            "permanent": false
+        },
+        {
+            "source": "/live",
+            "destination": "/round_tracker#board",
+            "permanent": false
+        },
+        {
+            "source": "/scores",
+            "destination": "/round_tracker#board",
+            "permanent": false
+        },
+        {
+            "source": "/tracker",
+            "destination": "/round_tracker#board",
+            "permanent": false
+        },
+        {
+            "source": "/score",
+            "destination": "/round_tracker#setup",
+            "permanent": false
+        },
+        {
+            "source": "/bets",
+            "destination": "/bookie",
+            "permanent": false
+        }
+    ],
     "rewrites": [
         {
             "source": "/admin",

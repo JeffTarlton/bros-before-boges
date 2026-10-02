@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Vercel serves this page for any unknown path, at any depth (/scorez, /2027/whatever),
+         so every link, stylesheet and image below uses an absolute path. No script.js or
+         Supabase: it only has to look like the site and get people back on the course. -->
+    <script>
+        // An email link that landed on a wrong path still finishes on The Bookie, like the homepage
+        if (/(^|[#&])(access_token|error_code)=/.test(location.hash)) location.replace('/bookie' + location.hash);
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex">
+    <title>Page not found | Bros before Boges</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Same ?v= as index.html so the browser reuses the cached copies -->
+    <link rel="stylesheet" href="/style.css?v=2027.9">
+    <link rel="stylesheet" href="/home.css?v=2027.11">
+    <link rel="icon" type="image/svg+xml" href="/bbb-logo.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <style>
+        /* The homepage hero, cut down to one photo and one message */
+        .lost-page .nav { position: absolute; }
+        .lost-page .brand { min-height: 44px; }
+        .lost {
+            position: relative;
+            min-height: 100vh;
+            min-height: 100svh;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            isolation: isolate;
+            padding: calc(var(--header-h) + 32px) 0 clamp(48px, 9vh, 96px);
+        }
+        .lost-bg { position: absolute; inset: 0; z-index: -2; background: var(--surface); }
+        .lost-bg img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; }
+        .lost::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background:
+                linear-gradient(180deg, rgba(14, 11, 9, 0.72) 0%, rgba(14, 11, 9, 0.18) 30%, rgba(14, 11, 9, 0.4) 62%, var(--bg) 100%),
+                linear-gradient(90deg, rgba(14, 11, 9, 0.82) 0%, rgba(14, 11, 9, 0.35) 55%, rgba(14, 11, 9, 0) 100%);
+        }
+        .lost::after {
+            content: '';
+            position: absolute;
+            left: -10%;
+            right: -10%;
+            bottom: -30%;
+            height: 70%;
+            z-index: -1;
+            background: radial-gradient(ellipse at 30% 100%, rgba(226, 125, 79, 0.28), transparent 60%);
+            pointer-events: none;
+        }
+        .lost-copy { max-width: 760px; }
+        .lost-title {
+            font-size: clamp(2.6rem, 7.4vw, 6rem);
+            line-height: 0.98;
+            margin-bottom: 18px;
+            text-shadow: 0 4px 40px rgba(0, 0, 0, 0.35);
+        }
+        .lost-title em { font-weight: 400; }
+        .lost .lede { color: rgba(244, 235, 223, 0.88); margin-bottom: 34px; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5); }
+        .lost-links { display: flex; flex-wrap: wrap; gap: 12px; list-style: none; }
+        .lost-links .btn { min-width: 132px; }
+
+        /* Phones: a 2 x 2 grid of big, even buttons */
+        @media (max-width: 640px) {
+            .lost { align-items: flex-end; }
+            .lost-title { font-size: clamp(2.4rem, 12.5vw, 3.4rem); }
+            .lost-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .lost-links .btn { width: 100%; min-width: 0; padding: 0 12px; }
+        }
+    </style>
+</head>
+
+<body class="lost-page">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="nav" id="site-nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="/" aria-label="Bros before Boges home">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="bbbSun" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#f6cf86" />
+                            <stop offset="1" stop-color="#e27d4f" />
+                        </linearGradient>
+                        <clipPath id="bbbClip"><rect x="2" y="2" width="60" height="60" rx="17" /></clipPath>
+                    </defs>
+                    <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612" />
+                    <g clip-path="url(#bbbClip)">
+                        <circle cx="27" cy="43" r="15" fill="url(#bbbSun)" />
+                        <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09" />
+                        <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f" />
+                    </g>
+                    <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5" />
+                    <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f" />
+                </svg>
+                <span class="brand-word">Bros before <em>Boges</em></span>
+            </a>
+        </div>
+    </header>
+
+    <main id="main" class="lost">
+        <div class="lost-bg" aria-hidden="true">
+            <img src="/assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" alt="">
+        </div>
+        <div class="wrap">
+            <div class="lost-copy">
+                <p class="eyebrow">Lost ball · 404</p>
+                <h1 class="h-display lost-title">That one’s in the <em>desert.</em></h1>
+                <p class="lede">Head back to the clubhouse.</p>
+                <nav aria-label="Where to next">
+                    <ul class="lost-links">
+                        <li><a class="btn btn-copper" href="/">Home</a></li>
+                        <li><a class="btn btn-line" href="/round_tracker#board">Live scores</a></li>
+                        <li><a class="btn btn-line" href="/#rsvp">RSVP</a></li>
+                        <li><a class="btn btn-line" href="/bookie">The Bookie</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>
