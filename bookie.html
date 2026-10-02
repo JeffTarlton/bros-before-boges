@@ -156,6 +156,28 @@
                 display: none;
             }
 
+            /* Before the Cup is live there are no points to show: just its name and one line,
+               so the bets waiting on you start on the first screen */
+            #cup-card.cup-quiet {
+                padding: 12px 16px;
+            }
+
+            #cup-card.cup-quiet .pot-total {
+                margin: 4px 0 0;
+                padding: 0;
+                background: none !important;
+                border: 0;
+                text-align: left;
+            }
+
+            #cup-card.cup-quiet .pot-total > div {
+                display: none !important;
+            }
+
+            #cup-card.cup-quiet #cup-card-note {
+                margin-top: 0 !important;
+            }
+
             .bookie-nav button {
                 padding: 10px 16px !important;
                 font-size: 0.9rem;
@@ -252,6 +274,63 @@
             border-color: var(--accent-gold);
             color: var(--accent-gold);
             font-weight: bold;
+        }
+
+        /* "Waiting on you (2)" over the bets that need you, "Everything else" over the rest */
+        .board-group-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 12px;
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .board-group-head::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .board-group-head.waiting {
+            color: #fca5a5;
+        }
+
+        .board-group-head.waiting::after {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        /* The cards already have a 20px bottom margin */
+        .glass-panel + .board-group-head {
+            margin-top: 12px;
+        }
+
+        /* A short line under a bet's terms: who challenged whom, who's on which side of a prop */
+        .bet-sides {
+            font-size: 0.85rem;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+            overflow-wrap: anywhere;
+        }
+
+        /* "Text Kelly about it" on your own pending challenge */
+        .app-page .btn.text-challenge-btn {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px;
+            background: rgba(251, 191, 36, 0.12);
+            color: var(--accent-gold);
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            font-weight: 700;
+        }
+
+        .toast.toast-info {
+            border-left: 4px solid var(--accent-gold);
         }
 
         /* Wager cards: pills wrap instead of pushing the card off small phones */
@@ -820,7 +899,7 @@
             }
         }
 
-        /* A long head-to-head form scrolls; Propose stays reachable at the bottom of the sheet */
+        /* A long head-to-head form scrolls; Post bet stays reachable at the bottom of the sheet */
         #bookie-modal .modal-content {
             scroll-padding-bottom: 100px;
         }
@@ -899,27 +978,27 @@
             <div id="bookie-dashboard" style="display: none;">
                 <div class="dash-head" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
                     <div>
-                        <h2 class="section-title" style="margin-bottom: 0;">Active <span class="text-stroke">Action</span></h2>
+                        <h2 class="section-title" style="margin-bottom: 0;">The <span class="text-stroke">Board</span></h2>
                         <p style="color: var(--text-muted);">Logged in as: <strong id="current-user-name" style="color: white;">---</strong></p>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" id="refresh-board-btn" class="refresh-btn" aria-label="Refresh the board"><i class="fas fa-sync-alt" aria-hidden="true"></i><span>Refresh</span></button>
-                        <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ Propose Bet</button>
+                        <button id="create-wager-btn" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; padding: 12px 24px;">+ New bet</button>
                     </div>
                 </div>
 
                 <div class="bookie-nav" role="group" aria-label="Filter bets">
-                    <button class="active" data-filter="all" aria-pressed="true">All Action</button>
+                    <button class="active" data-filter="all" aria-pressed="true">All bets</button>
                     <button data-filter="pools" aria-pressed="false">Pools & Props</button>
                     <button data-filter="h2h" aria-pressed="false">Head-to-Head</button>
-                    <button data-filter="me" aria-pressed="false">My Wagers</button>
+                    <button data-filter="me" aria-pressed="false">My Bets</button>
                     <button data-filter="past" aria-pressed="false">Past Trips</button>
                 </div>
 
                 <div class="bookie-grid">
-                    <!-- Left Column: Open Wagers -->
+                    <!-- Left Column: the bets -->
                     <div>
-                        <!-- Main Event (Always pinned) -->
+                        <!-- Main Event: always at the top of the All bets view -->
                         <div class="bet-card" id="cup-card" style="border: 2px solid var(--accent-gold); background: linear-gradient(145deg, rgba(28, 22, 18, 0.9), rgba(14, 11, 9, 0.9)); position: relative; overflow: hidden;">
                             <div aria-hidden="true" style="position: absolute; top: -10px; right: -10px; font-size: 7rem; opacity: 0.05; transform: rotate(15deg);"><i class="fas fa-trophy"></i></div>
                             <div class="bet-header">
@@ -928,7 +1007,7 @@
                             </div>
                             <h3 style="font-size: 1.4rem; margin-bottom: 10px;">The <span id="cup-card-year">2027</span> Cup <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(Blue vs Red)</span></h3>
                             <p class="cup-card-desc" style="color: var(--text-muted); line-height: 1.6; margin-bottom: 25px;">
-                                The winning team takes all. Teams and stakes get set once the captains draft, and the payout comes out of the entry fees. There is no extra wagering needed for this bet.
+                                The winning team takes all. Teams and stakes get set once the captains draft, and the payout comes out of the entry fees. There's nothing extra to bet.
                             </p>
 
                             <div class="pot-total" style="background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.3);">
@@ -947,10 +1026,10 @@
                             </div>
                         </div>
 
-                        <!-- Dynamic Wagers Container -->
+                        <!-- The bets (bookie.js fills this in) -->
                         <div id="wagers-container">
                             <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-                                Loading active wagers...
+                                Loading the board…
                             </div>
                         </div>
                     </div>
@@ -981,7 +1060,7 @@
     <nav class="bottom-nav" id="mobile-bottom-nav" style="display: none;" aria-label="Bookie">
         <button class="bottom-nav-btn active" data-filter="all" aria-pressed="true">
             <i class="fas fa-list" aria-hidden="true"></i>
-            <span>Action</span>
+            <span>Board</span>
         </button>
         <a class="bottom-nav-btn" href="round_tracker.html#board">
             <i class="fas fa-satellite-dish" aria-hidden="true"></i>
@@ -998,11 +1077,11 @@
     </nav>
 
     <!-- FAB for mobile -->
-    <button class="fab-create-bet" id="fab-create-wager-btn" style="display: none;" aria-label="Propose a bet">
+    <button class="fab-create-bet" id="fab-create-wager-btn" style="display: none;" aria-label="New bet">
         <i class="fas fa-plus" aria-hidden="true"></i>
     </button>
 
-    <!-- Shared sheet: log in, create account, choose a password, propose and settle bets -->
+    <!-- Shared sheet: log in, create account, choose a password, post a bet, record who won -->
     <div id="bookie-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content">
             <button type="button" class="modal-close" id="bookie-modal-close" aria-label="Close">×</button>
@@ -1050,13 +1129,13 @@
                 </p>
             </form>
 
-            <!-- Create Wager Form -->
+            <!-- New bet -->
             <form id="create-wager-form" class="registration-form" style="display: none;" novalidate>
-                <label for="wager-type">Wager Type</label>
+                <label for="wager-type">What kind of bet?</label>
                 <select id="wager-type">
                     <option value="pool">Pool</option>
                     <option value="h2h">Head-to-Head</option>
-                    <option value="prop">Prop Bet</option>
+                    <option value="prop">Prop bet</option>
                 </select>
                 <p id="wager-type-hint" class="field-hint"></p>
 
@@ -1083,34 +1162,35 @@
                     </div>
                 </div>
 
-                <label for="wager-desc">Terms of the Bet</label>
-                <input type="text" id="wager-desc" required maxlength="140" placeholder="E.g., Lowest raw score on Friday">
+                <label for="wager-desc">What’s the bet?</label>
+                <input type="text" id="wager-desc" required maxlength="140" placeholder="E.g., Low net, Round 2">
 
-                <label for="wager-amt" id="wager-amt-label">Wager Amount ($)</label>
+                <label for="wager-amt" id="wager-amt-label">Buy-in ($)</label>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" id="wager-amt" required placeholder="20">
 
                 <div id="odds-preview-text" aria-live="polite" style="font-size: 0.85rem; color: var(--accent-gold); display: none; margin-bottom: 20px; line-height: 1.5; padding: 10px; background: rgba(251,191,36,0.05); border-radius: 8px; border: 1px solid rgba(251,191,36,0.2);"></div>
                 <p id="wager-error" class="auth-message" role="alert"></p>
 
-                <button type="submit" id="create-wager-submit" class="btn btn-primary" style="width: 100%;">Propose Wager</button>
+                <button type="submit" id="create-wager-submit" class="btn btn-primary" style="width: 100%;">Post bet</button>
             </form>
+            <!-- Who won? (recording a result; paying up is "Settle up" in the ledger) -->
             <form id="settle-wager-form" class="registration-form" style="display: none;">
                 <input type="hidden" id="settle-wager-id">
-                <p id="settle-wager-summary" style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">Pick the winner. The ledger updates right away, and a note in the bet's trash talk shows who settled it.</p>
+                <p id="settle-wager-summary" style="color: var(--text-muted); margin-bottom: 20px; text-align: center; font-size: 0.9rem;">The ledger updates as soon as you save, and a note in the bet's trash talk shows who recorded it.</p>
                 <fieldset style="border: none; padding: 0; margin: 0; min-width: 0;">
-                    <legend style="margin-bottom: 10px; color: var(--text-muted); font-weight: 600;">Who won?</legend>
+                    <legend style="margin-bottom: 10px; color: var(--text-muted); font-weight: 600;">Pick the winner</legend>
                     <div id="settle-wager-winners-container" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px 15px; margin-bottom: 20px;">
                         <!-- Populated by JS -->
                     </div>
                 </fieldset>
 
-                <button type="submit" id="settle-submit-btn" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Confirm Winner & Settle</button>
+                <button type="submit" id="settle-submit-btn" class="btn btn-primary" style="width: 100%; background: linear-gradient(135deg, var(--accent-emerald), #059669); border: none; margin-bottom: 10px; padding: 14px 20px; font-size: 1rem;">Save result</button>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button type="button" id="settle-push-btn" class="btn" style="flex: 1; background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.3);">Declare Tie (Push)</button>
-                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Void Bet</button>
+                    <button type="button" id="settle-push-btn" class="btn" style="flex: 1; background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border: 1px solid rgba(251, 191, 36, 0.3);">Call it a push</button>
+                    <button type="button" id="settle-cancel-btn" class="btn" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Void bet</button>
                 </div>
                 <button type="button" id="settle-auto-btn" class="btn" style="width: 100%; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px dashed #60a5fa; display: none;">
-                    <i class="fas fa-bolt" style="margin-right: 5px;" aria-hidden="true"></i> Auto-Settle via Live Scores
+                    <i class="fas fa-bolt" style="margin-right: 5px;" aria-hidden="true"></i> Use Live scores (18-hole gross)
                 </button>
             </form>
         </div>
@@ -1121,7 +1201,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
-    <script src="bookie.js?v=2027.10" defer></script>
+    <script src="bookie.js?v=2027.11" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

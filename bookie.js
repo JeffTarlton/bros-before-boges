@@ -17,6 +17,9 @@ const OPENED_FROM_RESET_LINK = ['recovery', 'invite'].includes(LINK_PARAMS.get('
 const LINK_ERROR = LINK_PARAMS.get('error_code') || LINK_PARAMS.get('error');
 const CAME_FROM_AUTH_LINK = /(^|[#&])(access_token|error_code|error)=/.test(window.location.hash) ||
     /[?&]code=/.test(window.location.search);
+// A link to one bet (bookie.html?bet=<id>, or #bet=<id>), e.g. a challenge someone texted: the
+// board opens on that card once it loads, after logging in if need be (pageUrl keeps it).
+const BET_LINK = /^[\w-]{1,80}$/.test(LINK_PARAMS.get('bet') || '') ? LINK_PARAMS.get('bet') : null;
 
 // Other pages send people here to log in (?next=rsvp etc.). Once their login is linked to
 // a roster name they go straight back. `mode` opens the log-in or sign-up form on arrival.
@@ -76,8 +79,10 @@ const WALL = Object.assign({
         text: 'Log in with your admin account.'
     },
     bookie: {
-        title: 'Log in to The Bookie',
-        text: 'Side bets, the ledger and settle-up for the trip. It’s the same player account you use to RSVP and keep score.',
+        title: BET_LINK ? 'Log in to see the bet' : 'Log in to The Bookie',
+        text: BET_LINK
+            ? 'Someone sent you a bet on The Bookie. Log in and it opens right up. It’s the same player account you use to RSVP and keep score.'
+            : 'Side bets, the ledger and settle-up for the trip. It’s the same player account you use to RSVP and keep score.',
         unlinkedText: 'Betting opens once your login is linked to a confirmed name on the trip roster.'
     }
 }[NEXT || 'bookie']);
@@ -105,6 +110,9 @@ let resetPending = OPENED_FROM_RESET_LINK; // don't leave the page before the ne
 // "Settle up" on the homepage links to #ledger-panel, but the ledger only shows once the login
 // check and the board load finish, so the browser's own jump to it misses
 let openLedgerOnLoad = window.location.hash === '#ledger-panel';
+let betLinkPending = !!BET_LINK; // a ?bet= link not shown yet (once, after the first board load)
+// True once the trash talk has loaded at least once (who called a bet off comes from it)
+let commentsLoaded = false;
 // 'checking' until the login check decides, then 'out', 'in' (logged in, can't bet yet),
 // 'dashboard', or 'leaving' (on the way back to ?next=)
 let wallState = 'checking';
@@ -495,9 +503,13 @@ function closeModal() {
 // ==========================================
 // Auth Logic
 // ==========================================
-// This page's address for email and Google links to come back to (keeps ?next=).
+// This page's address for email and Google links to come back to (keeps ?next= and ?bet=,
+// so someone who opened a texted challenge lands on it after logging in or signing up).
 function pageUrl() {
-    return window.location.origin + window.location.pathname + (NEXT ? `?next=${NEXT}` : '');
+    const query = [];
+    if (NEXT) query.push(`next=${NEXT}`);
+    if (BET_LINK) query.push(`bet=${encodeURIComponent(BET_LINK)}`);
+    return window.location.origin + window.location.pathname + (query.length ? `?${query.join('&')}` : '');
 }
 
 function goToNextPage() {
@@ -796,7 +808,39 @@ async function loadSession() {
         openLedgerOnLoad = false;
         document.getElementById('ledger-panel').scrollIntoView({ block: 'start' });
     }
+    openBetLink();
     return true;
+}
+
+// A ?bet=<id> link: show that card on the main board (or the list that has it) and flash it.
+// Runs once, after the first board that loaded.
+function openBetLink() {
+    if (!betLinkPending || !currentUser) return;
+    if (loadError && !allWagers.length) return; // the board didn't load: try again on the next refresh
+    betLinkPending = false;
+    const wager = findWager(BET_LINK);
+    if (!wager) {
+        showToast('Couldn’t find that bet. It may have been called off.', 'info');
+        return;
+    }
+    let filter = 'past';
+    if (isCurrentSeason(wager)) {
+        filter = ['all', wager.type === 'h2h' ? 'h2h' : 'pools', 'me']
+            .find(f => wagersForFilter(f).some(w => w.id === wager.id)) || 'all';
+    } else {
+        showToast(`That bet is from the ${new Date(wager.created_at).getFullYear()} trip, under Past Trips.`, 'info');
+    }
+    setFilter(filter);
+    // On a phone the chip row scrolls sideways: bring the list it opened on into view
+    const nav = document.querySelector('.bookie-nav');
+    const chip = nav && nav.querySelector('button.active');
+    if (chip && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, chip.offsetLeft - nav.offsetLeft - 16);
+    const card = document.getElementById(`wager-card-${wager.id}`);
+    if (!card) return;
+    revealCard(wager.id);
+    // Screen readers start reading at the card; a tap anywhere still does nothing by accident
+    card.tabIndex = -1;
+    card.focus({ preventScroll: true });
 }
 
 const WALL_ICONS = {
@@ -1182,7 +1226,10 @@ async function fetchBaseData() {
             player:player_id (name)
         `);
     if (commentsError) console.warn('Trash talk failed to load:', commentsError);
-    else allComments = comments || [];
+    else {
+        allComments = comments || [];
+        commentsLoaded = true;
+    }
 
     // Once per visit: who has said they're out this year (fails open: everyone stays listed)
     if (rsvpOut === null) {
@@ -1200,6 +1247,7 @@ async function refreshBoard() {
     await fetchBaseData();
     renderDashboard();
     lastRefresh = Date.now();
+    if (betLinkPending && wallState === 'dashboard') openBetLink(); // a ?bet= link the first load couldn't show
 }
 
 // The Refresh button: spins while it works
@@ -1333,13 +1381,78 @@ function setFilter(filter) {
     if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: 'start' });
 }
 
-// Bets waiting on you: a challenge to answer, or your pool or prop to settle after betting closed.
-// (Either player can settle a head-to-head, so those aren't flagged.)
+// Bets waiting on you: a challenge to answer, your pool or prop to record a result for after
+// betting closed, or a live head-to-head of yours once the trip is over (either player can record it).
 function needsMe(w) {
     if (!currentUser || !isCurrentSeason(w)) return false;
     const me = currentUser.id;
-    return (w.status === 'proposed' && w.target_id === me) ||
-        (w.type !== 'h2h' && w.status === 'active' && w.creator_id === me);
+    if (w.status === 'proposed') return w.target_id === me;
+    if (w.status !== 'active') return false;
+    if (w.type === 'h2h') return (w.creator_id === me || w.target_id === me) && tripOverFor(w);
+    return w.creator_id === me;
+}
+
+// "2027-04-09": the date on the trip's own clocks, never the phone's (the crew flies in from
+// other time zones), the same way the homepage decides trip days
+const TRIP_TZ = (BBB.trip && BBB.trip.timeZone) || 'America/Phoenix';
+let tripDayFormat = null;
+function tripDay(ms) {
+    try {
+        if (!tripDayFormat) tripDayFormat = new Intl.DateTimeFormat('en-US', { timeZone: TRIP_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+        const p = {};
+        tripDayFormat.formatToParts(new Date(ms)).forEach(x => { p[x.type] = x.value; });
+        return `${p.year}-${p.month}-${p.day}`;
+    } catch (e) {
+        return new Date(ms - 7 * 3600000).toISOString().slice(0, 10); // Arizona's fixed UTC-7
+    }
+}
+
+// A live head-to-head counts as over once the trip it was made for has ended. Nothing on the
+// bet says which round (or whether a round at all) it's about, so Live scores can't tell sooner.
+function tripOverFor(w) {
+    const tripEnd = BBB.trip && BBB.trip.dates && BBB.trip.dates.end;
+    const made = new Date(w.created_at).getTime();
+    if (!tripEnd || isNaN(made)) return false;
+    return tripDay(made) <= tripEnd && tripDay(Date.now()) > tripEnd;
+}
+
+// Called-off bets: who did it and when, from the note the page leaves in the trash talk
+// (the wagers table has no updated_at; if it ever gets one, that's used for the time).
+// Anyone can post trash talk, so only a note its author could have left counts: a decline only
+// from the player challenged; a cancel or void from someone in the bet (the latest, in case an
+// admin reopened it and it was voided again), else the first one anybody left (an admin's).
+const CALL_OFF_NOTE = /^(Declined the challenge\.|Canceled the bet\.|Voided the bet\.)/;
+function callOffNote(w) {
+    const calls = allComments
+        .filter(c => c.wager_id === w.id && CALL_OFF_NOTE.test(String(c.message || '')) &&
+            (!/^Declined/.test(c.message) || c.player_id === w.target_id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const inBet = id => id === w.creator_id || id === w.target_id || (w.participants || []).includes(id);
+    const fromBet = calls.filter(c => inBet(c.player_id));
+    return fromBet[fromBet.length - 1] || calls[0] || null;
+}
+function calledOffAt(w) {
+    const stamp = w.updated_at || (callOffNote(w) || {}).created_at;
+    const at = stamp ? new Date(stamp) : null;
+    return at && !isNaN(at) ? at : null;
+}
+// "Westin passed on this one." / "Called off by Kelly." / "You called it off."
+function calledOffText(w) {
+    const note = callOffNote(w);
+    if (!note || !note.player_id) return 'This bet was called off.';
+    const mine = !!currentUser && note.player_id === currentUser.id;
+    if (/^Declined/.test(note.message)) return mine ? 'You passed on this one.' : `${escHtml(firstName(note.player_id))} passed on this one.`;
+    return mine ? 'You called it off.' : `Called off by ${escHtml(firstName(note.player_id))}.`;
+}
+// A bet of yours called off in the last day stays on the main board, so the challenger sees
+// the answer where they left the challenge. After that it's under My Bets and the type tabs.
+const CALLED_OFF_STAYS_MS = 24 * 60 * 60 * 1000;
+function recentlyCalledOff(w) {
+    if (w.status !== 'canceled' || !involvesMe(w)) return false;
+    // The trash talk hasn't loaded yet, so there's no telling when: keep it in view, not dropped
+    if (!w.updated_at && !commentsLoaded) return true;
+    const at = calledOffAt(w);
+    return !!at && Date.now() - at.getTime() < CALLED_OFF_STAYS_MS;
 }
 
 function updateNotificationBadges() {
@@ -1370,6 +1483,9 @@ async function renderCupCard() {
     const yearEl = document.getElementById('cup-card-year');
     const noteEl = document.getElementById('cup-card-note');
     if (yearEl) yearEl.textContent = TRIP_YEAR;
+    // No points yet: phones show the card as one short line (bookie.html's .cup-quiet)
+    const cupCard = document.getElementById('cup-card');
+    if (cupCard) cupCard.classList.toggle('cup-quiet', !SEASON_LIVE || !supabaseClient);
 
     if (!SEASON_LIVE || !supabaseClient) {
         if (ryderBluePts) ryderBluePts.textContent = '–';
@@ -1399,25 +1515,23 @@ function wagersForFilter(filter) {
         case 'h2h': return current.filter(w => w.type === 'h2h');
         case 'me': return current.filter(involvesMe);
         case 'past': return allWagers.filter(w => !isCurrentSeason(w));
-        // The main board skips called-off bets; they're still under My Wagers and the type tabs
-        default: return current.filter(w => w.status !== 'canceled');
+        // The main board skips called-off bets (still under My Bets and the type tabs), except
+        // yours for a day after they're called off
+        default: return current.filter(w => w.status !== 'canceled' || recentlyCalledOff(w));
     }
 }
 
-// Board order: challenges waiting on you, then live bets, then finished ones (newest first within each)
+// Board order: bets waiting on you, then live bets (and yours just called off, where they were),
+// then finished ones (newest first within each)
 function boardRank(w) {
     if (needsMe(w)) return 0;
-    if (['proposed', 'open', 'active'].includes(w.status)) return 1;
+    if (['proposed', 'open', 'active'].includes(w.status) || recentlyCalledOff(w)) return 1;
     return 2;
 }
 
 const RETRY_BUTTON = '<button type="button" class="refresh-btn" onclick="refreshBoard()"><i class="fas fa-sync-alt" aria-hidden="true"></i>Retry</button>';
 
 function renderWagers() {
-    // The Cup card may have been moved in among the cards last time: put it back first
-    const cupCard = document.getElementById('cup-card');
-    if (cupCard && wagersContainer.contains(cupCard)) wagersContainer.parentNode.insertBefore(cupCard, wagersContainer);
-
     if (loadError && !allWagers.length) {
         wagersContainer.innerHTML = `
             <div style="text-align: center; padding: 40px; background: rgba(239,68,68,0.06); border-radius: 12px; border: 1px dashed rgba(239,68,68,0.35);">
@@ -1439,7 +1553,7 @@ function renderWagers() {
             me: 'You’re not in any bets yet.',
             h2h: 'No head-to-head challenges yet.',
             pools: 'No pools or props yet.'
-        }[currentFilter] || 'No action on the board yet.';
+        }[currentFilter] || 'No bets on the board yet.';
         wagersContainer.innerHTML = staleBanner + `
             <div style="text-align: center; padding: 40px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
                 <p style="color: var(--text-muted); margin-bottom: 15px;">${empty}</p>
@@ -1457,7 +1571,15 @@ function renderWagers() {
     const focusedId = wagersContainer.contains(document.activeElement) && document.activeElement.matches('input[id^="comment-input-"]')
         ? document.activeElement.id : '';
 
-    wagersContainer.innerHTML = staleBanner + displayWagers.map(wagerCardHTML).join('');
+    // The bets that sort first because they need you get a heading (its count matches the
+    // badges on the filter chips), and the rest get one under them
+    const waiting = displayWagers.filter(w => boardRank(w) === 0);
+    const rest = displayWagers.filter(w => boardRank(w) !== 0);
+    const groups = waiting.length
+        ? `<h3 class="board-group-head waiting">Waiting on you (${waiting.length})</h3>` + waiting.map(wagerCardHTML).join('') +
+            (rest.length ? '<h3 class="board-group-head">Everything else</h3>' + rest.map(wagerCardHTML).join('') : '')
+        : displayWagers.map(wagerCardHTML).join('');
+    wagersContainer.innerHTML = staleBanner + groups;
 
     openThreads.forEach(id => {
         const el = document.getElementById(id);
@@ -1474,40 +1596,83 @@ function renderWagers() {
     });
     const focused = focusedId && document.getElementById(focusedId);
     if (focused) focused.focus({ preventScroll: true });
+}
 
-    // Bets that need you sit above the Cup card on the main board
-    const firstOther = displayWagers.find(w => boardRank(w) !== 0);
-    if (cupCard && currentFilter === 'all' && displayWagers.some(w => boardRank(w) === 0)) {
-        const anchor = firstOther ? document.getElementById(`wager-card-${firstOther.id}`) : null;
-        wagersContainer.insertBefore(cupCard, anchor);
+const BADGE_COLORS = {
+    red: ['rgba(239, 68, 68, 0.18)', '#fca5a5'],
+    gold: ['rgba(251, 191, 36, 0.18)', 'var(--accent-gold)'],
+    green: ['rgba(16, 185, 129, 0.2)', 'var(--accent-emerald)'],
+    blue: ['rgba(59, 130, 246, 0.2)', '#93c5fd'],
+    muted: ['rgba(255, 255, 255, 0.1)', 'var(--text-muted)']
+};
+
+// The card's status, from the viewer's side when they're in the bet ("Your call",
+// "Waiting on Westin", "Needs a result", "You're in"); plain for everyone else
+function statusBadge(wager) {
+    const me = currentUser ? currentUser.id : null;
+    const inBet = !!me && involvesMe(wager);
+    if (needsMe(wager)) return wager.status === 'proposed' ? ['Your call', 'red'] : ['Needs a result', 'red'];
+    switch (wager.status) {
+        case 'proposed': // the challenge's answer is up to its target, whoever's looking
+            return wager.target_id
+                ? [`Waiting on ${isMe(wager.target_id) ? 'you' : escHtml(firstName(wager.target_id))}`, 'gold'] : ['Challenge sent', 'gold'];
+        case 'open':
+            return (wager.participants || []).includes(me) ? ['You’re in', 'green'] : ['Open', 'green'];
+        case 'active':
+            if (wager.type !== 'h2h') return ['Betting closed', 'blue'];
+            return inBet ? ['You’re in', 'blue'] : ['Live', 'blue'];
+        case 'settled': return ['Settled', 'muted'];
+        case 'push': return ['Push (tie)', 'gold'];
+        case 'canceled': return ['Called off', 'red'];
+        default: return null;
     }
 }
 
-const STATUS_BADGES = {
-    open: ['Open', 'rgba(16, 185, 129, 0.2)', 'var(--accent-emerald)'],
-    proposed: ['Proposed', 'rgba(251, 191, 36, 0.2)', 'var(--accent-gold)'],
-    settled: ['Settled', 'rgba(255, 255, 255, 0.1)', 'var(--text-muted)'],
-    push: ['Pushed (Tie)', 'rgba(251, 191, 36, 0.1)', 'var(--accent-gold)'],
-    canceled: ['Canceled', 'rgba(239, 68, 68, 0.1)', '#ef4444']
-};
-
 function statusBadgeHTML(wager) {
-    let badge = STATUS_BADGES[wager.status];
-    if (wager.status === 'active') {
-        badge = [wager.type === 'h2h' ? 'Active' : 'Betting Closed', 'rgba(59, 130, 246, 0.2)', '#60a5fa'];
-    }
+    const badge = statusBadge(wager);
     if (!badge) return '';
-    return `<span style="background: ${badge[1]}; color: ${badge[2]}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; white-space: nowrap;">${badge[0]}</span>`;
+    const [bg, color] = BADGE_COLORS[badge[1]];
+    return `<span class="status-badge" style="background: ${bg}; color: ${color}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 700; white-space: nowrap;">${badge[0]}</span>`;
 }
 
 function statPill(label, value, color) {
     return `<div class="stat-pill"${color ? ` style="color: ${color}"` : ''}>${label ? `<span style="color:var(--text-muted)">${label}</span> ` : ''}<span style="font-weight:700">${value}</span></div>`;
 }
 
+// Names on a card, from the viewer's side: "you" for yourself, the full name for anyone else
+const isMe = id => !!currentUser && id === currentUser.id;
+const who = id => (isMe(id) ? 'you' : escHtml(getPlayerName(id)));
+const Who = id => (isMe(id) ? 'You' : escHtml(getPlayerName(id)));
+const capFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// You're one of the two players in this head-to-head: what you win and what you lose
+// (h2hPayouts is the one place the money comes from)
+function myH2hStakes(wager) {
+    if (wager.type !== 'h2h' || !currentUser) return null;
+    const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
+    if (wager.creator_id === currentUser.id) return { win: creatorWins, lose: targetWins, other: wager.target_id };
+    if (wager.target_id === currentUser.id) return { win: targetWins, lose: creatorWins, other: wager.creator_id };
+    return null;
+}
+
 // What's at stake, per bet type, for the card's stat row
 function stakesHTML(wager) {
     const parts = wager.participants || [];
     if (wager.type === 'h2h') {
+        const mine = myH2hStakes(wager);
+        if (mine) {
+            // What's riding on it while it's live; once it's decided, only what happened
+            if (wager.status === 'proposed' || wager.status === 'active') {
+                return statPill('You win', fmtMoney(mine.win, true), 'var(--accent-emerald)') +
+                    statPill('You lose', fmtMoney(-mine.lose), '#fca5a5');
+            }
+            if (wager.status === 'settled' && wager.winner_id) {
+                return isMe(wager.winner_id)
+                    ? statPill('You won', fmtMoney(mine.win, true), 'var(--accent-emerald)')
+                    : statPill('You lost', fmtMoney(-mine.lose), '#fca5a5');
+            }
+            return ''; // a push or called off: the box below says no money changes hands
+        }
         const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
         const odds = normOdds(wager.odds);
         return statPill(`${escHtml(firstName(wager.creator_id))} wins`, fmtMoney(creatorWins)) +
@@ -1516,11 +1681,12 @@ function stakesHTML(wager) {
     }
     if (wager.type === 'prop') {
         const takers = parts.filter(id => id !== wager.creator_id).length;
+        const risker = isMe(wager.creator_id) ? 'You' : escHtml(firstName(wager.creator_id));
         return statPill('Per taker', fmtMoney(wager.amount)) +
-            statPill(`${escHtml(firstName(wager.creator_id))} covers`, fmtMoney(wager.amount * takers), 'var(--accent-emerald)') +
-            statPill('', `${takers} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)" aria-label="players"></i>`);
+            statPill(`${risker} risk${isMe(wager.creator_id) ? '' : 's'}`, fmtMoney(wager.amount * takers), 'var(--accent-emerald)') +
+            statPill('', `${takers} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)" aria-label="${takers === 1 ? 'taker' : 'takers'}"></i>`);
     }
-    return statPill('Buy-In', fmtMoney(wager.amount)) +
+    return statPill('Buy-in', fmtMoney(wager.amount)) +
         statPill('Pot', fmtMoney(wager.amount * parts.length), 'var(--accent-emerald)') +
         statPill('', `${parts.length} <i class="fas fa-users" style="font-size: 0.8rem; color: var(--text-muted)" aria-label="players"></i>`);
 }
@@ -1534,31 +1700,34 @@ function resultsHTML(wager) {
         </div>`;
     const GREEN = '#10b981', GOLD = '#fbbf24', RED = '#ef4444';
 
-    if (wager.status === 'push') return box(GOLD, 'fa-handshake', 'Push (Tie)', 'All bets refunded. No blood drawn.');
-    if (wager.status === 'canceled') return box(RED, 'fa-ban', 'Bet Canceled', 'This wager was called off.');
+    if (wager.status === 'push') return box(GOLD, 'fa-handshake', 'Push (tie)', 'All bets refunded. No blood drawn.');
+    // The badge already says "Called off": the box says who did it
+    if (wager.status === 'canceled') return box(RED, 'fa-ban', calledOffText(wager), 'No money changes hands.');
     if (wager.status !== 'settled' || !wager.winner_id) return '';
 
     const parts = wager.participants || [];
     const winnerIds = wager.winner_ids && wager.winner_ids.length ? wager.winner_ids : [wager.winner_id];
-    const name = id => escHtml(getPlayerName(id));
+    // "you" when it's the viewer; "owes" / "owe" to match
+    const owes = id => (isMe(id) ? 'owe' : 'owes');
 
     if (wager.type === 'h2h') {
         const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
         const targetWon = wager.winner_id === wager.target_id;
         const loser = targetWon ? wager.creator_id : wager.target_id;
-        return box(GREEN, 'fa-trophy', `${name(wager.winner_id)} won`, `${name(loser)} owes ${name(wager.winner_id)} ${fmtMoney(targetWon ? targetWins : creatorWins)}.`);
+        return box(GREEN, 'fa-trophy', `${Who(wager.winner_id)} won`, `${Who(loser)} ${owes(loser)} ${who(wager.winner_id)} ${fmtMoney(targetWon ? targetWins : creatorWins)}.`);
     }
     if (wager.type === 'prop') {
         const takers = parts.filter(id => id !== wager.creator_id);
         if (winnerIds.includes(wager.creator_id)) {
-            return box(GREEN, 'fa-trophy', `${name(wager.creator_id)} won the prop`, `Each taker owes ${name(wager.creator_id)} ${fmtMoney(wager.amount)}: ${takers.map(name).join(', ') || 'nobody'}.`);
+            return box(GREEN, 'fa-trophy', `${Who(wager.creator_id)} won the prop`, `Each taker owes ${who(wager.creator_id)} ${fmtMoney(wager.amount)}: ${takers.map(who).join(', ') || 'nobody'}.`);
         }
-        return box(GREEN, 'fa-trophy', 'The takers won', `${name(wager.creator_id)} owes each taker ${fmtMoney(wager.amount)} (${fmtMoney(wager.amount * takers.length)} total).`);
+        const iTook = takers.some(isMe);
+        return box(GREEN, 'fa-trophy', 'The takers won', `${Who(wager.creator_id)} ${owes(wager.creator_id)} ${iTook ? `you ${fmtMoney(wager.amount)}, the same as every taker` : `each taker ${fmtMoney(wager.amount)}`} (${fmtMoney(wager.amount * takers.length)} total).`);
     }
     const winners = parts.filter(id => winnerIds.includes(id));
     const losers = parts.filter(id => !winnerIds.includes(id));
-    return box(GREEN, 'fa-trophy', `Won by ${winners.map(name).join(' & ') || 'nobody'}`,
-        `${potSplitText(wager.amount, parts.length, winners, name)} ${losers.length ? `${losers.map(name).join(', ')} paid ${fmtMoney(wager.amount)} into the pot.` : ''}`);
+    return box(GREEN, 'fa-trophy', `Won by ${winners.map(who).join(' & ') || 'nobody'}`,
+        `${capFirst(potSplitText(wager.amount, parts.length, winners, who))} ${losers.length ? `${capFirst(losers.map(who).join(', '))} paid ${fmtMoney(wager.amount)} into the pot.` : ''}`);
 }
 
 // "Takes the $30 pot." / "$15 each." / "Jeff $13.34, Kelly $13.33, Zac $13.33." (pennies don't split evenly)
@@ -1570,12 +1739,31 @@ function potSplitText(amount, players, winners, name) {
     return winners.map((id, i) => `${name(id)} ${fmtMoney(shares[i])}`).join(', ') + '.';
 }
 
-// Who's in: everyone for pools and head-to-heads, just the takers for a prop
+// Who's in: everyone for pools, just the takers for a prop ("you" first when you're one).
+// A head-to-head's line under its terms already says who's on it ("Kelly challenged you"), so
+// it gets a players line only for people outside it, and not while it's a pending challenge.
 function peopleLineHTML(wager) {
     const parts = wager.participants || [];
-    const people = wager.type === 'prop' ? parts.filter(id => id !== wager.creator_id) : parts;
+    if (wager.type === 'h2h' && (wager.status === 'proposed' || myH2hStakes(wager))) return '';
+    let people = wager.type === 'prop' ? parts.filter(id => id !== wager.creator_id) : parts;
     if (!people.length) return '';
-    return `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"><strong>${wager.type === 'prop' ? 'Takers' : 'Participants'}:</strong> ${people.map(pid => escHtml(getPlayerName(pid))).join(', ')}</div>`;
+    people = people.filter(isMe).concat(people.filter(id => !isMe(id)));
+    const label = wager.type === 'prop' ? 'Takers' : (wager.type === 'h2h' ? 'Players' : 'Who’s in');
+    return `<div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"><strong>${label}:</strong> ${capFirst(people.map(who).join(', '))}</div>`;
+}
+
+// The line under a bet's terms: who challenged whom, or who's on which side of a prop
+function sidesLineHTML(wager) {
+    let text = '';
+    if (wager.type === 'h2h' && wager.target_id) {
+        if (isMe(wager.target_id)) text = `${escHtml(firstName(wager.creator_id))} challenged you`;
+        else if (isMe(wager.creator_id)) text = `You challenged ${escHtml(firstName(wager.target_id))}`;
+        else text = `Challenging: ${escHtml(wager.target && wager.target.name ? wager.target.name : getPlayerName(wager.target_id))}`;
+    } else if (wager.type === 'prop') {
+        const iTook = !isMe(wager.creator_id) && (wager.participants || []).includes(currentUser && currentUser.id);
+        text = `${isMe(wager.creator_id) ? 'You say' : `${escHtml(firstName(wager.creator_id))} says`} it happens · ${iTook ? 'you say' : 'takers say'} it doesn’t`;
+    }
+    return text ? `<div class="bet-sides">${text}</div>` : '';
 }
 
 function actionButton(label, icon, onclick, style, extraClass) {
@@ -1604,8 +1792,9 @@ function actionsHTML(wager) {
     const row = buttons => `<div style="display: flex; gap: 10px; margin-top: 15px;">${buttons}</div>`;
     const note = text => `<div style="margin-top: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">${text}</div>`;
     const cancelBtn = isJustMine(wager)
-        ? actionButton('Cancel Bet', 'fa-ban', `window.deleteWager('${id}')`, RED, 'cancel-btn delete-ok')
-        : actionButton('Cancel Bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn');
+        ? actionButton('Cancel bet', 'fa-ban', `window.deleteWager('${id}')`, RED, 'cancel-btn delete-ok')
+        : actionButton('Cancel bet', 'fa-ban', `window.cancelWager('${id}')`, RED, 'cancel-btn');
+    const whoWonBtn = actionButton('Who won?', 'fa-trophy', `window.openSettleModal('${id}')`, GREEN, 'who-won-btn');
 
     // Last trip's leftovers don't count toward this year's ledger: no joining or settling them,
     // but their creator (or an admin) can still clear them off.
@@ -1627,14 +1816,17 @@ function actionsHTML(wager) {
                 return row(actionButton('Accept', 'fa-check', `window.acceptWager('${id}')`, '', 'accept-btn') +
                     actionButton('Decline', 'fa-times', `window.declineWager('${id}')`, RED, 'decline-btn'));
             }
-            if (isCreator || isAdmin) {
-                return (isCreator ? note(`<i class="fas fa-clock" style="margin-right: 5px;" aria-hidden="true"></i>Waiting for ${wager.target ? escHtml(wager.target.name) : 'your opponent'} to accept…`) : '') +
+            if (isCreator) {
+                // Nobody gets a notification, so make texting them one tap
+                const them = escHtml(firstName(wager.target_id));
+                return note(`<i class="fas fa-clock" style="margin-right: 5px;" aria-hidden="true"></i>${them} hasn’t answered yet. The Bookie can’t notify them, so send a text.`) +
+                    row(`<button type="button" class="btn text-challenge-btn" onclick="window.textChallenge('${id}')"><i class="fas fa-paper-plane" style="margin-right: 6px;" aria-hidden="true"></i>Text ${them} about it</button>`) +
                     row(cancelBtn);
             }
-            return '';
+            return isAdmin ? row(cancelBtn) : '';
         }
         if (wager.status === 'active' && (isCreator || isTarget || isAdmin)) {
-            return row(actionButton('Settle Bet', 'fa-handshake', `window.openSettleModal('${id}')`, GREEN));
+            return row(whoWonBtn);
         }
         return isParticipant && wager.status === 'active' ? note('You’re in this bet') : '';
     }
@@ -1644,38 +1836,36 @@ function actionsHTML(wager) {
     if (wager.status === 'open') {
         let html = '';
         if (!isParticipant) {
-            html += row(`<button class="btn join-btn" style="width: 100%; padding: 10px; min-height: 44px;" onclick="window.joinWager('${id}')">${wager.type === 'prop' ? 'Take the Action' : 'Join Pool'} (${fmtMoney(wager.amount)})</button>`);
+            html += row(`<button class="btn join-btn" style="width: 100%; padding: 10px; min-height: 44px;" onclick="window.joinWager('${id}')">${wager.type === 'prop' ? 'Bet it doesn’t' : 'Join pool'} (${fmtMoney(wager.amount)})</button>`);
         } else if (!isCreator) {
-            html += note('You’re in this bet') +
-                row(actionButton('Leave', 'fa-sign-out-alt', `window.leaveWager('${id}')`, RED, 'leave-btn'));
+            // The "You're in" badge says it; Leave gets you out while betting's open
+            html += row(actionButton('Leave', 'fa-sign-out-alt', `window.leaveWager('${id}')`, RED, 'leave-btn'));
         }
         if (canManage) {
             const enough = wager.type === 'prop' ? takers.length >= 1 : parts.length >= 2;
-            html += row((enough ? actionButton('Close Betting', 'fa-lock', `window.closeBetting('${id}')`, GREEN) : '') + cancelBtn);
-            if (!enough && isCreator) html += note(wager.type === 'prop' ? 'Waiting for someone to take the action.' : 'Waiting for others to join.');
+            html += row((enough ? actionButton('Close betting', 'fa-lock', `window.closeBetting('${id}')`, GREEN) : '') + cancelBtn);
+            if (!enough && isCreator) html += note(wager.type === 'prop' ? 'Waiting for someone to bet it doesn’t.' : 'Waiting for others to join.');
         }
         return html;
     }
     if (wager.status === 'active') {
-        if (canManage) return row(actionButton('Settle Bet', 'fa-handshake', `window.openSettleModal('${id}')`, GREEN));
-        if (isParticipant) return note(`Betting’s closed. Waiting on ${escHtml(getPlayerName(wager.creator_id))} to settle it.`);
+        if (canManage) return row(whoWonBtn);
+        if (isParticipant) return note(`Betting’s closed. Waiting on ${escHtml(getPlayerName(wager.creator_id))} to record who won.`);
     }
     return '';
 }
 
 function wagerCardHTML(wager) {
-    const me = currentUser ? currentUser.id : null;
-    const parts = wager.participants || [];
-    const isCreator = wager.creator_id === me;
-    const isTarget = wager.target_id === me;
     const id = escHtml(wager.id);
+    const stakes = stakesHTML(wager);
 
-    const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop Bet' : 'Pool');
-    const targetLabel = wager.target ? `<div style="font-size: 0.85rem; color: var(--accent-gold); margin-bottom: 10px;">Challenging: ${escHtml(wager.target.name)}</div>` : '';
+    const typeLabel = wager.type === 'h2h' ? 'Head-to-Head' : (wager.type === 'prop' ? 'Prop bet' : 'Pool');
+    const creatorLabel = isMe(wager.creator_id) ? 'You' : (wager.creator ? escHtml(wager.creator.name) : 'Unknown');
     const pastLabel = isCurrentSeason(wager) ? '' : ` • ${new Date(wager.created_at).getFullYear()}`;
 
+    // Waiting on you (a challenge to answer, or a result to record): red, like the heading over it
     let cardStyle = `margin-bottom: 20px; padding: 20px; border-left: 4px solid ${wager.type === 'h2h' ? 'var(--accent-gold)' : 'var(--accent-emerald)'}; position: relative;`;
-    if (wager.status === 'proposed' && isTarget) {
+    if (needsMe(wager)) {
         cardStyle = `margin-bottom: 20px; padding: 20px; border: 1px solid #ef4444; border-left: 4px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); position: relative;`;
     }
 
@@ -1709,16 +1899,16 @@ function wagerCardHTML(wager) {
         <div class="glass-panel" id="wager-card-${id}" style="${cardStyle}">
             <div class="wager-head" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
                 <div style="min-width: 0;">
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${wager.creator ? escHtml(wager.creator.name) : 'Unknown'} • <span style="white-space: nowrap;">${typeLabel}${pastLabel}</span></div>
+                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">${creatorLabel} • <span style="white-space: nowrap;">${typeLabel}${pastLabel}</span></div>
                     <h4 style="font-size: 1.1rem; margin-bottom: 5px; overflow-wrap: anywhere;">${escHtml(wager.description)}</h4>
-                    ${targetLabel}
+                    ${sidesLineHTML(wager)}
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
                     ${statusBadgeHTML(wager)}
                 </div>
             </div>
 
-            <div class="wager-quick-stats">${stakesHTML(wager)}</div>
+            ${stakes ? `<div class="wager-quick-stats">${stakes}</div>` : ''}
             ${peopleLineHTML(wager)}
             ${actionsHTML(wager)}
             ${resultsHTML(wager)}
@@ -1737,7 +1927,7 @@ window.joinWager = async function (id) {
     const me = currentUser.id;
     const creator = getPlayerName(wager.creator_id);
     const question = wager.type === 'prop'
-        ? `Take the action on “${wager.description}” for ${fmtMoney(wager.amount)}?\n\nIf it happens, you pay ${creator} ${fmtMoney(wager.amount)}. If it doesn’t, ${creator} pays you ${fmtMoney(wager.amount)}.`
+        ? `Bet ${fmtMoney(wager.amount)} that “${wager.description}” doesn’t happen?\n\nIf it happens, you pay ${creator} ${fmtMoney(wager.amount)}. If it doesn’t, ${creator} pays you ${fmtMoney(wager.amount)}.`
         : `Join “${wager.description}” for a ${fmtMoney(wager.amount)} buy-in?`;
     if (!confirm(question)) return;
 
@@ -1763,7 +1953,7 @@ window.joinWager = async function (id) {
                 if (updateError) throw updateError;
                 if (data && data.length) {
                     await refreshBoard();
-                    showToast(wager.type === 'prop' ? 'You’re on the other side of that prop.' : 'You’re in the pool.', 'success');
+                    showToast(wager.type === 'prop' ? 'You’re in. You’re betting it doesn’t happen.' : 'You’re in the pool.', 'success');
                     return;
                 }
             }
@@ -1902,14 +2092,14 @@ window.closeBetting = async function (id) {
     if (!currentUser || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
-    if (!confirm(`Close betting on “${wager.description}”? Nobody else can join after this. You’ll settle it once the result is in.`)) return;
+    if (!confirm(`Close betting on “${wager.description}”? Nobody else can join after this. Once the result is in, tap “Who won?” on the bet.`)) return;
 
     await withBusyWager(id, async () => {
         try {
             const ok = await updateWager(id, { status: 'active' }, ['open']);
             if (!ok) return betChangedUnderYou();
             await refreshBoard();
-            showToast('Betting closed. Settle it when the result is in.', 'success');
+            showToast('Betting closed. Tap “Who won?” once the result is in.', 'success');
         } catch (err) {
             actionError('Error closing betting', err);
         }
@@ -1945,7 +2135,7 @@ window.deleteWager = async function (id) {
                 }
                 if (wager && wager.type === 'h2h' && fresh.status !== 'proposed') {
                     return betChangedUnderYou(fresh.status === 'active'
-                        ? `${firstName(wager.target_id)} already accepted, so it’s on. To call it off, use Void Bet in the Settle sheet.`
+                        ? `${firstName(wager.target_id)} already accepted, so it’s on. To call it off, tap “Who won?” on the bet, then Void bet.`
                         : 'That challenge was already called off.');
                 }
                 const stillEmpty = Array.isArray(fresh.participants) && fresh.participants.length <= 1 && ['open', 'proposed'].includes(fresh.status);
@@ -1970,7 +2160,7 @@ window.reopenWager = async function (id) {
     if (!currentUser || !currentUser.is_admin || busyWagers.has(id)) return;
     const wager = findWager(id);
     if (!wager) return;
-    if (!confirm(`Reopen “${wager.description}”? It goes back to unsettled and drops out of the ledger until someone settles it again.`)) return;
+    if (!confirm(`Reopen “${wager.description}”? It goes back to having no result and drops out of the ledger until someone records who won again.`)) return;
 
     await withBusyWager(id, async () => {
         try {
@@ -1978,7 +2168,7 @@ window.reopenWager = async function (id) {
             if (!ok) return betChangedUnderYou();
             await logBetNote(id, 'Reopened the bet (admin). It needs settling again.');
             await refreshBoard();
-            showToast('Bet reopened. Settle it again from the card.', 'success');
+            showToast('Bet reopened. Tap “Who won?” on it to record the result again.', 'success');
         } catch (err) {
             actionError('Error reopening the bet', err);
         }
@@ -2053,8 +2243,8 @@ window.openSettleModal = function (id) {
     document.querySelectorAll('.toast').forEach(t => t.remove());
     showModalForm('settle');
     // Name the bet, so two look-alike bets (front nine / back nine) can't be mixed up
-    modalTitle.textContent = 'Settle Bet';
-    document.getElementById('settle-wager-summary').textContent = `“${wager.description}”. Pick the winner. The ledger updates right away, and a note in the trash talk shows who settled it.`;
+    modalTitle.textContent = 'Who won?';
+    document.getElementById('settle-wager-summary').textContent = `“${wager.description}”. The ledger updates as soon as you save, and a note in the trash talk shows who recorded it.`;
     document.getElementById('settle-wager-id').value = id;
     setSettleBusy(false);
 
@@ -2071,17 +2261,31 @@ window.openSettleModal = function (id) {
     if (wager.type === 'pool') {
         const pot = wager.amount * parts.length;
         container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 10px;">Select every winner. The ${fmtMoney(pot)} pot splits evenly.</p>` +
-            parts.map(pid => settleOptionHTML('checkbox', pid, name(pid))).join('');
+            parts.map(pid => settleOptionHTML('checkbox', pid, isMe(pid) ? 'You' : name(pid))).join('');
     } else if (wager.type === 'prop') {
         const takers = parts.filter(pid => pid !== wager.creator_id);
+        const each = `${takers.length} taker${takers.length === 1 ? '' : 's'} ${fmtMoney(wager.amount)} each`;
         container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 10px;">Did it happen?</p>` +
-            settleOptionHTML('radio', wager.creator_id, `${name(wager.creator_id)} wins (it happened)`, `Each taker pays ${name(wager.creator_id)} ${fmtMoney(wager.amount)}`) +
-            settleOptionHTML('radio', 'takers', 'The takers win (it didn’t)', `${name(wager.creator_id)} pays ${takers.length} taker${takers.length === 1 ? '' : 's'} ${fmtMoney(wager.amount)} each`);
+            (isMe(wager.creator_id)
+                ? settleOptionHTML('radio', wager.creator_id, 'You win (it happened)', `Each taker pays you ${fmtMoney(wager.amount)}`) +
+                    settleOptionHTML('radio', 'takers', 'The takers win (it didn’t)', `You pay ${each}`)
+                : settleOptionHTML('radio', wager.creator_id, `${name(wager.creator_id)} wins (it happened)`, `Each taker pays ${name(wager.creator_id)} ${fmtMoney(wager.amount)}`) +
+                    settleOptionHTML('radio', 'takers', 'The takers win (it didn’t)', `${name(wager.creator_id)} pays ${each}`));
     } else {
         const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
-        container.innerHTML =
-            settleOptionHTML('radio', wager.creator_id, name(wager.creator_id), `Collects ${fmtMoney(creatorWins)}`) +
-            settleOptionHTML('radio', wager.target_id, name(wager.target_id), `Collects ${fmtMoney(targetWins)}`);
+        const mine = myH2hStakes(wager);
+        if (mine) {
+            // You're one of the two: "You win" / "Kelly wins", in the order of the card
+            const them = escHtml(firstName(mine.other));
+            const option = pid => (isMe(pid)
+                ? settleOptionHTML('radio', pid, 'You win', `${them} pays you ${fmtMoney(mine.win)}`)
+                : settleOptionHTML('radio', pid, `${them} wins`, `You pay ${them} ${fmtMoney(mine.lose)}`));
+            container.innerHTML = option(wager.creator_id) + option(wager.target_id);
+        } else {
+            container.innerHTML =
+                settleOptionHTML('radio', wager.creator_id, `${name(wager.creator_id)} wins`, `Collects ${fmtMoney(creatorWins)}`) +
+                settleOptionHTML('radio', wager.target_id, `${name(wager.target_id)} wins`, `Collects ${fmtMoney(targetWins)}`);
+        }
     }
 
     openModal();
@@ -2105,6 +2309,36 @@ function describeResult(wager, winnerIds) {
     return `Settled: ${winners.map(name).join(' & ')} win${winners.length === 1 ? 's' : ''}. ${potSplitText(wager.amount, parts.length, winners, name)}`;
 }
 
+// The same result from the viewer's side, for the confirm before it saves ("You win. Westin owes
+// you $15."). describeResult keeps the names: it's also the note everyone reads in the trash talk.
+// Plain text (a native dialog), so names aren't escaped.
+function resultConfirmText(wager, winnerIds) {
+    const parts = wager.participants || [];
+    const Name = id => (isMe(id) ? 'You' : getPlayerName(id));
+    const name = id => (isMe(id) ? 'you' : getPlayerName(id));
+    const s = id => (isMe(id) ? '' : 's'); // "You win" / "Kelly wins", "You owe" / "Kelly owes"
+    if (wager.type === 'h2h') {
+        const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
+        const winner = winnerIds[0];
+        const targetWon = winner === wager.target_id;
+        const loser = targetWon ? wager.creator_id : wager.target_id;
+        const toWhom = isMe(winner) || isMe(loser) ? ` ${name(winner)}` : '';
+        return `${Name(winner)} win${s(winner)}. ${Name(loser)} owe${s(loser)}${toWhom} ${fmtMoney(targetWon ? targetWins : creatorWins)}.`;
+    }
+    const c = wager.creator_id;
+    if (wager.type === 'prop') {
+        return winnerIds.includes(c)
+            ? `${Name(c)} win${s(c)} the prop. Each taker owes${isMe(c) ? ' you' : ''} ${fmtMoney(wager.amount)}.`
+            : `The takers win. ${Name(c)} owe${s(c)} each taker ${fmtMoney(wager.amount)}.`;
+    }
+    const winners = parts.filter(id => winnerIds.includes(id));
+    const split = potSplitText(wager.amount, parts.length, winners, name);
+    if (winners.length === 1) {
+        return `${Name(winners[0])} win${s(winners[0])}. ${isMe(winners[0]) ? split.replace(/^Takes/, 'You take') : split}`;
+    }
+    return `${capFirst(winners.map(name).join(' & '))} win. ${capFirst(split)}`;
+}
+
 // Is the Settle sheet for this bet the one that's open?
 const settleSheetFor = id => modal.classList.contains('active') && settleWagerForm.style.display === 'block' &&
     document.getElementById('settle-wager-id').value === id;
@@ -2114,13 +2348,13 @@ function setSettleBusy(on) {
     settling = on;
     settleWagerForm.querySelectorAll('button').forEach(b => { b.disabled = on; });
     const submit = document.getElementById('settle-submit-btn');
-    if (submit) submit.textContent = on ? 'Settling…' : 'Confirm Winner & Settle';
+    if (submit) submit.textContent = on ? 'Saving…' : 'Save result';
 }
 
 async function handleSettleSubmit(e) {
     e.preventDefault();
     if (settling) return;
-    if (!currentUser) return showToast('You were logged out. Log in again to settle bets.', 'error');
+    if (!currentUser) return showToast('You were logged out. Log in again to record results.', 'error');
     const wagerId = document.getElementById('settle-wager-id').value;
     const wager = findWager(wagerId);
     if (!wager) return;
@@ -2142,22 +2376,22 @@ async function handleSettleSubmit(e) {
         }
     }
 
-    // Settling moves money, so say exactly what will happen first
-    if (!confirm(`${describeResult(wager, winnerIds).replace(/^Settled: /, '')}\n\nSettle “${wager.description}” now? The ledger updates right away.`)) return;
+    // A result moves money, so say exactly what will happen first
+    if (!confirm(`${resultConfirmText(wager, winnerIds)}\n\nSave this result for “${wager.description}”? The ledger updates right away.`)) return;
 
     setSettleBusy(true);
     try {
         await withBusyWager(wagerId, async () => {
             const ok = await updateWager(wagerId, { status: 'settled', winner_id: winnerIds[0], winner_ids: winnerIds }, ['active']);
-            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (!ok) return betChangedUnderYou('Someone already recorded a result or changed that bet. Here’s the latest.');
             if (settleSheetFor(wagerId)) closeModal();
             await logBetNote(wagerId, describeResult(wager, winnerIds));
             await refreshBoard();
             focusCard(wagerId);
-            showToast('Settled. The ledger is updated.', 'success');
+            showToast('Result saved. The ledger is updated.', 'success');
         });
     } catch (err) {
-        actionError('Error settling wager', err);
+        actionError('Couldn’t save the result', err);
     } finally {
         setSettleBusy(false);
     }
@@ -2165,19 +2399,19 @@ async function handleSettleSubmit(e) {
 
 async function handleAlternativeSettle(statusType) {
     if (settling) return;
-    if (!currentUser) return showToast('You were logged out. Log in again to settle bets.', 'error');
+    if (!currentUser) return showToast('You were logged out. Log in again to record results.', 'error');
     const wagerId = document.getElementById('settle-wager-id').value;
     const wager = findWager(wagerId);
     const what = wager ? `“${wager.description}”` : 'this bet';
     if (!confirm(statusType === 'push'
-        ? `Declare a push (tie) on ${what}? No money changes hands.`
+        ? `Call ${what} a push (tie)? No money changes hands.`
         : `Void ${what}? It's called off and no money changes hands.`)) return;
 
     setSettleBusy(true);
     try {
         await withBusyWager(wagerId, async () => {
             const ok = await updateWager(wagerId, { status: statusType }, ['active']);
-            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (!ok) return betChangedUnderYou('Someone already recorded a result or changed that bet. Here’s the latest.');
             if (settleSheetFor(wagerId)) closeModal();
             await logBetNote(wagerId, statusType === 'push' ? 'Declared a push. No money changes hands.' : 'Voided the bet. No money changes hands.');
             await refreshBoard();
@@ -2185,13 +2419,13 @@ async function handleAlternativeSettle(statusType) {
             showToast(statusType === 'push' ? 'Pushed. No money changes hands.' : 'Bet voided.', 'success');
         });
     } catch (err) {
-        actionError('Error updating wager', err);
+        actionError('Couldn’t update the bet', err);
     } finally {
         setSettleBusy(false);
     }
 }
 
-// Auto-settle a head-to-head from the Live Tracker: the latest round both players finished
+// Record a head-to-head from Live scores: the latest round both players finished
 // (all 18 holes entered), lower gross score wins. Each group scores its own session, so
 // the two cards are matched by round number and date. The player confirms before it saves.
 const HOLE_COLUMNS = Array.from({ length: 18 }, (_, i) => `h${i + 1}`);
@@ -2238,7 +2472,7 @@ async function handleAutoSettle(wager) {
         });
         const shared = Object.keys(byRound).filter(k => ids.every(pid => byRound[k].cards[pid])).sort().reverse();
         if (!shared.length) {
-            showToast('Auto-settle needs a round you’ve both finished (all 18 holes in Live scores). Settle it by hand instead.', 'error');
+            showToast('Using Live scores needs a round you’ve both finished (all 18 holes in). Pick the winner by hand instead.', 'error');
             return;
         }
 
@@ -2248,7 +2482,7 @@ async function handleAutoSettle(wager) {
             .map(c => roundById.get(c.round_id))
             .find(r => r && r.id !== round.id && (r.date || '') >= (round.date || ''));
         if (newer) {
-            showToast(`Round ${newer.round_number || ''} isn’t finished yet, so auto-settle can’t tell which round this bet is about. Settle it by hand, or wait until all 18 are in.`, 'error');
+            showToast(`Round ${newer.round_number || ''} isn’t finished yet, so Live scores can’t tell which round this bet is about. Pick the winner by hand, or wait until all 18 are in.`, 'error');
             return;
         }
         // Add up the 18 holes (a stored total can be stale if two phones scored the card).
@@ -2261,19 +2495,19 @@ async function handleAutoSettle(wager) {
 
         const isPush = cScore === tScore;
         const winnerId = cScore < tScore ? wager.creator_id : wager.target_id;
-        if (!confirm(`${summary}\n\n${isPush ? 'All square. Declare a push?' : `Settle this bet for ${getPlayerName(winnerId)}?`}\n\nOnly OK this if the bet was about this round's score.`)) return;
+        if (!confirm(`${summary}\n\n${isPush ? 'All square. Declare a push?' : `Record ${getPlayerName(winnerId)} as the winner?`}\n\nOnly OK this if the bet was about this round's score.`)) return;
 
         const values = isPush ? { status: 'push' } : { status: 'settled', winner_id: winnerId, winner_ids: [winnerId] };
         await withBusyWager(wager.id, async () => {
             const ok = await updateWager(wager.id, values, ['active']);
-            if (!ok) return betChangedUnderYou('Someone already settled or changed that bet. Here’s the latest.');
+            if (!ok) return betChangedUnderYou('Someone already recorded a result or changed that bet. Here’s the latest.');
             if (settleSheetFor(wager.id)) closeModal();
             await logBetNote(wager.id, isPush ? `Auto-settled from Round ${round.round_number}: all square, push.` : `Auto-settled from Round ${round.round_number}: ${describeResult(wager, [winnerId]).replace(/^Settled: /, '')}`);
             await refreshBoard();
-            showToast(isPush ? 'All square. Wager pushed.' : `Settled. ${getPlayerName(winnerId)} wins.`, 'success');
+            showToast(isPush ? 'All square. Bet pushed.' : `Result saved. ${isMe(winnerId) ? 'You win' : `${getPlayerName(winnerId)} wins`}.`, 'success');
         });
     } catch (e) {
-        actionError('Error auto-settling', e);
+        actionError('Couldn’t use Live scores', e);
     } finally {
         setSettleBusy(false);
         if (autoBtn) autoBtn.innerHTML = autoLabel;
@@ -2422,9 +2656,10 @@ function renderLedger() {
 const TYPE_HINTS = {
     pool: 'Everyone puts in the same buy-in. The winners split the pot.',
     h2h: 'You against one player. Set the line and the stake.',
-    prop: 'You’re betting it happens. Anyone who takes the action bets it doesn’t. You win or pay the amount to each taker.'
+    prop: 'You’re betting it happens. Anyone who takes it bets it doesn’t. You win or pay the amount to each taker.'
 };
-const AMOUNT_LABELS = { pool: 'Buy-in ($)', h2h: 'Wager Amount ($)', prop: 'Amount per Taker ($)' };
+const AMOUNT_LABELS = { pool: 'Buy-in ($)', h2h: 'Bet amount ($)', prop: 'Amount per taker ($)' };
+const DESC_PLACEHOLDERS = { pool: 'E.g., Low net, Round 2', h2h: 'E.g., Lower gross, Round 1', prop: 'E.g., Someone makes an ace this trip' };
 const ODDS_HELP = 'Odds start at 100. For 3 to 2, type 150.';
 
 function oddsSide() {
@@ -2450,7 +2685,8 @@ function syncWagerTypeFields() {
     const hint = document.getElementById('wager-type-hint');
     if (hint) hint.textContent = TYPE_HINTS[type] || '';
     const amtLabel = document.getElementById('wager-amt-label');
-    if (amtLabel) amtLabel.textContent = AMOUNT_LABELS[type] || 'Wager Amount ($)';
+    if (amtLabel) amtLabel.textContent = AMOUNT_LABELS[type] || 'Bet amount ($)';
+    wagerDescInput.placeholder = DESC_PLACEHOLDERS[type] || '';
 
     // "Kelly's the underdog" reads better than "They're the underdog" once someone is picked
     const opp = wagerTargetSelect.value ? getPlayerName(wagerTargetSelect.value).split(' ')[0] : '';
@@ -2532,7 +2768,7 @@ function openWagerModal() {
     if (!currentUser) return;
 
     showModalForm('create');
-    modalTitle.textContent = 'Propose a Wager';
+    modalTitle.textContent = 'New bet';
     showCreateError('');
 
     // Anyone confirmed for the trip can be challenged, except players who RSVP'd out
@@ -2596,7 +2832,7 @@ async function handleCreateWager(e) {
 
     creatingWager = true;
     wagerSubmitBtn.disabled = true;
-    wagerSubmitBtn.textContent = 'Proposing…';
+    wagerSubmitBtn.textContent = 'Posting…';
     try {
         const { error } = await supabaseClient.from('wagers').insert([newWager]);
         if (error && error.code !== '23505') throw error; // 23505: an earlier try already saved it
@@ -2605,7 +2841,8 @@ async function handleCreateWager(e) {
         resetCreateForm();
         showBoardSkeleton();
         await refreshBoard();
-        // Show the new bet: switch to a tab that has it, then scroll to it
+        // Show the new bet: switch to a tab that has it, then scroll to it. On a challenge the
+        // first button is "Text Kelly about it", so that's where focus lands.
         if (!wagersForFilter(currentFilter).some(w => w.id === newWager.id)) setFilter('all');
         revealCard(newWager.id);
         if (!modal.classList.contains('active')) {
@@ -2613,7 +2850,7 @@ async function handleCreateWager(e) {
             if (first) first.focus({ preventScroll: true });
         }
         showToast(type === 'h2h'
-            ? `Challenge posted. ${getPlayerName(targetId).split(' ')[0]} sees it next time they open The Bookie, so give them a heads-up.`
+            ? `Challenge posted. Text ${getPlayerName(targetId).split(' ')[0]} so they know it’s waiting.`
             : (type === 'prop' ? 'Your prop is live.' : 'Your pool is open.'), 'success');
         if (firstVersionLive) showToast('Heads up: your first version posted too. Cancel it from its card if you only want this one.', 'error');
     } catch (err) {
@@ -2624,25 +2861,94 @@ async function handleCreateWager(e) {
             console.warn('Prop bets need bookie_2027.sql run in Supabase.');
             say('Prop bets aren’t switched on yet. Text the commissioner, or make it a pool for now.');
         } else if (isNetworkError(err)) {
-            say(sheetUp ? 'No signal. Tap Propose again once you have a bar or two (without changing it) and it won’t post twice.'
-                : 'No signal, so that bet may not have posted. Open + and tap Propose again. It won’t post twice.');
+            say(sheetUp ? 'No signal. Tap Post bet again once you have a bar or two (without changing it) and it won’t post twice.'
+                : 'No signal, so that bet may not have posted. Open New bet and tap Post bet again. It won’t post twice.');
         } else {
-            say('Couldn’t propose the bet: ' + (err.message || err));
+            say('Couldn’t post the bet: ' + (err.message || err));
         }
     } finally {
         creatingWager = false;
         wagerSubmitBtn.disabled = false;
-        wagerSubmitBtn.textContent = 'Propose Wager';
+        wagerSubmitBtn.textContent = 'Post bet';
     }
 }
 
 // ==========================================
+// Texting a challenge
+// ==========================================
+// No notifications go out, so the challenger sends the link: the share sheet where the phone
+// has one, a text message on a phone without it, otherwise the message is copied.
+function betLink(id) {
+    return `${window.location.origin}/bookie.html?bet=${encodeURIComponent(id)}`;
+}
+
+function challengeText(wager) {
+    const { creatorWins, targetWins } = h2hPayouts(wager.amount, wager.odds);
+    const terms = String(wager.description || '').trim().replace(/[.!?\s]+$/, '');
+    const line = creatorWins === targetWins ? '' : ` (you win ${fmtMoney(targetWins)}, you lose ${fmtMoney(creatorWins)})`;
+    return `I challenged you on The Bookie: ${fmtMoney(wager.amount)} on ${terms}${line}. Accept or duck it:`;
+}
+
+const isPhone = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPad in desktop mode
+
+async function copyText(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) { /* fall back below */ }
+    try {
+        const box = document.createElement('textarea');
+        box.value = text;
+        box.setAttribute('readonly', '');
+        box.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+        document.body.appendChild(box);
+        box.select();
+        const ok = document.execCommand('copy');
+        box.remove();
+        return ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+window.textChallenge = async function (id) {
+    const wager = findWager(id);
+    if (!wager || !currentUser || wager.type !== 'h2h') return;
+    const them = firstName(wager.target_id);
+    const text = challengeText(wager);
+    const url = betLink(wager.id);
+    if (navigator.share) {
+        try {
+            await navigator.share({ text, url });
+            return;
+        } catch (err) {
+            if (err && err.name === 'AbortError') return; // they closed the share sheet
+            // Not allowed here (or it failed): fall through to a text message or the clipboard
+        }
+    }
+    const message = `${text} ${url}`;
+    if (isPhone()) {
+        // "?&body=" works in both iPhone and Android Messages
+        const link = document.createElement('a');
+        link.href = `sms:?&body=${encodeURIComponent(message)}`;
+        link.click();
+        return;
+    }
+    if (await copyText(message)) {
+        showToast(`Copied the message and link. Paste it in a text to ${them}.`, 'success');
+    } else {
+        window.prompt(`Copy this and text it to ${them}:`, message);
+    }
+};
+
+// ==========================================
 // Native App Helpers (Skeletons & Toasts)
 // ==========================================
-// Loading placeholders for the board. The Cup card can sit among the cards: put it back first.
+// Loading placeholders for the board
 function showBoardSkeleton() {
-    const cup = document.getElementById('cup-card');
-    if (cup && wagersContainer.contains(cup)) wagersContainer.parentNode.insertBefore(cup, wagersContainer);
     wagersContainer.innerHTML = getSkeletonHtml();
 }
 
@@ -2678,14 +2984,17 @@ window.showToast = function (message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
 
-    const icon = type === 'success' ? '<i class="fas fa-check-circle" style="color: var(--accent-emerald);"></i>' : '<i class="fas fa-exclamation-circle" style="color: #ef4444;"></i>';
+    const icon = {
+        success: '<i class="fas fa-check-circle" style="color: var(--accent-emerald);" aria-hidden="true"></i>',
+        info: '<i class="fas fa-info-circle" style="color: var(--accent-gold);" aria-hidden="true"></i>'
+    }[type] || '<i class="fas fa-exclamation-circle" style="color: #ef4444;" aria-hidden="true"></i>';
     toast.innerHTML = `${icon} <span></span>`;
     toast.querySelector('span').textContent = message;
 
     container.appendChild(toast);
 
     if (navigator.vibrate) {
-        navigator.vibrate(type === 'success' ? 50 : [50, 100, 50]);
+        navigator.vibrate(type === 'error' ? [50, 100, 50] : 50);
     }
 
     const dismiss = () => {
@@ -2694,7 +3003,7 @@ window.showToast = function (message, type = 'success') {
         setTimeout(() => toast.remove(), 300);
     };
     toast.addEventListener('click', dismiss); // tap to dismiss
-    setTimeout(dismiss, type === 'error' ? 7000 : 3000);
+    setTimeout(dismiss, type === 'error' ? 7000 : (type === 'info' ? 5000 : 3000));
 };
 
 // The page opens on "checking your login". Fresh from the confirmation email, say that instead.
