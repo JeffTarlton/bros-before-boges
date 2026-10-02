@@ -265,6 +265,7 @@ function formatOf(roundNumber) {
 // The rules page's name and section for each format (rules.html#grind opens that section), so the
 // tracker and the rules call a round the same thing. A format the rules don't describe keeps the
 // tracker's label and points at the house rules. Every match is gross: no handicap strokes.
+// Admin's Score Entry line uses the same names (renderScoreEntryContext in admin.js): keep them in step.
 const FORMAT_RULES = {
     points: { name: 'The Grind', section: 'grind' },
     split: { name: 'The Split Decision', section: 'split' },

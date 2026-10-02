@@ -259,6 +259,14 @@ function setupEventListeners() {
             handleLogin();
         });
     }
+    // A password reset brings him back to the tab he opened (the Bookie keeps &tab= through the reset)
+    const forgot = document.getElementById('admin-forgot-link');
+    if (forgot) {
+        forgot.addEventListener('click', () => {
+            const tab = tabFromHash();
+            forgot.href = `bookie.html?next=admin&mode=login${tab ? `&tab=${tab}` : ''}`;
+        });
+    }
     // The email field's phone key says Next: with the password still empty it moves there,
     // instead of submitting and showing "Enter your password." (Enter with both filled still logs in)
     elements.emailInput?.addEventListener('keydown', (e) => {
@@ -1654,13 +1662,17 @@ function scoreEntryIsPoints(roundNumber) {
     return adminScoringForRound(roundNumber) === 'stableford' && !!adminParsForRound(roundNumber);
 }
 
-// "Round 1 · Talking Stick O’odham · Par 70 · Team points (Total = quota points)"
+// "Round 1 · Talking Stick O’odham · Par 70 · The Grind · team points (Total = quota points)"
 function renderScoreEntryContext() {
     const el = document.getElementById('score-entry-context');
     if (!el) return;
     const pars = adminParsForRound(scoreEntryRound);
     const course = adminCourseNameForRound(scoreEntryRound);
-    const format = window.BBBScoring ? window.BBBScoring.formatFor(scoreEntryRound, window.BBB).label : '';
+    // The format by the rules page's name, as the Round Tracker shows it (FORMAT_RULES in
+    // round_tracker.js); a format the rules don't name keeps scoring.js's label ("Stroke play")
+    const rulesNames = { points: 'The Grind · team points', split: 'The Split Decision', singles: 'Championship Singles' };
+    const play = window.BBBScoring ? window.BBBScoring.formatFor(scoreEntryRound, window.BBB) : null;
+    const format = play ? (rulesNames[play.key] || play.label) : '';
     const what = scoreEntryIsPoints(scoreEntryRound) ? 'Total = quota points' : 'Total = strokes';
     el.innerHTML = [
         `Round ${scoreEntryRound}`,

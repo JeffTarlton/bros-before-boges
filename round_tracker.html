@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Keep score &amp; live scores · Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.9">
+    <link rel="stylesheet" href="style.css?v=2027.10">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -22,7 +22,17 @@
 
         /* A slim header so the hole and the players get the room (home-screen mode draws under the status bar) */
         .site-header { padding: calc(12px + env(safe-area-inset-top)) 0 12px; background: rgba(14, 11, 9, 0.97); }
-        .site-header .logo { font-size: 1.4rem; white-space: nowrap; }
+        .site-header .logo { font-size: 1.4rem; line-height: 1.6; white-space: nowrap; }
+        /* The logo goes home, the only one-tap way back in home-screen mode (like The Bookie's). Padding
+           makes it a 44px target and the matching negative margins let that reach into the header's own
+           padding, so the wordmark sits where it always did and the header keeps its height wherever
+           the menu button is hidden (wider than 768px: desktop, a phone on its side), leaving the scoring
+           room below it alone. 1.6em = the logo's line, set just above. */
+        .site-header .logo-link {
+            display: block; color: inherit;
+            padding-block: calc((44px - 1.6em) / 2);
+            margin-block: min(0px, (1.6em - 44px) / 2);
+        }
 
         .tracker {
             max-width: 720px;
@@ -757,7 +767,7 @@
 <body class="app-page">
     <header class="site-header">
         <div class="container header-container">
-            <h1 class="logo">Bros before <span class="accent">Boges</span></h1>
+            <h1 class="logo"><a class="logo-link" href="index.html" aria-label="Bros before Boges home">Bros before <span class="accent">Boges</span></a></h1>
             <nav class="main-nav" aria-label="Site">
                 <ul>
                     <li><a href="index.html">Home</a></li>
@@ -778,7 +788,7 @@
         <!-- Setup: pick the round and who this phone scores -->
         <section class="view" id="view-setup" aria-labelledby="setup-title" hidden>
             <h2 id="setup-title">Keep <span class="accent">score</span></h2>
-            <p class="muted small" style="margin-bottom: 14px;">One phone per group. Pick the round and your group, then score hole by hole. Everything saves on this phone first, so a dead zone won’t lose a score.</p>
+            <p class="muted small" style="margin-bottom: 14px;">One phone per group. Pick the round and your group, then score hole by hole. Tap Start while you have signal. After that, every score saves on this phone first, so a dead zone won’t lose one.</p>
             <div id="setup-body"></div>
         </section>
 
@@ -822,7 +832,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.10"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="round_tracker.js?v=2027.13"></script>
+    <script src="round_tracker.js?v=2027.14"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {
