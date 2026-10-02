@@ -65,7 +65,7 @@ window.BBB = {
             // due: '2026-12-15', how: 'Venmo @handle', note: 'Balance due Mar 1.' } ("Deposit $500 due Dec 15 · Venmo
             // @handle · Balance due Mar 1."). amount is shown exactly (203.13 is $203.13); due is 'YYYY-MM-DD' or text.
             // null: "Don't send money yet. Payment details come with the final breakdown."
-            payment: { label: 'Deposit', amount: 500, due: '2026-11-30', how: 'How to pay coming soon' }
+            payment: { label: 'Deposit', amount: 500, due: '2026-11-30', how: 'Venmo @Westin-Tucker' }
         },
         intro: [
             'The Sonoran Desert in April: 80-degree days, cool nights, and some of the best public golf in the country. This year we trade the Texas Hill Country for saguaros, Four Peaks, and firm, fast desert fairways.',
@@ -76,12 +76,12 @@ window.BBB = {
         // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
-            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. How to pay is coming soon. Golf runs about $1,150: Talking Stick $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
+            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. Venmo it to Westin (@Westin-Tucker). Golf runs about $1,150: Talking Stick $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Nov 30 so we can book rooms.' }
         ],
         // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. 'Tee times';
         // delete each one once it's settled. An empty list hides it.
-        stillToCome: ['HQ / lodging', 'Tee times', 'How to pay the deposit', 'Course for the optional Sunday round']
+        stillToCome: ['HQ / lodging', 'Tee times', 'Course for the optional Sunday round']
     },
 
     // RSVP / head count. Needs rsvp_schema.sql and then rsvp_accounts.sql run in Supabase.
