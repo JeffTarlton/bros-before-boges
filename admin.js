@@ -60,7 +60,7 @@ let players = [];
 let originalPlayers = []; // To track changes and allow discard
 let matchups = [];
 let originalMatchups = [];
-let currentMatchupRound = 1;
+let currentMatchupRound = adminCupRounds()[0]; // the first Cup round in trip-config.js
 let hasChanges = false;
 // Each dataset is 'loading', 'ok' or 'error'. Save writes matchups as a diff against what
 // loaded, so it stays off unless both loaded in this page session.
@@ -126,6 +126,7 @@ function init() {
             addPotentialBtn: document.getElementById('add-potential-btn')
         };
 
+        renderMatchupRoundFilters();
         checkInitialAuth();
         setupEventListeners();
         console.log('Admin Dashboard ready.');
@@ -425,6 +426,11 @@ function setupEventListeners() {
     if (elements.addMatchupBtn) {
         elements.addMatchupBtn.addEventListener('click', addMatchup);
     }
+    // The round filter is drawn from trip-config.js (renderMatchupRoundFilters): one listener serves every button
+    document.getElementById('matchup-round-filters')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-round]');
+        if (btn) window.filterMatchupRound(Number(btn.dataset.round));
+    });
 
     if (elements.addPotentialBtn) {
         elements.addPotentialBtn.addEventListener('click', addPotentialPlayer);
@@ -640,6 +646,7 @@ async function loadMatchups() {
     } else {
         loadState.matchups = 'ok';
     }
+    renderMatchupRoundFilters(); // a stored round that isn't a Cup round gets its own button
     renderMatchupsUI();
     checkChanges();
 }
@@ -996,10 +1003,31 @@ function autoDraft() {
 }
 
 // Matchups Logic
+// The round filter: the Cup rounds (adminCupRounds), then any round a stored match has that isn't
+// one, e.g. "Round 4 · not on the schedule" left from an older schedule, so it can be found and
+// removed. Drawn at start-up and after each load, so a round emptied by Save loses its button then.
+function renderMatchupRoundFilters() {
+    const cup = adminCupRounds();
+    const stray = [...new Set(matchups.map(m => m && m.round_number).filter(n => Number.isInteger(n) && !cup.includes(n)))].sort((a, b) => a - b);
+    const rounds = cup.concat(stray);
+    if (!rounds.includes(currentMatchupRound)) currentMatchupRound = cup[0];
+    const wrap = document.getElementById('matchup-round-filters');
+    if (!wrap) return;
+    wrap.innerHTML = rounds.map(n => {
+        const on = n === currentMatchupRound;
+        const stale = !cup.includes(n);
+        const label = stale ? `Round ${n} · not on the schedule` : `Round ${n}`;
+        // Looks (pill, picked, stale) live in admin.html under #matchup-round-filters
+        return `<button type="button" class="filter-btn${stale ? ' stale' : ''}${on ? ' active' : ''}" data-round="${n}" aria-pressed="${on}">${label}</button>`;
+    }).join('\n');
+}
+
 window.filterMatchupRound = (roundNum) => {
-    currentMatchupRound = roundNum;
-    document.querySelectorAll('#tab-matchups .filter-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.textContent.replace('Round ','')) === roundNum);
+    currentMatchupRound = Number(roundNum);
+    document.querySelectorAll('#matchup-round-filters .filter-btn').forEach(btn => {
+        const on = Number(btn.dataset.round) === currentMatchupRound;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
     });
     renderMatchupsUI();
 };
@@ -1053,14 +1081,16 @@ function renderMatchupsUI() {
         }).join('');
     };
 
+    // One player a side when the round's format (trip-config.js roundPlay) is singles
+    const play = window.BBBScoring ? window.BBBScoring.formatFor(currentMatchupRound, window.BBB) : null;
+    const isSingles = play ? play.key === 'singles' : currentMatchupRound === 3;
+
     roundMatchups.forEach((match, index) => {
         const globalIndex = matchups.indexOf(match);
         const div = document.createElement('div');
         div.className = 'glass-panel matchup-card';
         div.dataset.matchup = globalIndex;
         div.style = "padding: 20px;";
-
-        const isSingles = currentMatchupRound === 3;
 
         div.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
@@ -1596,7 +1626,7 @@ if (document.readyState === 'loading') {
 // ==========================================
 // Score Entry (Manual Per-Round Scoring)
 // ==========================================
-let scoreEntryRound = 1;
+let scoreEntryRound = adminCupRounds()[0]; // the first Cup round in trip-config.js
 let scoreEntryData = {}; // { round_number: [ {player_id, name, team_id, total_score, to_par} ] }
 
 async function renderScoreEntryUI() {
@@ -1656,6 +1686,16 @@ function escHtml(value) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// The Cup rounds, from trip-config.js: itinerary slots labelled R<n> plus the roundCourses and roundPlay
+// keys (the same rule as tripRounds() in round_tracker.js). The practice round has no R<n>, so it never shows.
+function adminCupRounds() {
+    const cfg = window.BBB || {};
+    const set = new Set();
+    (Array.isArray(cfg.itinerary) ? cfg.itinerary : []).forEach(d => ((d && Array.isArray(d.slots)) ? d.slots : []).forEach(s => { const m = /^R(\d+)$/.exec((s && s.when) || ''); if (m && Number(m[1]) >= 1) set.add(Number(m[1])); }));
+    Object.keys(cfg.roundCourses || {}).concat(Object.keys(cfg.roundPlay || {})).forEach(k => { const n = Number(k); if (Number.isInteger(n) && n >= 1) set.add(n); });
+    return set.size ? [...set].sort((a, b) => a - b) : [1, 2, 3];
+}
+
 function adminParsForRound(roundNumber) {
     const cfg = window.BBB;
     if (!cfg || !cfg.roundCourses || !cfg.courses) return LEGACY_ROUND_PARS[roundNumber] || null;
@@ -1695,7 +1735,7 @@ function scoreEntryIsPoints(roundNumber) {
     return adminScoringForRound(roundNumber) === 'stableford' && !!adminParsForRound(roundNumber);
 }
 
-// "Round 1 · Talking Stick O’odham · Par 70 · The Grind · team points (Total = quota points)"
+// "Round 1 · We-Ko-Pa Cholla · Par 72 · The Grind · team points (Total = quota points)"
 function renderScoreEntryContext() {
     const el = document.getElementById('score-entry-context');
     if (!el) return;
@@ -1868,26 +1908,37 @@ function renderScoreEntryTable() {
     });
 }
 
-// Round tab switching
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        const roundTabs = document.querySelectorAll('.score-round-tab');
-        roundTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                roundTabs.forEach(t => {
-                    t.classList.remove('active');
-                    t.classList.add('secondary');
-                    t.setAttribute('aria-pressed', 'false');
-                });
-                tab.classList.add('active');
-                tab.classList.remove('secondary');
-                tab.setAttribute('aria-pressed', 'true');
-                scoreEntryRound = parseInt(tab.dataset.round);
-                renderScoreEntryContext();
-                renderScoreEntryTable();
-            });
-        });
+// The round tabs: one per Cup round (adminCupRounds), so the practice round never gets one
+function renderScoreEntryRoundTabs() {
+    const wrap = document.getElementById('score-entry-round-tabs');
+    if (!wrap) return;
+    const rounds = adminCupRounds();
+    if (!rounds.includes(scoreEntryRound)) scoreEntryRound = rounds[0];
+    wrap.innerHTML = rounds.map(n => {
+        const on = n === scoreEntryRound;
+        return `<button type="button" class="admin-btn${on ? '' : ' secondary'} score-round-tab${on ? ' active' : ''}" data-round="${n}" aria-pressed="${on}" style="width: auto; padding: 10px 20px; margin: 0;">Round ${n}</button>`;
+    }).join('\n');
+}
 
+// Round tab switching: one listener on the row, so it serves whatever tabs are drawn
+document.addEventListener('DOMContentLoaded', () => {
+    renderScoreEntryRoundTabs();
+    const tabRow = document.getElementById('score-entry-round-tabs');
+    tabRow?.addEventListener('click', (e) => {
+        const tab = e.target.closest('.score-round-tab');
+        if (!tab || !tabRow.contains(tab)) return;
+        tabRow.querySelectorAll('.score-round-tab').forEach(t => {
+            const on = t === tab;
+            t.classList.toggle('active', on);
+            t.classList.toggle('secondary', !on);
+            t.setAttribute('aria-pressed', String(on));
+        });
+        scoreEntryRound = Number(tab.dataset.round);
+        renderScoreEntryContext();
+        renderScoreEntryTable();
+    });
+
+    setTimeout(() => {
         // Save scores button
         const saveBtn = document.getElementById('save-score-entry-btn');
         if (saveBtn) {
@@ -1902,7 +1953,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Copy the Round Tracker's scorecards for this round into the table, merging duplicates the
 // same way the tracker's board does (scoring.js). A round number can have rounds on more than
-// one day (a stray start): use the day with the most scores, then the scheduled day, then the
+// one day (a stray start, or the practice round scored as a Cup round by mistake). A practice day
+// (an itinerary day with a practice: true slot and no R<n> slot) is never used, so its cards can't
+// become Cup scores even before the real round has started. The scheduled day (its R<n> itinerary
+// slot) wins once it has any scores entered. Otherwise use the day with the most scores, then the
 // latest. Holes the tracker doesn't have keep whatever is typed in. Nothing is saved until
 // Save Round Scores.
 async function fillFromTracker() {
@@ -1930,12 +1984,18 @@ async function fillFromTracker() {
         const holesByDay = {};
         rounds.forEach(r => { holesByDay[r.date || ''] = holesByDay[r.date || ''] || 0; });
         (rows || []).forEach(r => { holesByDay[dayOf.get(r.round_id)] += SC.countEntered(SC.holesOf(r)); });
+        const itinerary = Array.isArray(cfg.itinerary) ? cfg.itinerary : [];
+        const slotsOf = d => (d && Array.isArray(d.slots) ? d.slots : []).filter(Boolean);
         let planned = null;
-        (cfg.itinerary || []).forEach(d => (d.slots || []).forEach(slot => { if (slot.when === `R${scoreEntryRound}`) planned = d.date; }));
+        itinerary.forEach(d => slotsOf(d).forEach(slot => { if (slot.when === `R${scoreEntryRound}`) planned = d.date; }));
+        const practiceDays = new Set(itinerary.filter(d => slotsOf(d).some(s => s.practice) && !slotsOf(d).some(s => /^R\d+$/.test(s.when || ''))).map(d => d.date));
+        const candidates = Object.keys(holesByDay).filter(d => !practiceDays.has(d));
+        const skippedPractice = Object.keys(holesByDay).filter(d => practiceDays.has(d) && holesByDay[d] > 0).sort();
         const tripStart = cfg.trip && cfg.trip.dates && cfg.trip.dates.start;
-        const inTrip = Object.keys(holesByDay).filter(d => tripStart && d >= tripStart);
-        const day = (inTrip.length ? inTrip : Object.keys(holesByDay)).sort((a, b) =>
-            (holesByDay[b] - holesByDay[a]) || ((b === planned) - (a === planned)) || b.localeCompare(a))[0];
+        const inTrip = candidates.filter(d => tripStart && d >= tripStart);
+        const day = planned && planned in holesByDay && holesByDay[planned] > 0 ? planned
+            : (inTrip.length ? inTrip : candidates).sort((a, b) =>
+                (holesByDay[b] - holesByDay[a]) || ((b === planned) - (a === planned)) || b.localeCompare(a))[0];
 
         const byPlayer = {};
         (rows || []).filter(r => dayOf.get(r.round_id) === day).forEach(r => { (byPlayer[r.player_id] = byPlayer[r.player_id] || []).push(r); });
@@ -1954,13 +2014,17 @@ async function fillFromTracker() {
             inputs[0].dispatchEvent(new Event('input')); // recompute the total and to-par
             filled++;
         });
+        const practiceNote = skippedPractice.length
+            ? `Round ${scoreEntryRound} cards from ${skippedPractice.map(escHtml).join(', ')} were left out: that’s the practice round, which doesn’t count for the Cup.`
+            : '';
         const notes = [
             changed ? `${changed} hole${changed === 1 ? '' : 's'} already typed in were different and got the tracker’s number.` : '',
-            missing ? `${missing} card${missing === 1 ? ' belongs' : 's belong'} to players not on the confirmed roster.` : ''
+            missing ? `${missing} card${missing === 1 ? ' belongs' : 's belong'} to players not on the confirmed roster.` : '',
+            practiceNote
         ].filter(Boolean).join(' ');
         window.showToast(filled
             ? `Filled ${filled} player${filled === 1 ? '' : 's'} from the Round Tracker (${escHtml(day)}). ${notes} Check the numbers, then press Save Round Scores.`
-            : 'The Round Tracker has no scores for this round yet.', filled ? 'success' : 'error');
+            : `The Round Tracker has no scores for this round yet. ${practiceNote}`.trim(), filled ? 'success' : 'error');
     } catch (err) {
         console.error('Fill from tracker failed:', err);
         window.showToast('Couldn’t read the Round Tracker: ' + escHtml(err.message || err), 'error');

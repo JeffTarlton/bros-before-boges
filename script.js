@@ -626,6 +626,8 @@ function applyPhase() {
     // Until a phase is set every [data-phase] element is invisible (home.css), so a trip-day visitor
     // never sees the RSVP buttons flash up first. The small script in index.html sets it before the
     // supabase-js bundle loads; this keeps it right from then on.
+    // Keep score only on a day with a Cup round (cupDay below; the same rule as the inline script)
+    root.classList.toggle('keep-score-off', phase.name === 'trip' && !cupDay(phase.date));
     root.classList.add(`phase-${phase.name}`, 'phase-set');
     [orderSections, renderTodayCard, renderCupPillLabel, renderCrewPhase, renderNextEdition, renderPreviewRibbon].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
@@ -656,6 +658,18 @@ function itineraryDay(date) {
     return (CFG.itinerary || []).find(d => d && d.date === date) || null;
 }
 
+// A trip day with a Cup round: an itinerary slot labelled R<n> (trip-config.js, same rule as the
+// Round Tracker's tripRounds()). Keep score shows only then; the Thursday practice round and the
+// optional Sunday have no tracker round, so Keep score would only lead to an off-schedule Round 1.
+const CUP_SLOT = /^R\d+$/;
+function cupDay(date) {
+    const day = itineraryDay(date);
+    return !!day && (day.slots || []).some(s => s && CUP_SLOT.test(s.when || ''));
+}
+function firstCupDate() {
+    return (CFG.itinerary || []).map(d => d && d.date).filter(Boolean).sort().find(cupDay) || null;
+}
+
 // '#course-…' for a slot that names a course, else null
 function slotCourseHref(slot) {
     const group = slot && slot.courseId ? findCourseGroup(slot.courseId) : null;
@@ -682,6 +696,8 @@ function todayCardHTML() {
     const title = day ? day.title : `${TRIP.name || 'Bros before Boges'} ${TRIP.year || ''}`.trim();
 
     const next = phase.evening ? itineraryDay(addDays(phase.date, 1)) : null;
+    // The evening before the first Cup round (after Thursday's practice round) says so
+    const nextLabel = next && !cupDay(phase.date) && cupDay(next.date) ? 'Cup starts tomorrow:' : 'Tomorrow:';
     const first = next && (next.slots || [])[0];
     const tomorrow = first
         ? `${slotWhatHTML(first)}${first.meta ? ` · ${esc(first.meta)}` : ''}`
@@ -691,7 +707,7 @@ function todayCardHTML() {
         <p class="today-eyebrow"><b>Today</b><span class="today-sep">·</span>${esc(shortDay(phase.date))}</p>
         ${title ? `<h2 class="today-title">${esc(title)}</h2>` : ''}
         ${rows ? `<ul class="today-slots">${rows}</ul>` : ''}
-        ${tomorrow ? `<p class="today-next"><span>Tomorrow:</span> ${tomorrow}</p>` : ''}`;
+        ${tomorrow ? `<p class="today-next"><span>${nextLabel}</span> ${tomorrow}</p>` : ''}`;
 }
 
 // After the trip (Final scores / Settle up follow, in index.html)
@@ -3157,7 +3173,9 @@ function rosterListHTML() {
 
 // Before the season is live: the field by handicap (the database still holds last year's rounds)
 function renderFallbackLeaderboard() {
-    const opens = TRIP.dates && TRIP.dates.start ? new Date(`${TRIP.dates.start}T12:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '';
+    // Live scores open with the first Cup round (Friday), not on Thursday's practice round
+    const first = firstCupDate() || (TRIP.dates && TRIP.dates.start);
+    const opens = first ? new Date(`${first}T12:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' }) : '';
     elements.dynamicLeaderboard.innerHTML = `
         <div style="border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
             <div>

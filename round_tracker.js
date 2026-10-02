@@ -209,7 +209,7 @@ function tripRounds() {
     Object.keys(CFG.roundCourses || {}).concat(Object.keys(CFG.roundPlay || {})).forEach(n => {
         if (!numbers.has(Number(n))) { numbers.add(Number(n)); list.push({ number: Number(n), date: null }); }
     });
-    if (!list.length) [1, 2, 3, 4].forEach(n => list.push({ number: n, date: null }));
+    if (!list.length) [1, 2, 3].forEach(n => list.push({ number: n, date: null }));
     const dayName = d => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' }) : '');
     return list.sort((a, b) => a.number - b.number).map(r => {
         const sameDay = list.filter(x => x.date && x.date === r.date).sort((a, b) => a.number - b.number);
@@ -227,6 +227,18 @@ function scheduledRoundToday() {
     if (todays.length === 1) return todays[0].number;
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes() < 12 * 60 + 30 ? todays[0].number : todays[todays.length - 1].number;
+}
+
+// Today's practice round (trip-config: a slot with practice: true on a day with no Cup round, e.g.
+// Thursday at Talking Stick). The tracker doesn't keep it; setup and the board say so.
+// { slot, next }: next is the first Cup round after today (null if none is left).
+function practiceToday() {
+    const today = localDay();
+    const rounds = tripRounds();
+    if (rounds.some(r => r.date === today)) return null;
+    const day = (CFG.itinerary || []).find(d => d && d.date === today);
+    const slot = day && (day.slots || []).find(s => s && s.practice);
+    return slot ? { slot, next: rounds.find(r => r.date && r.date > today) || null } : null;
 }
 
 // The trip-config course for a round (holePars, name)
@@ -810,10 +822,13 @@ async function startScoring() {
     if (!sb) return showToast('Still connecting to the score database. Try again in a moment.', 'error');
     if (!st.playerIds.length) return showToast('Pick at least one player to score.', 'error');
     if (!st.courseId) return showToast('Pick the course.', 'error');
-    // A tap on the wrong round would start a stray round that hides the real one
+    // A tap on the wrong round would start a stray round that hides the real one (on a practice day,
+    // say why: the group is about to score the practice round as a Cup round)
     const sched = scheduleOf(st.round);
     if (sched && sched.date && sched.date !== localDay() &&
-        !confirm(`Round ${st.round} is on the schedule for ${fmtDay(sched.date)}. Start it today anyway?`)) return;
+        !confirm(practiceToday()
+            ? `Today’s round is a practice round. Round ${st.round} is a Cup round, on the schedule for ${fmtDay(sched.date)}. Start Round ${st.round} today anyway?`
+            : `Round ${st.round} is on the schedule for ${fmtDay(sched.date)}. Start it today anyway?`)) return;
     btn.disabled = true;
     btn.textContent = 'Starting…';
     try {
@@ -1051,9 +1066,15 @@ function setupHTML(st, loading) {
     const opt = c => `<option value="${escHtml(c.id)}"${c.id === st.courseId ? ' selected' : ''}>${escHtml(c.name)}</option>`;
     const tripCourses = S.courses.filter(c => tripCourseIds.has(c.id));
     const otherCourses = S.courses.filter(c => !tripCourseIds.has(c.id));
+    // Thursday's practice round isn't kept here: say so before anyone starts it as Round 1
+    const prac = practiceToday();
+    const pracNote = prac
+        ? `<div class="notice" data-practice>${escHtml(`Today’s round${prac.slot.what ? ` at ${prac.slot.what}` : ''} is a practice round: no Cup points, and the tracker doesn’t keep it.${prac.next ? ` The Cup starts with Round ${prac.next.number}, ${prac.next.day}.` : ''}`)}</div>`
+        : '';
 
     return `
         ${S.sess ? `<div class="notice">You’re scoring Round ${S.sess.roundNumber} on this phone. <a href="#score">Back to hole ${S.sess.hole}</a>. Starting again below switches this phone to the new group (scores already entered stay saved).</div>` : ''}
+        ${pracNote}
         <div class="panel">
             <span class="field-label" style="margin-top: 0;">Round</span>
             <div class="seg" role="group" aria-label="Round">
@@ -1420,16 +1441,29 @@ function renderCard() {
 }
 
 // ---------- Board
-// A round number can have rounds on more than one day (a stray start on the wrong day, a replay).
-// Show the day with the most scores; on a tie, the scheduled day, then the latest.
+// A round number can have rounds on more than one day (a stray start on the wrong day, e.g. Thursday's
+// practice round scored as Round 1, or a replay). Once the round's scheduled day has come, an earlier
+// trip day is dropped before the board picks a day (boardRounds), so a stray never stands in for the
+// Cup round, even before the first group starts or when the round is kept on paper. Of what's left, the
+// scheduled day wins on its own day and, after that, as soon as it has any scores, so a stray day with
+// more holes can't take its place. Otherwise show the day with the most scores; on a tie, the scheduled
+// day, then the latest.
+// Admin's Fill from Round Tracker (fillFromTracker in admin.js) follows the same rules.
+function boardRounds(roundNumber, rounds) {
+    const sched = scheduleOf(roundNumber);
+    const tripStart = CFG.trip && CFG.trip.dates && CFG.trip.dates.start;
+    if (!sched || !sched.date || !tripStart || localDay() < sched.date) return rounds;
+    return rounds.filter(r => !(r.date && r.date >= tripStart && r.date < sched.date));
+}
+
 function pickBoardDay(roundNumber, rounds, rows) {
     const holesByDay = {};
     rounds.forEach(r => { holesByDay[r.date || ''] = holesByDay[r.date || ''] || 0; });
     const dayOf = new Map(rounds.map(r => [r.id, r.date || '']));
     rows.forEach(row => { holesByDay[dayOf.get(row.round_id)] += SC.countEntered(SC.holesOf(row)); });
     const sched = scheduleOf(roundNumber);
-    // Today is this round's day: show it, even while an old practice round has more scores
-    if (sched && sched.date === localDay() && sched.date in holesByDay) return sched.date;
+    // The scheduled day: today (even before anyone has a score in), or any day once it has scores
+    if (sched && sched.date in holesByDay && (sched.date === localDay() || holesByDay[sched.date] > 0)) return sched.date;
     // Once trip-dated rounds exist, earlier (practice) days stay out
     const tripStart = CFG.trip && CFG.trip.dates && CFG.trip.dates.start;
     const inTrip = Object.keys(holesByDay).filter(d => tripStart && d >= tripStart);
@@ -1476,8 +1510,10 @@ async function loadBoard(roundNumber, quiet) {
     B.tried[roundNumber] = Date.now();
     if (!quiet && S.view === 'board' && B.round === roundNumber) renderBoard();
     try {
-        const { data: rounds, error } = await sb.from('rounds').select('*').eq('round_number', roundNumber).gte('date', WINDOW_START);
+        const { data: found, error } = await sb.from('rounds').select('*').eq('round_number', roundNumber).gte('date', WINDOW_START);
         if (error) throw error;
+        // Filtered here, not in pickBoardDay: with nothing left, the no-rounds branch below draws the empty board
+        const rounds = boardRounds(roundNumber, found || []);
         let data = { rounds: [], rows: [], matchups: [], pars: parsFor(null, roundNumber), courseName: '', date: null };
         const matchupsQ = sb.from('matchups').select('*').eq('round_number', roundNumber);
         if (rounds && rounds.length) {
@@ -1614,7 +1650,12 @@ function renderBoard() {
 
     // A group that pressed Start has blank rows: those aren't scores yet
     const anyScores = Object.values(holesById).some(h => SC.countEntered(h) > 0);
-    const empty = `<p class="board-empty">No scores for Round ${n} yet. They show up here as groups enter them.</p>`;
+    // On a practice day nothing is being kept: say when the Cup starts instead of "as groups enter them"
+    const prac = practiceToday();
+    const emptyNext = !prac ? 'They show up here as groups enter them.'
+        : prac.next ? `Today’s round is a practice round, so nothing counts until Round ${prac.next.number}, ${prac.next.day}.`
+            : 'Today’s round is a practice round: no Cup points.';
+    const empty = `<p class="board-empty">No scores for Round ${n} yet. ${escHtml(emptyNext)}</p>`;
     if (matches.length && format.key !== 'stroke') html += boardHeadHTML(n, format, matches, holesById, data.pars, anyScores ? '' : empty);
     else if (!anyScores) html += `<div class="panel">${empty}</div>`;
 

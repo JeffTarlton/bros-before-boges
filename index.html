@@ -38,7 +38,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.10">
-    <link rel="stylesheet" href="home.css?v=2027.14">
+    <link rel="stylesheet" href="home.css?v=2027.15">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -118,12 +118,13 @@
             </nav>
 
             <!-- data-phase: the pair for the trip's phase (before / during / after, in Arizona time). During and
-                 after the trip it matches the Today / wrap card's pair, order and fill, as the drawer's does -->
+                 after the trip it matches the Today / wrap card's pair, order and fill, as the drawer's does.
+                 data-keep-score: hidden on a trip day with no Cup round (.keep-score-off, set by the script below) -->
             <div class="nav-actions">
                 <button type="button" class="btn btn-line btn-sm" id="leaderboard-btn" data-action="scoreboard" data-phase="pre">Standings</button>
                 <button type="button" class="btn btn-copper btn-sm" id="rsvp-btn" data-action="rsvp" data-phase="pre">RSVP</button>
                 <a class="btn btn-copper btn-sm" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
-                <a class="btn btn-line btn-sm" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+                <a class="btn btn-line btn-sm" href="round_tracker.html#setup" data-phase="trip" data-keep-score hidden>Keep score</a>
                 <a class="btn btn-copper btn-sm" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
                 <a class="btn btn-line btn-sm" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
             </div>
@@ -147,7 +148,7 @@
             <button type="button" class="btn btn-line" data-action="scoreboard" data-phase="pre">Standings</button>
             <button type="button" class="btn btn-copper" data-action="rsvp" data-phase="pre">RSVP</button>
             <a class="btn btn-copper" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
-            <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+            <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" data-keep-score hidden>Keep score</a>
             <a class="btn btn-copper" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
             <a class="btn btn-line" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
         </div>
@@ -194,7 +195,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </a>
                         <a class="btn btn-copper" href="round_tracker.html#board" data-phase="trip" hidden>Live scores</a>
-                        <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" hidden>Keep score</a>
+                        <a class="btn btn-line" href="round_tracker.html#setup" data-phase="trip" data-keep-score hidden>Keep score</a>
                         <a class="btn btn-copper" href="round_tracker.html#board" data-phase="wrap" hidden>Final scores</a>
                         <a class="btn btn-line" href="bookie.html#ledger-panel" data-phase="wrap" hidden>Settle up</a>
                     </div>
@@ -215,7 +216,7 @@
                         <div id="hero-today-body"></div>
                         <div class="today-actions" data-phase="trip" hidden>
                             <a class="btn btn-copper" href="round_tracker.html#board">Live scores</a>
-                            <a class="btn btn-line" href="round_tracker.html#setup">Keep score</a>
+                            <a class="btn btn-line" href="round_tracker.html#setup" data-keep-score>Keep score</a>
                         </div>
                         <div class="today-actions" data-phase="wrap" hidden>
                             <a class="btn btn-copper" href="round_tracker.html#board">Final scores</a>
@@ -288,7 +289,7 @@
                 <div class="section-head reveal">
                     <p class="eyebrow">The Cup</p>
                     <h2 class="h-display"><span id="cup-headline">Blue holds the hardware.</span><br><em id="cup-subheadline">Red wants it back.</em></h2>
-                    <p class="lede" id="cup-lede">Two captains, a draft, and a few days of team match play. The losing side hears about it for twelve months.</p>
+                    <p class="lede" id="cup-lede">Two captains, a draft, and three rounds of team match play. The losing side hears about it for twelve months.</p>
                 </div>
                 <div class="cup" id="team-selection-section">
                     <!-- Cup cards rendered by script.js -->
@@ -578,7 +579,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.12"></script>
+    <script src="trip-config.js?v=2027.13"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -600,13 +601,17 @@
                 }
                 const end = dates.end || dates.start;
                 const phase = !dates.start || today < dates.start ? 'pre' : today > end ? 'wrap' : 'trip';
+                // Keep score only on a day with a Cup round (an R<n> slot in trip-config.js): same rule as cupDay() in script.js
+                const day = ((window.BBB && window.BBB.itinerary) || []).find(d => d && d.date === today);
+                const cupDay = !!day && (day.slots || []).some(s => s && /^R\d+$/.test(s.when || ''));
+                document.documentElement.classList.toggle('keep-score-off', phase === 'trip' && !cupDay);
                 document.querySelectorAll('[data-phase]').forEach(el => { el.hidden = !el.dataset.phase.split(' ').includes(phase); });
                 document.documentElement.classList.add(`phase-${phase}`, 'phase-set');
             } catch (e) { /* script.js picks the phase once it loads */ }
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.14"></script>
+    <script src="script.js?v=2027.15"></script>
 </body>
 
 </html>

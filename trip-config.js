@@ -56,7 +56,7 @@ window.BBB = {
             note: 'Estimated per man: golf plus a shared room (two to a room at about $175 a night). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
             breakdown: [
-                { label: 'Talking Stick · Thu', amount: 250 },
+                { label: 'Talking Stick · Thu practice', amount: 250 },
                 { label: 'We-Ko-Pa · 36 holes Fri', amount: 650 },
                 { label: 'Camelback Ambiente · Sat', amount: 250 },
                 { label: 'Room · 3 nights, 2 to a room', amount: 263 }
@@ -76,13 +76,14 @@ window.BBB = {
         // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
+            { date: '2026-10-02', text: 'Thursday at Talking Stick is now a practice round: no Cup points. The Cup is three rounds: We-Ko-Pa Cholla Friday morning, Saguaro Friday afternoon, and Camelback Ambiente on Saturday.' },
             { date: '2026-10-02', text: 'Planning numbers: rooms are running about $175 a night, two to a room (about $263 each for the three nights), and American’s nonstop from Lubbock is about $450 round trip. Both are estimates, not final prices.' },
-            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. Venmo it to Westin (@Westin-Tucker). Golf runs about $1,150: Talking Stick $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
+            { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. Venmo it to Westin (@Westin-Tucker). Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Nov 30 so we can book rooms.' }
         ],
         // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. 'Tee times';
         // delete each one once it's settled. An empty list hides it.
-        stillToCome: ['HQ / lodging', 'Tee times', 'Course for the optional Sunday round']
+        stillToCome: ['HQ / lodging', 'Tee times', '2027 Cup formats', 'Course for the optional Sunday round']
     },
 
     // RSVP / head count. Needs rsvp_schema.sql and then rsvp_accounts.sql run in Supabase.
@@ -137,37 +138,44 @@ window.BBB = {
 
     scoreboardImage: 'assets/courses/wekopa-saguaro/hole-14-panorama.jpg',
 
-    itineraryLede: 'Tee times get posted here as they’re booked. Plan to land in Phoenix early enough on Thursday to make the first round.',
+    itineraryLede: 'Tee times get posted here as they’re booked. Plan to land in Phoenix early enough on Thursday for the practice round at Talking Stick.',
+    // Each day of the trip. A slot labelled when: 'R1', 'R2', … IS that Cup round: the Round Tracker, Admin (round
+    // tabs, Fill from Round Tracker) and the homepage's Keep score button all go by that label, so keep it in step
+    // with roundCourses and roundPlay below. Any other label ('Prac', 'AM', 'PM') is on the schedule but not in the Cup,
+    // and a trip day with no R<n> slot hides Keep score. practice: true marks a practice round: no Cup points, and
+    // the tracker says so that day. To make a practice round count, label it R<n>, drop practice, renumber the later
+    // slots and add the round to roundCourses and roundPlay (and its course card's `round` label).
     itinerary: [
         {
             date: '2027-04-08',
             title: 'Wheels down, tees up',
-            text: 'Land at PHX and head straight to Talking Stick, about 20 minutes from the airport.',
-            tag: 'Round 1',
+            text: 'Land at PHX and head straight to Talking Stick, about 20 minutes from the airport, for a practice round. No Cup points: shake off the flight and learn the greens.',
+            tag: 'Practice round',
+            tagSoft: true,
             media: { type: 'image', src: 'assets/courses/talking-stick-oodham/card/oodham-sunset-over-fairways.jpg', alt: 'Sun setting over the O’odham Course at Talking Stick' },
             slots: [
-                { when: 'R1', what: 'Talking Stick · O’odham', meta: 'Tee time TBA', courseId: 'talking-stick-oodham' }
+                { when: 'Prac', practice: true, what: 'Talking Stick · O’odham', meta: 'Practice round · tee time TBA', courseId: 'talking-stick-oodham' }
             ]
         },
         {
             date: '2027-04-09',
             title: '36-hole Friday',
-            text: 'Both courses are at We-Ko-Pa, so there’s no drive in between. Cholla in the morning, lunch, then Saguaro.',
+            text: 'The Cup starts here: Cholla in the morning, lunch, then Saguaro. Both courses are at We-Ko-Pa, so there’s no drive in between.',
             tag: '36 holes',
             media: { type: 'split', srcs: ['assets/courses/wekopa-cholla/thumbs/four-peaks-fairway-vista.jpg', 'assets/courses/wekopa-saguaro/thumbs/saguaro-cactus-green.jpg'] },
             slots: [
-                { when: 'R2', what: 'We-Ko-Pa · Cholla', meta: 'Morning · tee time TBA', courseId: 'wekopa-cholla' },
-                { when: 'R3', what: 'We-Ko-Pa · Saguaro', meta: 'Afternoon · tee time TBA', courseId: 'wekopa-saguaro' }
+                { when: 'R1', what: 'We-Ko-Pa · Cholla', meta: 'Morning · tee time TBA', courseId: 'wekopa-cholla' },
+                { when: 'R2', what: 'We-Ko-Pa · Saguaro', meta: 'Afternoon · tee time TBA', courseId: 'wekopa-saguaro' }
             ]
         },
         {
             date: '2027-04-10',
             title: 'The final round',
             text: 'The last Cup round of the trip, back in Scottsdale on Camelback’s Ambiente course.',
-            tag: 'Round 4',
+            tag: 'Round 3',
             media: { type: 'image', src: 'assets/courses/camelback-ambiente/card/hole-13-bunker-mountain.jpg', alt: 'A big-walled bunker on Ambiente’s 13th hole below a rugged desert mountain' },
             slots: [
-                { when: 'R4', what: 'Camelback · Ambiente', meta: 'Tee time TBA', courseId: 'camelback-ambiente' }
+                { when: 'R3', what: 'Camelback · Ambiente', meta: 'Tee time TBA', courseId: 'camelback-ambiente' }
             ]
         },
         {
@@ -184,36 +192,38 @@ window.BBB = {
         }
     ],
 
-    // Which course each Cup round is played on (used for par on the scoreboard and in Admin score entry).
-    // Round 1 is Talking Stick O'odham. If that changes to Piipaash, use 'talking-stick-piipaash' (par 71) here
-    // and in the Talking Stick course entry's `selected` below.
+    // Which course each Cup round is played on (used for par on the scoreboard and in Admin score entry). Keys are
+    // the Cup rounds, the same numbers as the itinerary's R<n> slots: 1 We-Ko-Pa Cholla (Fri AM), 2 Saguaro (Fri PM),
+    // 3 Camelback Ambiente (Sat). Thursday's Talking Stick round is a practice round, so it has no number here; its
+    // course comes from its itinerary slot. If Talking Stick switches to Piipaash, change that slot's courseId and the
+    // Talking Stick course entry's `selected` below to 'talking-stick-piipaash'.
     roundCourses: {
-        1: 'talking-stick-oodham',
-        2: 'wekopa-cholla',
-        3: 'wekopa-saguaro',
-        4: 'camelback-ambiente'
+        1: 'wekopa-cholla',
+        2: 'wekopa-saguaro',
+        3: 'camelback-ambiente'
     },
     // 'stableford' rounds rank by points (highest wins); everything else is stroke play.
-    // Round 1 stays Stableford to match the Admin score-entry math.
+    // Round 1 (The Grind, a points round) ranks by points, to match the Admin score-entry math.
     roundScoring: { 1: 'stableford' },
     roundFormats: {},
     // How the Round Tracker scores each round and works out the matches (Admin > Matchups sets who
-    // plays whom). These are the 2026 formats; update them once the 2027 formats are set.
+    // plays whom). Keys are the Cup rounds (1–3); the practice round has none. These are the 2026 formats;
+    // update them once the 2027 formats are set (and the Rules page with them).
     //   'points'   two-man teams, own ball: eagle+ 5, birdie 3, par 2, bogey 1; more points wins
     //   'split'    two-man teams, one ball: front 9 and back 9 are separate stroke contests, triple bogey max
     //   'shared'   two-man teams, one ball (scramble or alternate shot), 18-hole match play
     //   'bestball' two-man teams, own ball, better score counts, match play
     //   'singles'  one-on-one match play
     //   'stroke'   everyone for themselves, no matches
-    roundPlay: { 1: 'points', 2: 'split', 3: 'singles', 4: 'stroke' },
+    roundPlay: { 1: 'points', 2: 'split', 3: 'singles' },
 
     courses: [
         {
             id: 'talking-stick',
             anchor: 'talking-stick',
             club: 'Talking Stick Golf Club · Scottsdale',
-            round: 'Round 1 · <b>Thu, Apr 8</b>',
-            when: 'Thursday, April 8 · Round 1',
+            round: 'Practice · <b>Thu, Apr 8</b>',
+            when: 'Thursday, April 8 · Practice round',
             // Talking Stick has two courses. `selected` is the one we're playing; the other stays here
             // as a backup. Remove `selected` to show both as tabs again.
             selected: 'talking-stick-oodham',
@@ -297,7 +307,7 @@ window.BBB = {
             id: 'wekopa-cholla',
             anchor: 'wekopa-cholla',
             club: 'We-Ko-Pa Golf Club · Fort McDowell',
-            round: 'Round 2 · <b>Fri AM</b>',
+            round: 'Round 1 · <b>Fri AM</b>',
             when: 'Friday, April 9 · Morning',
             name: 'Cholla',
             tagline: 'Forced carries. Four Peaks. Bring extra balls.',
@@ -336,7 +346,7 @@ window.BBB = {
             id: 'wekopa-saguaro',
             anchor: 'wekopa-saguaro',
             club: 'We-Ko-Pa Golf Club · Fort McDowell',
-            round: 'Round 3 · <b>Fri PM</b>',
+            round: 'Round 2 · <b>Fri PM</b>',
             when: 'Friday, April 9 · Afternoon',
             name: 'Saguaro',
             tagline: 'Arizona’s No. 1 public course. Walk it off.',
@@ -378,8 +388,8 @@ window.BBB = {
             id: 'camelback-ambiente',
             anchor: 'camelback-ambiente',
             club: 'Camelback Golf Club · Scottsdale',
-            round: 'Round 4 · <b>Sat, Apr 10</b>',
-            when: 'Saturday, April 10 · Round 4',
+            round: 'Round 3 · <b>Sat, Apr 10</b>',
+            when: 'Saturday, April 10 · Round 3',
             name: 'Ambiente',
             aka: 'Formerly the Indian Bend Course',
             tagline: 'Straight out, straight back. Last round, last chance.',
@@ -431,7 +441,7 @@ window.BBB = {
         captainsNote: 'Captains will be selected soon',
         headline: 'Blue holds the hardware.',
         subheadline: 'Red wants revenge.',
-        lede: 'Two captains, a draft, and three days of team match play. The losing side hears about it for twelve months.',
+        lede: 'Two captains, a draft, and three rounds of team match play. The losing side hears about it for twelve months.',
         trophy: {
             src: 'assets/past_years/web/thumb/img_0708.jpg',
             full: 'assets/past_years/web/img_0708.jpg',
@@ -444,7 +454,7 @@ window.BBB = {
         draftText: 'Once the captains are named, they’ll draft two teams schoolyard-style from the 2027 roster.',
         points: [
             'Two teams, drafted by the captains',
-            'Cup points on the line every round',
+            'Cup points on the line Friday and Saturday (Thursday is a practice round)',
             'Formats and stakes posted on the Rules page before we tee off'
         ],
         liveNote: 'The official Cup total, updated by the commissioner after every session.'

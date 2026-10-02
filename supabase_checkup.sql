@@ -7,7 +7,7 @@
 
 -- 1. Which setup scripts have been run?
 --    want: rsvp_table_ready = true   (rsvp_schema.sql)
---          courses_2027     = 3      (courses_2027_seed.sql)
+--          courses_2027     = 4      (courses_2027_seed.sql)
 --          wager_types includes 'prop' (bookie_2027.sql)
 --          bet_rules_guarded = true   (bookie_2027.sql)
 --          tracker_ready    = true    (tracker_2027.sql)
@@ -18,7 +18,8 @@ SELECT
           WHERE table_schema = 'public' AND table_name = 'rsvps')              AS rsvp_table_ready,
   EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'submit_rsvp')                 AS rsvp_accounts_ready,
   (SELECT count(*) FROM public.courses
-   WHERE name IN ('Talking Stick - O''odham', 'We-Ko-Pa - Cholla', 'We-Ko-Pa - Saguaro')) AS courses_2027,
+   WHERE name IN ('Talking Stick - O''odham', 'We-Ko-Pa - Cholla', 'We-Ko-Pa - Saguaro',
+                  'Camelback - Ambiente'))                                     AS courses_2027,
   (SELECT pg_get_constraintdef(oid) FROM pg_constraint
    WHERE conname = 'wagers_type_check')                                        AS wager_types,
   EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'wagers_guard' AND NOT tgisinternal) AS bet_rules_guarded,

@@ -83,8 +83,11 @@ Run these once in the Supabase SQL Editor, after `rsvp_accounts.sql`. Both are s
   the holes. The tracker works without it, but run it before the trip.
 
 The Round Tracker’s formats per round live in `trip-config.js` (`roundPlay`). They’re the 2026
-formats until the 2027 ones are set. Admin → Score Entry has **Fill from Round Tracker** to copy
-the groups’ cards in for the homepage scoreboard.
+formats until the 2027 ones are set. The Cup is rounds 1–3 (Fri AM Cholla, Fri PM Saguaro, Sat
+Ambiente). Thursday’s Talking Stick slot is labelled `Prac` with `practice: true`, so the tracker,
+Admin and the Cup leave it out (the R1/R2/R3 labels on the itinerary are what make a round a Cup
+round). Admin → Score Entry has **Fill from Round Tracker** to copy the groups’ cards in for the
+homepage scoreboard.
 
 What it sets up: RSVPs, profile updates and approvals go through database functions that act as
 the signed-in player, and the players table only accepts roster changes from an admin. Everyone

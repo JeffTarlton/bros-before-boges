@@ -755,6 +755,30 @@
         .matchup-card.has-problem { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444, 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .matchup-issue { margin: -5px 0 12px; color: #fca5a5; font-size: 0.85rem; font-weight: 600; }
 
+        /* Matchups round filter (admin.js renderMatchupRoundFilters). The pills wrap, so on a phone a
+           round "not on the schedule" is never hidden off the edge. The picked round is filled green;
+           a round that isn't a Cup round is outlined in gold. */
+        #matchup-round-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+        #matchup-round-filters .filter-btn {
+            max-width: 100%;
+            min-height: 40px;
+            padding: 8px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.06);
+            color: #f4ebdf;
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.25;
+            text-align: center;
+            cursor: pointer;
+        }
+        #matchup-round-filters .filter-btn:hover { border-color: rgba(255, 255, 255, 0.45); }
+        #matchup-round-filters .filter-btn.active { background: var(--admin-accent); border-color: var(--admin-accent); color: #04130d; }
+        #matchup-round-filters .filter-btn.stale { border-color: var(--admin-gold); color: var(--admin-gold); }
+        #matchup-round-filters .filter-btn.stale.active { background: var(--admin-gold); color: #1a0f08; }
+        #matchup-round-filters .filter-btn:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+
         /* Why Save is off or blocked, just above the Save button */
         .save-bar {
             z-index: 50;
@@ -1369,12 +1393,8 @@
                     <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">
                         Assign opponents for each round (Team 1 vs Team 2) to correctly calculate Match Points.
                     </p>
-                    <div class="wager-filters" style="margin-bottom: 20px; overflow-x: auto; white-space: nowrap; padding-bottom: 5px;">
-                        <button class="filter-btn active" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(1)">Round 1</button>
-                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(2)">Round 2</button>
-                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(3)">Round 3</button>
-                        <button class="filter-btn" style="padding: 6px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 700;" onclick="filterMatchupRound(4)">Round 4</button>
-                    </div>
+                    <!-- Round buttons: the Cup rounds in trip-config.js, drawn by admin.js (renderMatchupRoundFilters) -->
+                    <div class="wager-filters" id="matchup-round-filters" style="margin-bottom: 20px;"></div>
                     <div id="matchups-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 20px;">
                         <!-- Matchups rendered here -->
                     </div>
@@ -1442,13 +1462,8 @@
                         </div>
                     </div>
 
-                    <!-- Round Selector Tabs -->
-                    <div id="score-entry-round-tabs" style="display: flex; gap: 10px; margin-bottom: 25px;">
-                        <button class="admin-btn score-round-tab active" data-round="1" aria-pressed="true" style="width: auto; padding: 10px 20px; margin: 0;">Round 1</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="2" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 2</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="3" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 3</button>
-                        <button class="admin-btn secondary score-round-tab" data-round="4" aria-pressed="false" style="width: auto; padding: 10px 20px; margin: 0;">Round 4</button>
-                    </div>
+                    <!-- Round Selector Tabs: one per Cup round in trip-config.js, drawn by admin.js (renderScoreEntryRoundTabs) -->
+                    <div id="score-entry-round-tabs" style="display: flex; gap: 10px; margin-bottom: 25px;"></div>
                     <!-- Course, par and format for the round, from trip-config.js -->
                     <p class="se-context" id="score-entry-context" aria-live="polite"></p>
 
@@ -1612,9 +1627,9 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="trip-config.js?v=2027.12"></script>
+    <script src="trip-config.js?v=2027.13"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.12"></script>
+    <script src="admin.js?v=2027.13"></script>
 </body>
 
 </html>

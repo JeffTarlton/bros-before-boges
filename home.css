@@ -1606,6 +1606,7 @@ body.drawer-open { overflow: hidden; }
     background: rgba(14, 11, 9, 0.35);
 }
 .path-to-cup .eq { font: 500 1.8rem var(--serif); color: var(--fairway); margin-top: 6px; }
+.path-to-cup .eq-note { font: 600 0.8rem var(--sans); color: var(--ink-muted); margin-top: 4px; letter-spacing: 0.02em; }
 .path-to-cup .win { font: 500 1.4rem var(--serif); color: var(--gold); margin-top: 8px; }
 
 /* --------------------------------------------------------------------------
@@ -2694,6 +2695,10 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 /* Until the phase is picked, nothing phase-specific shows, so a trip-day visitor never sees the
    RSVP buttons or a countdown flash up first. (index.html picks it before the supabase-js bundle.) */
 .js:not(.phase-set) [data-phase] { visibility: hidden; }
+
+/* Trip days with no Cup round (Thursday's practice round, the optional Sunday): no Keep score. script.js cupDay() */
+.keep-score-off [data-keep-score] { display: none !important; }
+.keep-score-off .drawer-actions { grid-template-columns: 1fr; }
 
 /* Cup pill: "The Cup · Blue 10½ – 9½ Red ›", a link to Live scores ("Final" after the trip) */
 a.cup-pill {
