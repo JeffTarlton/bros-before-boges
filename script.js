@@ -388,14 +388,18 @@ function renderTripDetails() {
 
     const hq = TRIP.hq || {};
     const hqValue = hq.link ? `<a href="${esc(hq.link)}" target="_blank" rel="noopener">${esc(hq.name)}</a>` : esc(hq.name || 'TBA');
+    // In the order phones show them: lodging and travel first, then the cost. Dates and Golf repeat
+    // the hero card, so phones skip them; wider screens put all of them back in their grid order
+    // (home.css, "Trip facts").
     const facts = [
-        { i: 'calendar', label: 'Dates', value: esc(TRIP.dates && TRIP.dates.label), note: TRIP.dates && TRIP.dates.note },
-        { i: 'pin', label: 'Home base', value: esc(TRIP.region || TRIP.location), note: TRIP.regionNote },
-        { i: 'bed', label: 'HQ', value: hqValue, note: hq.note },
-        { i: 'plane', label: 'Fly into', value: TRIP.airport ? esc(`${TRIP.airport.code} · ${TRIP.airport.name}`) : 'TBA', note: TRIP.airport && TRIP.airport.note },
-        { i: 'sun', label: 'Forecast', value: esc(TRIP.weather && TRIP.weather.value), note: TRIP.weather && TRIP.weather.note },
-        { i: 'flag', label: 'Golf', value: esc(CFG.hero && CFG.hero.roundsLabel), note: CFG.hero && CFG.hero.roundsNote }
-    ].filter(f => f.value);
+        { key: 'hq', i: 'bed', label: 'HQ', value: hqValue, note: hq.note },
+        { key: 'fly', i: 'plane', label: 'Fly into', value: TRIP.airport ? esc(`${TRIP.airport.code} · ${TRIP.airport.name}`) : 'TBA', note: TRIP.airport && TRIP.airport.note },
+        { key: 'cost' },
+        { key: 'base', i: 'pin', label: 'Home base', value: esc(TRIP.region || TRIP.location), note: TRIP.regionNote },
+        { key: 'forecast', i: 'sun', label: 'Forecast', value: esc(TRIP.weather && TRIP.weather.value), note: TRIP.weather && TRIP.weather.note },
+        { key: 'dates', i: 'calendar', label: 'Dates', value: esc(TRIP.dates && TRIP.dates.label), note: TRIP.dates && TRIP.dates.note },
+        { key: 'golf', i: 'flag', label: 'Golf', value: esc(CFG.hero && CFG.hero.roundsLabel), note: CFG.hero && CFG.hero.roundsNote }
+    ];
 
     const cost = TRIP.cost || {};
     const breakdown = (cost.breakdown || []).filter(b => b && b.label);
@@ -409,13 +413,18 @@ function renderTripDetails() {
             ${breakdown.length ? `<div class="cost-breakdown">${breakdown.map(b => `<div class="cost-line"><span>${esc(b.label)}</span><b>${esc(typeof b.amount === 'number' ? formatMoney(b.amount) : b.amount)}</b></div>`).join('')}</div>` : ''}
         </div>` : '';
 
-    grid.innerHTML = facts.map((f, idx) => `
-        <div class="fact reveal ${idx % 2 ? 'reveal-delay-1' : ''}">
+    let n = 0;
+    grid.innerHTML = facts.map(f => {
+        if (f.key === 'cost') return costCard;
+        if (!f.value) return '';
+        return `
+        <div class="fact fact--${f.key} reveal ${n++ % 2 ? 'reveal-delay-1' : ''}">
             <div class="fact-icon">${icon(f.i)}</div>
             <div class="fact-label">${esc(f.label)}</div>
             <div class="fact-value">${f.value}</div>
             ${f.note ? `<div class="fact-note">${esc(f.note)}</div>` : ''}
-        </div>`).join('') + costCard;
+        </div>`;
+    }).join('');
 }
 
 // ---------------------------------------------------------------------------
@@ -657,9 +666,14 @@ function renderSchedule() {
         media += `${isToday ? '<span class="day-today">Today</span>' : ''}${day.tag ? `<span class="day-tag ${day.tagSoft ? 'soft' : ''}">${esc(day.tag)}</span>` : ''}
             <div class="day-date"><b>${dayNum}</b><span>${esc(month)}<small>${esc(dow)}</small></span></div></div>`;
 
-        const slots = (day.slots || []).map(s =>
-            `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${slotWhatHTML(s)}</span><span class="slot-meta">${esc(s.meta || '')}</span></li>`
-        ).join('');
+        // A slot with a course is one big link to its course card: the course name's link
+        // stretches over the whole row (home.css), with a chevron and "Course guide" to say so.
+        // The dot rides with "Course guide", so a wrapped meta line never ends on a lone "·".
+        const slots = (day.slots || []).map(s => {
+            const href = slotCourseHref(s);
+            if (!href) return `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${esc(s.meta || '')}</span></li>`;
+            return `<li class="slot has-link"><span class="slot-when">${esc(s.when)}</span><span class="slot-what"><a class="slot-link" href="${esc(href)}">${esc(s.what)}</a></span><span class="slot-meta">${s.meta ? `${esc(s.meta)} ` : ''}<span class="slot-guide nowrap">${s.meta ? '· ' : ''}Course guide</span></span><span class="slot-go" aria-hidden="true">${icon('chevronRight')}</span></li>`;
+        }).join('');
 
         return `
         <article class="day reveal reveal-delay-${idx % 4}${isToday ? ' is-today' : ''}${isPast ? ' is-past' : ''}"${isToday ? ' aria-current="date"' : ''}>
@@ -720,6 +734,21 @@ function courseBodyHTML(course, group) {
         </li>`).join('');
     const accolades = (course.accolades || []).map(a => `<span class="accolade">${icon('award')}${esc(a)}</span>`).join('');
     const when = group.when || course.when;
+    const scorecard = scorecardHTML(course);
+    // The reference detail (designer and tees, signature holes, accolades, scorecard, photo credit)
+    // folds into a "Course guide" below the stats, so a phone shows each course in about a screen
+    // and a half. It opens downward, so the page above it never moves.
+    const guide = [
+        course.designer ? `<p class="course-designer">Designed by <b>${esc(course.designer)}</b>${course.opened ? ` · Opened ${esc(course.opened)}` : ''}${course.aka ? ` · ${esc(course.aka)}` : ''}</p>` : '',
+        course.midTees ? `<p class="course-designer">Likely our tees: <b>${esc(course.midTees)}</b></p>` : '',
+        holes ? `<ul class="sig-holes" aria-label="Signature holes">${holes}</ul>` : '',
+        accolades ? `<div class="accolades">${accolades}</div>` : '',
+        scorecard,
+        course.credit ? `<p class="course-credit">Photos: <a href="${esc(course.credit.url)}" target="_blank" rel="noopener">${esc(course.credit.name)}</a></p>` : ''
+    ].filter(Boolean).join('');
+    // "Signature holes, tees & scorecard": only what this course's guide actually holds
+    const inside = [holes ? 'signature holes' : '', course.midTees ? 'tees' : '', scorecard ? 'scorecard' : ''].filter(Boolean);
+    const insideText = inside.length > 1 ? `${inside.slice(0, -1).join(', ')} & ${inside[inside.length - 1]}` : inside[0] || 'designer, accolades & more';
     return `
         <p class="course-club">${esc(group.club || course.club)}</p>
         <h3 class="course-title">${esc(course.name)}</h3>
@@ -727,12 +756,14 @@ function courseBodyHTML(course, group) {
         <p class="course-desc">${esc(course.description)}</p>
         ${when ? `<span class="course-when">${icon('calendar')}${esc(when)}</span>` : ''}
         ${stats ? `<div class="course-stats">${stats}</div>` : ''}
-        ${course.designer ? `<p class="course-designer">Designed by <b>${esc(course.designer)}</b>${course.opened ? ` · Opened ${esc(course.opened)}` : ''}${course.aka ? ` · ${esc(course.aka)}` : ''}</p>` : ''}
-        ${course.midTees ? `<p class="course-designer">Likely our tees: <b>${esc(course.midTees)}</b></p>` : ''}
-        ${holes ? `<ul class="sig-holes" aria-label="Signature holes">${holes}</ul>` : ''}
-        ${accolades ? `<div class="accolades">${accolades}</div>` : ''}
-        ${scorecardHTML(course)}
-        ${course.credit ? `<p class="course-credit">Photos: <a href="${esc(course.credit.url)}" target="_blank" rel="noopener">${esc(course.credit.name)}</a></p>` : ''}`;
+        ${guide ? `
+        <details class="course-guide">
+            <summary>
+                <span class="course-guide-label"><b>Course guide<span class="sr-only">:</span></b><span>${esc(insideText.charAt(0).toUpperCase() + insideText.slice(1))}</span></span>
+                ${icon('chevron')}
+            </summary>
+            <div class="course-guide-body">${guide}</div>
+        </details>` : ''}`;
 }
 
 function courseGalleryHTML(course, round) {
@@ -797,7 +828,11 @@ function switchCourseOption(groupId, courseId) {
     const body = document.querySelector(`[data-body-for="${groupId}"]`);
     if (gallery) gallery.innerHTML = courseGalleryHTML(course, group.round || course.round);
     if (body) {
+        // An open course guide stays open on the other course
+        const wasOpen = !!body.querySelector('.course-guide[open]');
         body.innerHTML = courseBodyHTML(course, group);
+        const guide = body.querySelector('.course-guide');
+        if (guide && wasOpen) guide.open = true;
         body.setAttribute('aria-labelledby', `tab-${courseId}`);
     }
     document.querySelectorAll(`.course-tab[data-group="${groupId}"]`).forEach(t => {
@@ -1475,12 +1510,17 @@ function updateHeroHeadcount(counts) {
     const v = viewer();
     const youRow = !!(v && v.player && v.known);
     const asking = phase.name === 'pre';
+    const counted = !asking || counts.in.length || counts.maybe.length || (v && v.status);
     const label = !asking
         ? `${counts.in.length} in the crew`
-        : counts.in.length || counts.maybe.length || (v && v.status)
+        : counted
             ? `${counts.in.length} in · ${counts.maybe.length} probably`
             : 'Be the first to RSVP';
-    li.innerHTML = `${icon('users')}<span>${esc(label)}</span>${youRow || !asking ? '' : '<button type="button" class="hero-rsvp" id="hero-headcount-rsvp" data-action="rsvp">RSVP</button>'}`;
+    // The count is a link down to the names (the crew list sits far down a phone page)
+    const text = counted
+        ? `<a class="hero-count-link" href="#attendees">${esc(label)}<span class="sr-only">: see who’s in</span>${icon('chevronRight')}</a>`
+        : `<span>${esc(label)}</span>`;
+    li.innerHTML = `${icon('users')}${text}${youRow || !asking ? '' : '<button type="button" class="hero-rsvp" id="hero-headcount-rsvp" data-action="rsvp">RSVP</button>'}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2679,7 +2719,8 @@ function setupEventListeners() {
         if (personalReady) ensureFreshAccount();
     });
 
-    const desktopNav = window.matchMedia('(min-width: 1301px)');
+    // Wherever home.css shows the full nav: the exact opposite of its hamburger rule, (max-width: 1099.98px)
+    const desktopNav = window.matchMedia('not all and (max-width: 1099.98px)');
     const closeDrawerOnDesktop = (e) => { if (e.matches) setDrawer(false); };
     if (desktopNav.addEventListener) desktopNav.addEventListener('change', closeDrawerOnDesktop);
     else if (desktopNav.addListener) desktopNav.addListener(closeDrawerOnDesktop);

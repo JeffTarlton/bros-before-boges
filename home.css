@@ -399,7 +399,10 @@ img { max-width: 100%; display: block; }
 }
 body.drawer-open { overflow: hidden; }
 
-@media (max-width: 1300px) {
+/* The homepage's full nav shows from 1100px (short labels, see "Desktop nav" at the end).
+   1099.98px rather than 1099px, so a fractional width (display scaling, browser zoom) can't
+   fall between this and the desktop rules */
+@media (max-width: 1099.98px) {
     .nav:not(.nav--compact) .nav-primary { display: none; }
     .nav:not(.nav--compact) .nav-toggle { display: inline-flex; }
     .nav-actions { margin-left: auto; }
@@ -2964,3 +2967,199 @@ a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgb
     font-weight: 800;
 }
 .preview-ribbon a::after { content: ''; position: absolute; inset: -4px; }
+
+/* --------------------------------------------------------------------------
+   A shorter phone homepage (UX review, recommendation 15): the course guides fold
+   away, compact trip facts, shorter itinerary pictures, tappable slots, a head count
+   that links to the crew, and the full nav from 1100px
+   -------------------------------------------------------------------------- */
+/* Course guide: designer and tees, signature holes, accolades, scorecard and photo credit, closed
+   until tapped (every width; on wide screens the text column then sits level with the photos).
+   Opening it adds the detail below the bar, so nothing above it moves. */
+.course-guide { margin-top: 22px; }
+.course-guide summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 60px;
+    padding: 10px 16px 10px 18px;
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: rgba(244, 235, 223, 0.035);
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.course-guide summary::-webkit-details-marker { display: none; }
+.course-guide summary:hover { border-color: var(--gold); background: rgba(232, 184, 107, 0.06); }
+.course-guide summary:focus-visible { border-radius: 14px; }
+.course-guide[open] summary { border-color: rgba(232, 184, 107, 0.45); }
+.course-guide-label { display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.3; }
+.course-guide-label b { font: 800 0.68rem var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+.course-guide-label > span { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.course-guide summary > svg {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-left: auto;
+    color: var(--gold);
+    transition: transform 0.25s var(--ease-out);
+}
+.course-guide[open] summary > svg { transform: rotate(180deg); }
+.course-guide[open] .course-guide-body { animation: guide-in 0.4s var(--ease-out); }
+@keyframes guide-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.course-guide-body > .course-designer:first-child { margin-top: 20px; }
+
+/* Trip facts: script.js renders them in the phone order (HQ, Fly into, the cost, Home base,
+   Forecast, then Dates and Golf); wider screens put the grid back in its usual order */
+@media (min-width: 641px) {
+    .fact--dates { order: 1; }
+    .fact--base { order: 2; }
+    .fact--hq { order: 3; }
+    .fact--fly { order: 4; }
+    .fact--forecast { order: 5; }
+    .fact--golf { order: 6; }
+    .fact-grid > .cost-card { order: 7; }
+}
+/* Phones: Dates and Golf are already in the hero card; the rest are compact rows */
+@media (max-width: 640px) {
+    .fact-grid { gap: 10px; }
+    .fact-grid > .fact--dates,
+    .fact-grid > .fact--golf { display: none; }
+    .fact {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        column-gap: 14px;
+        align-items: start;
+        padding: 14px 16px 15px;
+    }
+    .fact-icon { grid-row: 1 / span 3; width: 36px; height: 36px; margin: 2px 0 0; border-radius: 10px; }
+    .fact-icon svg { width: 18px; height: 18px; }
+    .fact-label { margin-bottom: 3px; }
+    .fact-value { font-size: 1.2rem; }
+    .fact-note { margin-top: 4px; font-size: 0.85rem; line-height: 1.45; }
+    .fact-grid > .cost-card { padding: 22px 20px; gap: 10px; }
+    .fact-grid .cost-amount { font-size: 2.8rem; }
+}
+
+/* Phones: a little less air between sections and between the course cards (80px and 70px on
+   the narrowest screens before), which adds up over a 15-screen page */
+@media (max-width: 640px) {
+    .section { padding: 64px 0; }
+    .course-list { gap: 56px; }
+    .course-stats { margin-top: 22px; }
+    .course-guide { margin-top: 18px; }
+    .day-body { padding: 20px 18px 22px; }
+}
+
+/* Course stats on phones: one row of four, as on wider screens, rather than a 2 x 2 block */
+@media (max-width: 640px) {
+    .course-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .course-stat { padding: 12px 6px 13px 0; }
+    .course-stat + .course-stat,
+    .course-stat:nth-child(3) { padding-left: 10px; border-left: 1px solid var(--line); }
+    .course-stat:nth-child(n+3) { border-top: none; }
+    .course-stat span { letter-spacing: 0.12em; }
+    .course-stat b { font-size: 1.3rem; }
+    .course-stat small { font-size: 0.7rem; line-height: 1.3; }
+}
+@media (max-width: 380px) {
+    .course-stat + .course-stat,
+    .course-stat:nth-child(3) { padding-left: 7px; }
+    .course-stat span { font-size: 0.58rem; letter-spacing: 0.08em; }
+    .course-stat b { font-size: 1.12rem; }
+}
+
+/* The narrowest phones: the scorecard's three-digit yardages ran into each other (the yards row
+   is the first of two body rows) */
+@media (max-width: 360px) {
+    .scorecard tbody tr:first-child:not(:last-child) td { font-size: 0.6rem; letter-spacing: -0.02em; }
+}
+
+/* Itinerary on phones: photos about 16:9, and the placeholder pictures (the "?" and the dawn
+   skyline) become short bands that still carry the date and tag. During the trip, earlier days
+   still fold down to a strip (Trip-day mode above). */
+@media (max-width: 640px) {
+    .day-media { aspect-ratio: 16 / 9; }
+    .day-media.mystery,
+    .day-media.dawn { aspect-ratio: auto; height: 104px; }
+    .day-media.mystery .q { font-size: 3.2rem; margin: 0 0 6px 30%; align-self: end; } /* clear of the date and the tag */
+    .day-media.dawn svg { height: 62%; }
+    .day-media.mystery .day-date b,
+    .day-media.dawn .day-date b { font-size: 2.4rem; }
+}
+
+/* Itinerary slots with a course: the whole row is the link to the course card (the course
+   name's link stretches over it), with a chevron and "Course guide" in the meta line */
+.slot.has-link {
+    position: relative;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 10px;
+    min-height: 56px;
+    padding-right: 10px;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+/* A narrower round label and chevron leave the course name and "· Course guide" room for one line */
+.slot.has-link .slot-when { min-width: 26px; }
+.slot.has-link .slot-what { grid-column: 2; grid-row: 1; }
+.slot.has-link .slot-meta { grid-column: 2; grid-row: 2; }
+.slot-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: rgba(232, 184, 107, 0.45);
+    text-underline-offset: 3px;
+}
+.slot-link::after { content: ''; position: absolute; inset: 0; border-radius: 14px; }
+.slot.has-link:hover { border-color: var(--gold); background: rgba(232, 184, 107, 0.06); }
+.slot-link:focus-visible { outline: none; }
+.slot-link:focus-visible::after { outline: 2px solid var(--gold); outline-offset: 2px; }
+.slot-go { grid-column: 3; grid-row: 1 / span 2; display: grid; place-items: center; color: var(--gold); }
+.slot-go svg { width: 16px; height: 16px; }
+.day.is-past .slot-go { color: var(--ink-dim); }
+/* The four narrow day columns on wide screens (wherever .days isn't two columns or one): the
+   underline, chevron and hover already say "link", so the meta line drops "· Course guide" and
+   the chevron sits closer, and names and tee times wrap no more than they did before the links */
+@media not all and (max-width: 1080px) {
+    .slot-guide { display: none; }
+    .slot.has-link { column-gap: 8px; padding-right: 8px; }
+}
+
+/* Hero card: the head count links down to the crew list ("1 in · 1 probably ›"). The chevron is
+   inline, so if the count ever wraps it follows the last word rather than floating at the edge. */
+.hero-count-link {
+    position: relative;
+    display: block;
+    min-width: 0;
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: rgba(232, 184, 107, 0.45);
+    text-underline-offset: 3px;
+    transition: color 0.2s;
+}
+.hero-count-link:hover { color: var(--gold); }
+/* A 44px tap area without making the row taller */
+.hero-count-link::after { content: ''; position: absolute; inset: -10px -6px; }
+.hero-facts .hero-count-link svg { display: inline-block; width: 16px; height: 16px; margin-left: 3px; vertical-align: -3px; }
+/* The narrowest phones: a two-digit count ("18 in · 12 probably ›") stays on one line beside RSVP */
+@media (max-width: 360px) {
+    #hero-headcount { gap: 10px; }
+    #hero-headcount .hero-count-link { font-size: 0.9rem; }
+    .hero-count-link::after { inset: -11px -6px; } /* the smaller text still gets a 44px tap area */
+    .hero-facts .hero-count-link svg { width: 14px; height: 14px; margin-left: 2px; vertical-align: -2px; }
+    #hero-headcount .hero-rsvp { padding: 0 12px; }
+}
+
+/* Desktop nav: the whole row from 1100px, with short labels (the drawer keeps the long ones).
+   Between 1100px and 1240px the spacing eases in with the width: closest at 1100px, the usual
+   spacing by 1240px, with no jump. The free room after the logo only grows across the range, so
+   the widest pair the header carries (Live scores / Keep score on trip days) fits wherever it
+   fits at 1100px. Only the top-level links: the Clubhouse dropdown keeps its own padding.
+   (From 1099.98px, where the hamburger rule above stops, so no fractional width falls between.) */
+@media (min-width: 1099.98px) and (max-width: 1240px) {
+    .nav:not(.nav--compact) .nav-inner { gap: clamp(12px, calc(12px + (100vw - 1100px) * 0.0572), 20px); }
+    .nav:not(.nav--compact) .nav-links { gap: clamp(0px, calc((100vw - 1100px) * 0.0286), 4px); }
+    .nav:not(.nav--compact) .nav-links > li > a,
+    .nav:not(.nav--compact) .nav-menu-btn { padding: 0 clamp(7px, calc(7px + (100vw - 1100px) * 0.0215), 10px); }
+    .nav:not(.nav--compact) .nav-actions { gap: clamp(8px, calc(8px + (100vw - 1100px) * 0.0143), 10px); }
+    .nav:not(.nav--compact) .nav-actions .btn-sm { padding: 0 clamp(15px, calc(15px + (100vw - 1100px) * 0.0215), 18px); }
+}
