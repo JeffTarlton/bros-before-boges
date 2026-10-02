@@ -39,7 +39,7 @@ window.BBB = {
         airport: {
             code: 'PHX',
             name: 'Sky Harbor',
-            note: 'About 20 min to Talking Stick and 30 to We-Ko-Pa (without traffic).',
+            note: 'About 20 min to Talking Stick and 30 to We-Ko-Pa (without traffic). American flies nonstop from Lubbock (LBB) for about $450 round trip.',
             // Flight times for the Fly into card, plain text, e.g. arriveBy: '10 AM Thu', departAfter: '3 PM Sun'
             // ("Land by 10 AM Thu · fly out after 3 PM Sun"). Both null: "Hold off on flights until tee times post."
             arriveBy: null,
@@ -50,16 +50,16 @@ window.BBB = {
             note: 'April averages ~85°F highs and ~60°F lows. Rain is rare. Sunset around 6:55 PM.'
         },
         cost: {
-            perPerson: 1600,
+            perPerson: 1413,
             approx: true,
-            excludes: 'airfare',
-            note: 'Estimated per person, plus your flight. Golf prices can still change.',
+            excludes: 'airfare (~$450)',
+            note: 'Estimated per man: golf plus a shared room (two to a room at about $175 a night). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
             breakdown: [
                 { label: 'Talking Stick · Thu', amount: 250 },
                 { label: 'We-Ko-Pa · 36 holes Fri', amount: 650 },
                 { label: 'Camelback Ambiente · Sat', amount: 250 },
-                { label: 'Lodging', amount: 'TBA' }
+                { label: 'Room · 3 nights, 2 to a room', amount: 263 }
             ],
             // How to pay, once there's something to pay; leave out any part, e.g. { label: 'Deposit', amount: 500,
             // due: '2026-12-15', how: 'Venmo @handle', note: 'Balance due Mar 1.' } ("Deposit $500 due Dec 15 · Venmo
@@ -76,6 +76,7 @@ window.BBB = {
         // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
+            { date: '2026-10-02', text: 'Planning numbers: rooms are running about $175 a night, two to a room (about $263 each for the three nights), and American’s nonstop from Lubbock is about $450 round trip. Both are estimates, not final prices.' },
             { date: '2026-10-02', text: 'Deposit is $500 a man, due Nov 30. Venmo it to Westin (@Westin-Tucker). Golf runs about $1,150: Talking Stick $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Nov 30 so we can book rooms.' }
         ],
