@@ -634,29 +634,36 @@ async function joinRoster(name, email) {
     return data;
 }
 
+// The login's own roster row, public columns only (emails and GHINs can't be read once
+// privacy_2027.sql has run). The page uses its id, name and status; the admin flag comes from
+// loadAdminFlag.
 async function findLinkedPlayer(userId) {
     const { data, error } = await supabaseClient
         .from('players')
-        .select('*')
+        .select('id, name, status, team_id, handicap, user_id')
         .eq('user_id', userId)
         .limit(1);
     if (error) throw error;
     return data && data.length ? data[0] : null;
 }
 
-// Link a login to an unclaimed roster spot. Returns the row as linked ({ id, name, status, email }),
+// Link a login to an unclaimed roster spot. Returns the row as linked ({ id, name, status, held }),
 // or null if nothing changed. Once payments_2027.sql has run, a name whose roster email isn't this
-// login's comes back 'potential': it waits for the commissioner, who gets an email to check it's him.
+// login's comes back 'potential' and held: it waits for the commissioner, who gets an email to
+// check it's him.
 async function claimPlayer(playerId, user) {
     const { data, error } = await supabaseClient
         .from('players')
         .update({ user_id: user.id })
         .eq('id', playerId)
         .is('user_id', null)
-        .select('id, name, status, email');
+        .select('id, name, status');
     if (error || !data || !data.length) return null;
     const row = data[0];
-    if (row.status === 'potential' && !sameEmail(row.email, user.email)) {
+    // Someone else's name waits for the commissioner (payments_2027.sql). If we can't tell, he
+    // gets the alert anyway: a potential name needs him either way.
+    row.held = await pickIsHeld(row, true);
+    if (row.held) {
         // Awaited: a return trip (?next=) can leave the page right after this
         await sendAlert(`BBB: ${row.name} was claimed by ${user.email || 'a login with no email'} (needs approval)`, {
             name: row.name,
@@ -668,22 +675,28 @@ async function claimPlayer(playerId, user) {
     return row;
 }
 
-// Emails compared the way the database does (trimmed, any case); a blank one never matches
-const normEmail = s => String(s || '').trim().toLowerCase();
-const sameEmail = (a, b) => !!normEmail(a) && normEmail(a) === normEmail(b);
+// Is this row a held pick (someone else's name this login picked, waiting for the commissioner)?
+// Asked of the database (payments_me.own_ok), never by comparing emails: roster emails can't be
+// read once privacy_2027.sql has run. onError: the answer when payments_me fails other than
+// "not set up" (before payments_2027.sql nothing was ever held).
+async function pickIsHeld(row, onError) {
+    if (!row || row.status !== 'potential') return false;
+    if (typeof row.own_ok === 'boolean') return !row.own_ok;
+    try {
+        const { data, error } = await supabaseClient.rpc('payments_me');
+        if (error) return isMissingFunction(error) ? false : onError;
+        if (!data || data.player_id !== row.id) return onError;
+        return data.own_ok === false;
+    } catch (e) {
+        return onError;
+    }
+}
 
 // A roster name this login picked whose roster email isn't the login's: payments_2027.sql holds it
 // for the commissioner, and until he approves it can't RSVP or bet. (A new guy's own sign-up has
 // his email on it, so it isn't one.) Before that script runs there's no such thing.
 async function isHeldPick(player, user) {
-    if (sameEmail(player.email, user && user.email)) return false;
-    try {
-        const { data, error } = await supabaseClient.rpc('payments_me');
-        if (error || !data) return false;
-        return data.player_id === player.id && data.status === 'potential' && data.own_ok === false;
-    } catch (e) {
-        return false;
-    }
+    return pickIsHeld(player, false);
 }
 
 const isMissingFunction = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
@@ -733,7 +746,19 @@ async function claimFromSignup(user) {
 }
 
 // A login made elsewhere (Admin, Round Tracker) links itself when its email is on the roster.
+// The database finds the row (privacy_2027.sql); the site never sees roster emails.
 async function claimByEmail(user) {
+    if (!normName(user && user.email)) return null;
+    const { data, error } = await supabaseClient.rpc('claim_roster_by_email');
+    if (error) {
+        if (isMissingFunction(error)) return legacyClaimByEmail(user);
+        console.error('Could not link by email:', error);
+        return null;
+    }
+    return data ? findLinkedPlayer(user.id) : null;
+}
+// Until privacy_2027.sql has run: today's body, verbatim
+async function legacyClaimByEmail(user) {
     const email = normName(user && user.email);
     if (!email) return null;
     const { data, error } = await supabaseClient.from('players').select('id, email, user_id').is('user_id', null);
@@ -808,7 +833,7 @@ async function linkSelectedName() {
         }
         // Someone else's name (his email isn't this login's) waits for the commissioner: the wall
         // that loads next says why
-        if (claimed && claimed.status === 'potential' && !sameEmail(claimed.email, session.user.email)) {
+        if (claimed && claimed.held) {
             showToast('Linked. The commissioner checks it’s really you first.', 'info');
         } else {
             showToast(isNew ? `You’re on the list, ${name.split(' ')[0]}.` : `Linked. Welcome, ${name.split(' ')[0]}.`, 'success');
@@ -817,6 +842,23 @@ async function linkSelectedName() {
     } finally {
         btn.disabled = false;
     }
+}
+
+// Admin buttons follow the database's own rule (is_trip_admin: an is_admin roster row with this
+// login's email), so the page never offers an admin action the database will refuse
+async function loadAdminFlag(playerId) {
+    try {
+        const { data, error } = await supabaseClient.rpc('is_trip_admin');
+        if (!error) return data === true;
+        if (isMissingFunction(error)) return legacyIsAdminFlag(playerId);
+        console.error('Admin check failed:', error);
+    } catch (e) { /* offline: no admin buttons until the next load */ }
+    return false;
+}
+// Only while is_trip_admin is missing (never live: rsvp_accounts.sql made it; the plain test fake lacks it)
+async function legacyIsAdminFlag(playerId) {
+    const { data, error } = await supabaseClient.from('players').select('is_admin').eq('id', playerId).limit(1);
+    return !error && !!(data && data[0] && data[0].is_admin);
 }
 
 async function loadSession() {
@@ -887,12 +929,7 @@ async function loadSession() {
     }
 
     currentUser = player;
-    // Admin buttons follow the database's own rule (an is_admin roster row with this login's email),
-    // so the page never offers an admin action the database will refuse
-    try {
-        const { data: isAdmin, error: adminError } = await supabaseClient.rpc('is_trip_admin');
-        if (!adminError) currentUser.is_admin = !!isAdmin;
-    } catch (e) { /* keep the roster flag */ }
+    currentUser.is_admin = await loadAdminFlag(player.id);
     showDashboard();
     showBoardSkeleton();
     await refreshBoard();
@@ -1186,7 +1223,7 @@ async function registerAccount(playerId, email, password, newName) {
         throw new Error(`Your login was created, but ${match.name}’s roster spot couldn’t be linked. Ask the commissioner to link it.`);
     }
     // Someone else's email on that name: it waits for the commissioner
-    return claimed.status === 'potential' && !sameEmail(claimed.email, email) ? 'held' : 'linked';
+    return claimed.held ? 'held' : 'linked';
 }
 
 async function handleAuthSubmit(e) {

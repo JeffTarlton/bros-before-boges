@@ -1930,15 +1930,7 @@ async function loadAccount() {
         // that's "couldn't check", not "logged out". (Other refresh errors do end the login.)
         if (sessionError && sessionError.name === 'AuthRetryableFetchError') throw sessionError;
         account.user = session ? session.user : null;
-        if (account.user) {
-            const { data, error } = await supabaseInstance
-                .from('players')
-                .select('id, name, status, ghin, handicap')
-                .eq('user_id', account.user.id)
-                .limit(1);
-            if (error) throw error;
-            account.player = data && data.length ? data[0] : null;
-        }
+        if (account.user) account.player = await loadOwnPlayer(account.user.id);
         account.checked = true;
     } catch (e) {
         // Leave it unchecked so the next RSVP / profile tap tries again, and don't claim
@@ -1950,6 +1942,34 @@ async function loadAccount() {
     // A later re-check (an RSVP / profile tap found the login changed, or retried a failed
     // check, or the page came back from the back/forward cache)
     if (personalReady) renderPersonal();
+}
+
+// The function isn't there yet (PGRST202): the SQL that adds it hasn't run. Not a missing table.
+const rpcMissing = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
+
+// The login's own roster row. Its GHIN only when the row is really his (my_player, privacy_2027.sql):
+// a name he picked that waits for the commissioner comes back without one.
+async function loadOwnPlayer(userId) {
+    const { data, error } = await supabaseInstance.rpc('my_player');
+    if (error) {
+        if (rpcMissing(error)) return legacyOwnPlayer(userId);
+        throw error; // loadAccount's "couldn't check" path
+    }
+    return data ? { id: data.id, name: data.name, status: data.status, ghin: data.ghin, handicap: data.handicap } : null;
+}
+// Until privacy_2027.sql has run: today's read, plus no GHIN for a held name (payments_me says whose it is)
+async function legacyOwnPlayer(userId) {
+    const { data, error } = await supabaseInstance.from('players')
+        .select('id, name, status, ghin, handicap').eq('user_id', userId).limit(1);
+    if (error) throw error;
+    const row = data && data.length ? data[0] : null;
+    if (row && row.status === 'potential') {
+        let me = null;
+        try { me = await supabaseInstance.rpc('payments_me'); } catch (e) { me = { error: e }; }
+        const own = !!(me && !me.error && me.data && me.data.player_id === row.id && me.data.own_ok === true);
+        if (me && me.error ? !rpcMissing(me.error) : !own) row.ghin = null;
+    }
+    return row;
 }
 
 // Before showing or saving an RSVP / profile: re-read the account if the login changed

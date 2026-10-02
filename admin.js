@@ -150,6 +150,10 @@ function plainError(err) {
         : text;
 }
 
+// A database function that isn't there yet (its setup script hasn't run). Missing tables don't count:
+// only this falls back to the old way of reading the roster.
+const isMissingFunction = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
+
 async function checkInitialAuth() {
     if (!supabaseInstance) {
         console.warn('Supabase not configured. Showing demo mode.');
@@ -190,17 +194,15 @@ async function signInWithGoogle() {
 
 // fromForm: the check follows a Log in press, so focus moves to the next thing to press
 async function verifyAdminAndShowDashboard(email, fromForm = false) {
-    let adminRows = null;
+    let ok = false;
     let error = null;
     try {
-        // Any admin row with this email counts (the same rule the database uses), even if a
-        // second, non-admin row has the same email
-        ({ data: adminRows, error } = await supabaseInstance
-            .from('players')
-            .select('is_admin')
-            .ilike('email', escapeLike(email))
-            .eq('is_admin', true)
-            .limit(1));
+        // The database's own rule (is_trip_admin: an admin roster row with this login's email, even
+        // if a second, non-admin row has the same email), so Admin opens exactly when the database
+        // will take its saves. It reads the email from the login itself; `email` is for the messages.
+        const res = await supabaseInstance.rpc('is_trip_admin');
+        if (res.error && isMissingFunction(res.error)) ({ ok, error } = await legacyIsAdmin(email));
+        else { error = res.error; ok = res.data === true; }
     } catch (e) {
         error = e;
     }
@@ -212,12 +214,24 @@ async function verifyAdminAndShowDashboard(email, fromForm = false) {
         showAccessProblem(email, 'error', plainError(error), fromForm);
         return false;
     }
-    if (!adminRows || !adminRows.length) {
+    if (!ok) {
         showAccessProblem(email, 'denied', '', fromForm);
         return false;
     }
     showDashboard();
     return true;
+}
+
+// Only while is_trip_admin is missing (never live: rsvp_accounts.sql made it; the plain test fake
+// lacks it): the old query, which finds an admin row by email
+async function legacyIsAdmin(email) {
+    try {
+        const { data, error } = await supabaseInstance.from('players').select('is_admin')
+            .ilike('email', escapeLike(email)).eq('is_admin', true).limit(1);
+        return { ok: !!(data && data.length), error };
+    } catch (e) {
+        return { ok: false, error: e };
+    }
 }
 
 let deniedEmail = '';
@@ -597,11 +611,9 @@ function openTab(tab, { fromHash = false } = {}) {
 async function loadRoster() {
     if (supabaseInstance) {
         try {
-            const { data, error } = await supabaseInstance
-                .from('players')
-                .select('*')
-                .order('status') // 'confirmed' before 'potential', so real players always load
-                .order('name');
+            // Every row and column, ordered by status ('confirmed' before 'potential', so real
+            // players always load), then name
+            const { data, error } = await loadAdminRoster();
 
             if (error || !data) throw error || new Error('No roster data came back.');
             players = JSON.parse(JSON.stringify(data)); // Deep copy
@@ -624,6 +636,49 @@ async function loadRoster() {
         loadState.roster = 'ok';
     }
     renderAllTabs();
+}
+
+// ---- Emails and GHINs (privacy_2027.sql) ----
+// Once that script has run, nobody can read players.email or players.ghin from the table, admins
+// included: Admin reads the roster through admin_players(), which only admins can call. Until it
+// has run, the table is read directly and the Roster tab says so (the owner's go-signal).
+let privacyPending = false; // true while privacy_2027.sql hasn't run (admin_players missing)
+const PRIVACY_PENDING_TEXT = 'Email and GHIN privacy isn’t switched on yet: run privacy_2027.sql in the Supabase SQL Editor. Admin works the same either way.';
+
+// The whole roster with emails and GHINs: admin_players (privacy_2027.sql), or the table until it
+// has run. Asked fresh each time, so an open page switches over the moment the script runs.
+async function loadAdminRoster() {
+    const res = await supabaseInstance.rpc('admin_players');
+    if (res.error && isMissingFunction(res.error)) {
+        privacyPending = true;
+        renderPrivacyNote();
+        return legacyAdminRoster();
+    }
+    if (!res.error) {
+        privacyPending = false;
+        renderPrivacyNote();
+    }
+    return { data: res.data, error: res.error };
+}
+
+// Only while admin_players is missing: the old read of the table
+async function legacyAdminRoster() {
+    return supabaseInstance.from('players').select('*').order('status').order('name');
+}
+
+// One line above the roster while privacy_2027.sql hasn't run (created here: no admin.html change)
+function renderPrivacyNote() {
+    let el = document.getElementById('roster-privacy-note');
+    if (!el) {
+        const anchor = document.getElementById('roster-pay-note');
+        if (!anchor || !anchor.parentNode) return;
+        el = document.createElement('div');
+        el.className = 'setup-note';
+        el.id = 'roster-privacy-note';
+        anchor.parentNode.insertBefore(el, anchor);
+    }
+    el.textContent = privacyPending ? PRIVACY_PENDING_TEXT : '';
+    el.hidden = !privacyPending;
 }
 
 async function loadMatchups() {
@@ -812,10 +867,12 @@ async function saveNewPlayer() {
     };
 
     if (supabaseInstance) {
+        // Only the public columns come back: email and GHIN can't be read from the table once
+        // privacy_2027.sql has run, and asking for them would refuse the whole insert
         const { data, error } = await supabaseInstance
             .from('players')
             .insert([newPlayer])
-            .select();
+            .select('id, name, handicap, team_id, status, user_id');
 
         if (error) {
             errEl.textContent = 'Error saving: ' + plainError(error);
@@ -829,9 +886,11 @@ async function saveNewPlayer() {
         // Said now, so a roster reload that fails below can't leave it in doubt
         window.showToast(`${escHtml(name)} is on the roster.`, 'success');
         if (hasChanges && loadState.roster === 'ok' && data && data[0]) {
-            // A reload would throw away the unsaved edits: add him to both copies instead
-            players.push(JSON.parse(JSON.stringify(data[0])));
-            originalPlayers.push(JSON.parse(JSON.stringify(data[0])));
+            // A reload would throw away the unsaved edits: add him to both copies instead. Email and
+            // GHIN are what was just typed (they can't be read back from the table).
+            const row = Object.assign({}, newPlayer, data[0]);
+            players.push(JSON.parse(JSON.stringify(row)));
+            originalPlayers.push(JSON.parse(JSON.stringify(row)));
             renderAllTabs();
         } else {
             // Refresh the live roster from DB
@@ -2204,8 +2263,8 @@ async function loadRsvpAdmin() {
     // up (with Approve). It's kept apart from the roster tab so unsaved edits there survive.
     const [rsvpResult, rosterResult] = await Promise.all([
         supabaseInstance.rpc('admin_rsvps', { p_trip_year: rsvpTripYear() }),
-        // Same columns as the roster tab, so rows merged into it below have the same shape
-        supabaseInstance.from('players').select('*').order('status').order('name')
+        // The same read as the roster tab, so rows merged into it below have the same shape
+        loadAdminRoster()
     ]);
     const { data, error } = rsvpResult;
     rsvpRoster = !rosterResult.error && rosterResult.data ? rosterResult.data : originalPlayers.filter(p => p.id);

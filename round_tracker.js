@@ -670,14 +670,27 @@ async function loadBase() {
     else S.courses = courses.data || [];
 }
 
-// The roster row for this login. A row found by email that isn't linked yet gets linked here,
-// the same way The Bookie does it (the database allows exactly this).
+// The function isn't there yet (PGRST202): the SQL that adds it hasn't run. Not a missing table.
+const isMissingFunction = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
+
+// The roster row for this login. A login whose email is on an unclaimed roster name gets linked
+// to it here (the database does the matching: claim_roster_by_email, privacy_2027.sql).
 async function findMe(user) {
     if (!user) return null;
-    const { data: byLogin, error: loginError } = await sb.from('players').select('*').eq('user_id', user.id).limit(1);
+    const { data: byLogin, error: loginError } = await sb.from('players')
+        .select('id, name, team_id, status, user_id').eq('user_id', user.id).limit(1);
     if (loginError) throw loginError;
     if (byLogin && byLogin.length) return byLogin[0];
     if (!user.email) return null;
+    const { data, error } = await sb.rpc('claim_roster_by_email');
+    if (error) {
+        if (isMissingFunction(error)) return legacyFindByEmail(user);
+        throw error; // as before: "Couldn't load ... Try again"
+    }
+    return data ? { id: data.id, name: data.name, team_id: data.team_id, status: data.status, user_id: data.user_id } : null;
+}
+// Until privacy_2027.sql has run: the email lookup and link the database now does
+async function legacyFindByEmail(user) {
     const { data: byEmail, error: emailError } = await sb.from('players').select('*').ilike('email', escapeLike(user.email)).limit(1);
     if (emailError) throw emailError;
     const row = byEmail && byEmail.length ? byEmail[0] : null;
