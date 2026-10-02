@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Tournament Rules | Bros before Boges</title>
-    <meta name="description" content="Formats, scoring and the playoff for the Bros before Boges Cup.">
+    <meta name="description" content="House rules, formats, scoring and the playoff for the Bros before Boges Cup.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,6 +17,25 @@
     <link rel="stylesheet" href="home.css?v=2027.10">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <style>
+        /* Universal rules: the house rules and the gimme, side by side on wide screens */
+        .universal { margin-bottom: 26px; }
+        .universal > .eyebrow { display: flex; margin-bottom: 14px; }
+        .universal-grid { display: grid; gap: 14px; }
+        .universal .callout { margin-bottom: 0; }
+        .house-list { padding-left: 18px; display: grid; gap: 10px; color: var(--ink); }
+        .house-list li::marker { color: var(--copper); }
+        @media (min-width: 820px) {
+            .universal-grid { grid-template-columns: 1.12fr 1fr; }
+        }
+        @media (max-width: 380px) {
+            .universal .callout { padding: 20px 18px; }
+        }
+        /* The Playoff keeps its gold edge; here rather than inline so :target below can brighten it */
+        #playoff { border-color: rgba(232, 184, 107, 0.4); }
+        /* The section a link landed on (rules.html#split) */
+        .rule:target, .callout:target, #playoff:target { border-color: rgba(232, 184, 107, 0.6); }
+    </style>
 </head>
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -82,19 +101,33 @@
         </section>
 
         <section class="wrap" style="padding-bottom: 100px; max-width: 920px;">
-            <div class="rule-note">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-                <p>The 2027 formats will be posted once the captains are picked. Until then, these are the 2026 rules from Horseshoe Bay.</p>
+            <div class="universal">
+                <h2 class="eyebrow">Universal rules</h2>
+                <div class="universal-grid">
+                    <div class="callout" id="house-rules">
+                        <h3>House rules</h3>
+                        <ul class="house-list">
+                            <li><strong>Straight up:</strong> no handicap strokes in any match. Handicaps are only used to draft even teams.</li>
+                            <li><strong>The desert is a penalty area:</strong> drop within two club-lengths of where your ball crossed into the desert, and add one stroke.</li>
+                            <li><strong>Lost ball or out of bounds:</strong> drop near where it was lost or went out, no closer to the hole, and add two strokes. No walking back to the tee.</li>
+                        </ul>
+                    </div>
+
+                    <div class="callout" id="gimme">
+                        <h3>The “inside the leather” gimme</h3>
+                        <p>Any ball <strong>within the leather</strong> of your putter is a gimme: add one stroke to your score, no putt required.</p>
+                        <p style="margin-top: 10px;"><strong class="warn">Warning:</strong> if you decide to putt it anyway and miss, <strong class="warn">that stroke counts</strong> and the gimme is gone. Take the gimme or putt it. You can’t do both.</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="callout">
-                <h2>Universal rule: the “inside the leather” gimme</h2>
-                <p>Any ball <strong>within the leather</strong> of your putter is a gimme: add one stroke to your score, no putt required.</p>
-                <p style="margin-top: 10px;"><strong class="warn">Warning:</strong> if you decide to putt it anyway and miss, <strong class="warn">that stroke counts</strong> and the gimme is gone. Take the gimme or putt it. You can’t do both.</p>
+            <div class="rule-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                <p>The 2027 round formats will be posted once the captains are picked. Until then, these are the 2026 formats from Horseshoe Bay.</p>
             </div>
 
             <div class="rules-list">
-                <details class="rule" open>
+                <details class="rule" id="grind" open>
                     <summary>
                         <span class="rule-num">1</span>
                         <h2>The Grind <small>Team point quota · two-man teams</small></h2>
@@ -103,6 +136,7 @@
                     <div class="rule-body">
                         <p><strong>Format:</strong> Team point quota.</p>
                         <p>Two-man teams, each playing their own ball. Both players’ scores on every hole count toward the team total.</p>
+                        <p>Points come off your actual score on the hole, with no handicap strokes.</p>
                         <h3>Scoring (per player)</h3>
                         <ul>
                             <li><strong>Eagle or better:</strong> 5 pts</li>
@@ -114,19 +148,26 @@
                         <h3>Match points</h3>
                         <p>The team with the most points after 18 holes wins the match.</p>
                         <div class="pts"><span><strong>Win:</strong> 1 point</span><span><strong>Tie:</strong> ½ point</span></div>
-                        <div class="flag" style="--flag: var(--red-team);"><b>Strict rule:</b> Pick up once you can’t make bogey. No mulligans.</div>
+                        <div class="flag" style="--flag: var(--red-team);"><b>Strict rule:</b> Pick up once you can’t make bogey (it’s 0 points either way). No mulligans.</div>
                     </div>
                 </details>
 
-                <details class="rule">
+                <details class="rule" id="split">
                     <summary>
                         <span class="rule-num">2</span>
                         <h2>The Split Decision <small>Front 9 scramble · back 9 alternate shot</small></h2>
                         <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </summary>
                     <div class="rule-body">
-                        <p><strong>Format:</strong> An 18-hole match split into two 9-hole formats.</p>
-                        <p><strong>Points:</strong> Each 9-hole side is worth 1 point, so each match is worth 2 points.</p>
+                        <p><strong>Format:</strong> An 18-hole match split into two 9-hole formats. Each team posts one score per hole.</p>
+                        <p>Each nine is its own stroke-play contest: add up the team’s strokes for the nine, and the lower total wins it.</p>
+                        <div class="flag" style="--flag: var(--blue-team);"><b>Safety net:</b> Triple-bogey max on every hole, both nines. If you haven’t holed out by triple, pick up and take the triple.</div>
+                        <h3>Match points</h3>
+                        <p>Each nine is worth 1 point, so each match is worth 2.</p>
+                        <div class="pts">
+                            <span><strong>Win a nine:</strong> 1 point</span>
+                            <span><strong>Tied nine:</strong> ½ point each</span>
+                        </div>
 
                         <h3>Front 9: two-man scramble</h3>
                         <p><strong>Captain’s choice.</strong> Both players tee off, pick the best ball, and both play from that spot until the ball is holed.</p>
@@ -134,7 +175,6 @@
                             <li><strong>Scoring:</strong> Stroke play (total strokes for the nine).</li>
                             <li><strong>Winner:</strong> Lowest total on the front 9 wins 1 point.</li>
                         </ul>
-                        <div class="flag" style="--flag: var(--blue-team);"><b>Safety net:</b> Triple-bogey max. If you haven’t holed out by triple, pick up and move on.</div>
 
                         <h3>Back 9: modified alternate shot</h3>
                         <p><strong>Greensomes.</strong> Both players tee off on every hole and the team picks the best drive.</p>
@@ -146,15 +186,15 @@
                     </div>
                 </details>
 
-                <details class="rule">
+                <details class="rule" id="singles">
                     <summary>
                         <span class="rule-num">3</span>
                         <h2>Championship Singles <small>Head-to-head match play</small></h2>
                         <svg class="rule-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </summary>
                     <div class="rule-body">
-                        <p><strong>Format:</strong> Individual head-to-head match play. 8 matches total, Team A vs. Team B.</p>
-                        <p><strong>Scoring:</strong> Traditional match play. Holes are won, lost or halved.</p>
+                        <p><strong>Format:</strong> Individual head-to-head match play. 8 matches total, Team Blue vs. Team Red.</p>
+                        <p><strong>Scoring:</strong> Traditional match play, straight up. The lower score wins the hole, with no handicap strokes. Holes are won, lost or halved.</p>
                         <h3>Points</h3>
                         <div class="pts">
                             <span><strong>Match win:</strong> 1 point</span>
@@ -170,7 +210,7 @@
                     </div>
                 </details>
 
-                <details class="rule" style="border-color: rgba(232, 184, 107, 0.4);">
+                <details class="rule" id="playoff">
                     <summary>
                         <span class="rule-num" aria-hidden="true">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
@@ -235,6 +275,65 @@
                 });
                 window.matchMedia('(min-width: 1081px)').addEventListener('change', function (e) { if (e.matches) setDrawer(false); });
             }
+
+            // Links like rules.html#split (from the Round Tracker and elsewhere): open the section the
+            // URL names and bring it into view. html's scroll-padding-top keeps it clear of the fixed header.
+            var main = document.getElementById('main');
+            var reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+            function hashTarget() {
+                var id = location.hash.slice(1);
+                if (!id) return null;
+                try { id = decodeURIComponent(id); } catch (e) { return null; }
+                var el = document.getElementById(id);
+                return el && main && el !== main && main.contains(el) ? el : null;
+            }
+            // Opens the target (and any closed section around it) and scrolls to it. Returns it, or null.
+            function showTarget(animate, scroll) {
+                var el = hashTarget();
+                if (!el) return null;
+                for (var d = el.closest('details'); d; d = d.parentElement ? d.parentElement.closest('details') : null) d.open = true;
+                if (!scroll) return el;
+                if (animate && !(reduceMotion && reduceMotion.matches)) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    // style.css turns on smooth scrolling for the whole page; jump instead
+                    var root = document.documentElement, was = root.style.scrollBehavior;
+                    root.style.scrollBehavior = 'auto';
+                    el.scrollIntoView({ block: 'start' });
+                    root.style.scrollBehavior = was;
+                }
+                return el;
+            }
+            // On a reload or Back/Forward the browser puts the page back where it was: only open the section.
+            var nav = window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+            var fresh = !nav || nav.type === 'navigate';
+            var landed = showTarget(false, fresh);
+            if (landed && fresh) {
+                // Web fonts and the hero image can shift the page as they load. Re-align once they're in,
+                // unless the reader has already taken over: scrolled, tapped, typed, or closed the section.
+                var landedAt = window.scrollY, touched = false;
+                var markTouched = function () { touched = true; };
+                ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (type) {
+                    window.addEventListener(type, markTouched, { capture: true, passive: true, once: true });
+                });
+                var realign = function () {
+                    if (touched || Math.abs(window.scrollY - landedAt) > 2) return;
+                    var section = landed.closest('details');
+                    if (section && !section.open) return;
+                    if (showTarget(false, true)) landedAt = window.scrollY;
+                };
+                window.addEventListener('load', realign, { once: true });
+                if (document.fonts && document.fonts.ready) document.fonts.ready.then(realign);
+            }
+            window.addEventListener('hashchange', function () { showTarget(true, true); });
+            // A link to the hash already in the address bar fires no hashchange: open and show it anyway.
+            document.addEventListener('click', function (e) {
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                var a = e.target.closest ? e.target.closest('a[href*="#"]') : null;
+                if (!a || a.target || !a.hash || a.hash !== location.hash) return;
+                if (a.origin !== location.origin || a.pathname !== location.pathname || a.search !== location.search) return;
+                setTimeout(function () { showTarget(true, true); }, 0);
+            });
         })();
     </script>
 </body>
