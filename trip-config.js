@@ -39,7 +39,11 @@ window.BBB = {
         airport: {
             code: 'PHX',
             name: 'Sky Harbor',
-            note: 'About 20 min to Talking Stick and 30 to We-Ko-Pa (without traffic).'
+            note: 'About 20 min to Talking Stick and 30 to We-Ko-Pa (without traffic).',
+            // Flight times for the Fly into card, plain text, e.g. arriveBy: '10 AM Thu', departAfter: '3 PM Sun'
+            // ("Land by 10 AM Thu · fly out after 3 PM Sun"). Both null: "Hold off on flights until tee times post."
+            arriveBy: null,
+            departAfter: null
         },
         weather: {
             value: 'Mid-80s & sunny',
@@ -49,24 +53,38 @@ window.BBB = {
             perPerson: 1600,
             approx: true,
             excludes: 'airfare',
-            note: 'Estimated per person, plus your flight. Full breakdown once HQ and tee times are booked.',
+            note: 'Estimated per person, plus your flight.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
-            breakdown: []
+            breakdown: [],
+            // How to pay, once there's something to pay; leave out any part, e.g. { label: 'Deposit', amount: 500,
+            // due: '2026-12-15', how: 'Venmo @handle', note: 'Balance due Mar 1.' } ("Deposit $500 due Dec 15 · Venmo
+            // @handle · Balance due Mar 1."). amount is shown exactly (203.13 is $203.13); due is 'YYYY-MM-DD' or text.
+            // null: "Don't send money yet. Payment details come with the final breakdown."
+            payment: null
         },
         intro: [
             'The Sonoran Desert in April: 80-degree days, cool nights, and some of the best public golf in the country. This year we trade the Texas Hill Country for saguaros, Four Peaks, and firm, fast desert fairways.',
             'Two tribal-owned clubs anchor the trip. Talking Stick sits on Salt River Pima-Maricopa land minutes from Old Town Scottsdale, and We-Ko-Pa sits out on the Fort McDowell Yavapai Nation with no homes or roads along its fairways. Saturday’s final round is back in Scottsdale on Camelback Golf Club’s Ambiente course.'
         ],
-        announcement: {
-            title: 'Final round: Camelback Ambiente',
-            body: 'Saturday’s final Cup round is set for Camelback Golf Club’s Ambiente course in Scottsdale. With Talking Stick on Thursday and 36 holes at We-Ko-Pa on Friday, all four rounds are locked in. HQ is coming soon.'
-        }
+        // News at the top of The Trip section, shown newest first as "Oct 1 · …" (the latest three, then
+        // "Show older"). One entry per piece of news, date as 'YYYY-MM-DD' and plain text, e.g.
+        // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
+        // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
+        updates: [
+            { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Nov 30 so we can book rooms.' }
+        ],
+        // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. 'Tee times';
+        // delete each one once it's settled. An empty list hides it.
+        stillToCome: ['HQ / lodging', 'Tee times', 'Cost breakdown and payment details', 'Course for the optional Sunday round']
     },
 
     // RSVP / head count. Needs rsvp_schema.sql and then rsvp_accounts.sql run in Supabase.
     // Every RSVP belongs to a player account (the same login as The Bookie).
     rsvp: {
         year: 2027,
+        // RSVP-by date, 'YYYY-MM-DD' in Arizona time: "Lock it in by Nov 30 so we can book rooms." on the head count,
+        // the RSVP sheet and the Probably screen, then "RSVPs were due Nov 30." once it's passed. null shows nothing.
+        lockBy: '2026-11-30',
         // Set a number (e.g. 16) to show an "X of 16 spots" progress bar.
         target: null,
         // Email each RSVP to the alerts inbox below.

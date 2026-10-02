@@ -704,27 +704,7 @@ body.drawer-open { overflow: hidden; }
     align-items: start;
 }
 .destination-copy p + p { margin-top: 16px; }
-
-.announce {
-    margin-top: 34px;
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-    padding: 20px 22px;
-    border-radius: var(--radius);
-    background: linear-gradient(135deg, rgba(232, 184, 107, 0.12), rgba(232, 184, 107, 0.03));
-    border: 1px solid rgba(232, 184, 107, 0.28);
-}
-.announce-icon {
-    width: 40px; height: 40px; flex: none;
-    border-radius: 12px;
-    display: grid; place-items: center;
-    background: rgba(232, 184, 107, 0.16);
-    color: var(--gold);
-}
-.announce-icon svg { width: 20px; height: 20px; }
-.announce h3 { font-size: 1.05rem; font-family: var(--sans); font-weight: 700; letter-spacing: 0; color: var(--gold); margin-bottom: 4px; }
-.announce p { color: var(--ink); font-size: 0.98rem; }
+/* (Trip updates and Still to come, above the destination copy: see "The group-text questions" at the end) */
 
 .fact-grid {
     display: grid;
@@ -3163,3 +3143,134 @@ a.today-slot .slot-what { text-decoration: underline; text-decoration-color: rgb
     .nav:not(.nav--compact) .nav-actions { gap: clamp(8px, calc(8px + (100vw - 1100px) * 0.0143), 10px); }
     .nav:not(.nav--compact) .nav-actions .btn-sm { padding: 0 clamp(15px, calc(15px + (100vw - 1100px) * 0.0215), 18px); }
 }
+
+/* --------------------------------------------------------------------------
+   The group-text questions (UX review, recommendation 7): trip updates and Still to come at the
+   top of The Trip, the flight and payment lines on the Fly into and cost cards, and the RSVP-by
+   date on the head count and in the RSVP sheet. All of it comes from trip-config.js.
+   -------------------------------------------------------------------------- */
+/* Trip updates (newest first) and Still to come: side by side on wide screens, stacked below that */
+.news {
+    display: grid;
+    margin-bottom: clamp(44px, 7vw, 84px);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(232, 184, 107, 0.28);
+    background: linear-gradient(135deg, rgba(232, 184, 107, 0.11), rgba(232, 184, 107, 0.02) 70%), var(--bg);
+    overflow: hidden;
+}
+.news-updates,
+.news-todo { min-width: 0; padding: clamp(20px, 2.6vw, 30px); }
+.news-todo { background: rgba(14, 11, 9, 0.28); }
+.news-updates + .news-todo { border-top: 1px solid rgba(232, 184, 107, 0.18); }
+@media (min-width: 961px) {
+    .news:has(> .news-updates + .news-todo:not([hidden])) { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); }
+    /* (Behind the same :has(), so a browser without it keeps the stacked card's top border) */
+    .news:has(> .news-updates + .news-todo:not([hidden])) > .news-todo { border-top: none; border-left: 1px solid rgba(232, 184, 107, 0.18); }
+}
+.news-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 36px;
+    margin-bottom: 14px;
+    font: 800 0.72rem/1.2 var(--sans);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+.news-head-todo { color: var(--ink-muted); }
+.news-icon {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    background: rgba(232, 184, 107, 0.16);
+}
+.news-icon svg { width: 19px; height: 19px; }
+.news-list { list-style: none; display: grid; gap: 12px; }
+.news-list li { max-width: 72ch; font-size: 1.02rem; line-height: 1.5; color: var(--ink); text-wrap: pretty; }
+.news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
+.news-date { font-weight: 700; color: var(--gold); white-space: nowrap; }
+.news-sep { margin: 0 0.45em; color: var(--ink-dim); }
+.news-title { font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.news-body { max-width: 72ch; color: var(--ink); }
+/* "Show 2 older updates": they open below it, so nothing above moves */
+.news-older { margin-top: 6px; }
+.news-older summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    cursor: pointer;
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+.news-older summary::-webkit-details-marker { display: none; }
+.news-older summary > span { text-decoration: underline; text-decoration-color: rgba(232, 184, 107, 0.45); text-underline-offset: 4px; }
+.news-older summary:hover { color: var(--ink); }
+.news-older summary svg { width: 16px; height: 16px; flex: none; transition: transform 0.25s var(--ease-out); }
+.news-older[open] summary svg { transform: rotate(180deg); }
+.news-older-hide,
+.news-older[open] .news-older-show { display: none; }
+.news-older[open] .news-older-hide { display: inline; }
+.news-older > .news-list { margin-top: 2px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* Still to come: open (dashed) rings, like the hero card's "You haven't RSVP'd yet" */
+.news-todo-list { list-style: none; display: grid; gap: 10px; }
+.news-todo-list li { display: flex; align-items: flex-start; gap: 12px; font-size: 0.97rem; line-height: 1.4; color: var(--ink); }
+.news-todo-list li::before {
+    content: '';
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-top: 0.18em;
+    border-radius: 50%;
+    border: 1.5px dashed rgba(232, 184, 107, 0.75);
+}
+@media (max-width: 640px) {
+    .news-updates,
+    .news-todo { padding: 20px 18px; }
+    .news-head { margin-bottom: 12px; }
+    .news-list li { font-size: 0.98rem; }
+    .news-todo-list { gap: 8px; }
+    .news-todo-list li { font-size: 0.94rem; }
+}
+
+/* Fly into and cost cards: when to book flights, and whether (and how) to pay */
+.fact-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--line);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--ink);
+}
+.fact-tip svg { width: 15px; height: 15px; flex: none; margin-top: 0.15em; color: var(--gold); }
+.cost-meta .fact-tip { margin-top: 14px; border-top-color: rgba(226, 125, 79, 0.22); font-size: 0.92rem; color: var(--ink); }
+@media (max-width: 640px) {
+    /* Phones: under the note, in the compact row's text column */
+    .fact .fact-tip { grid-column: 2; margin-top: 10px; padding-top: 9px; font-size: 0.85rem; }
+    .cost-meta .fact-tip { margin-top: 12px; font-size: 0.88rem; }
+    /* ...and the cost breakdown (trip.cost.breakdown), once it's filled in, as compact rows */
+    .cost-breakdown { grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 4px; }
+    .cost-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px; min-width: 0; }
+    /* A dollar amount stays on one line; a text amount ("Covered by the deposit") wraps instead of widening the card */
+    .cost-line b { font-size: 1.12rem; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+    .cost-line b.num { white-space: nowrap; }
+}
+
+/* The RSVP-by date: on the head count, and leading the RSVP sheet's lede (the account step's too, until
+   it passes). Once it has passed it's said once, quietly. */
+.hc-foot-text { flex: 1 1 11rem; display: grid; gap: 3px; min-width: 0; } /* RSVP stays beside it from about 360px */
+.hc-due { color: var(--ink); font-weight: 600; font-size: 0.92rem; line-height: 1.4; }
+.hc-due svg { display: inline-block; width: 15px; height: 15px; margin-right: 7px; vertical-align: -2px; color: var(--gold); }
+.hc-due.is-past { color: var(--ink-muted); font-weight: 500; }
+.hc-due.is-past svg { color: var(--ink-dim); }
+.rsvp-due { color: var(--ink); font-weight: 600; }
+.rsvp-due.is-past { color: inherit; font-weight: inherit; }

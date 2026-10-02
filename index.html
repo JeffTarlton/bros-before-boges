@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.9">
-    <link rel="stylesheet" href="home.css?v=2027.11">
+    <link rel="stylesheet" href="home.css?v=2027.12">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
@@ -223,21 +223,16 @@
 
         <!-- ============================== THE TRIP ============================== -->
         <section class="section" id="overview">
+            <!-- Trip updates (trip.updates, newest first) and Still to come (trip.stillToCome, before the trip
+                 only), filled by script.js. Stays hidden when trip-config.js has neither. -->
+            <div class="wrap">
+                <div class="news reveal" id="trip-news" hidden></div>
+            </div>
             <div class="wrap destination">
                 <div class="destination-copy reveal">
                     <p class="eyebrow">The Destination</p>
                     <h2 class="h-display" id="trip-location-title">Scottsdale, <em>Arizona</em></h2>
                     <div class="lede" id="trip-intro" style="margin-top: 22px;"></div>
-
-                    <div class="announce" id="announcement" hidden>
-                        <div class="announce-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>
-                        </div>
-                        <div>
-                            <h3 id="announcement-title">Event Updates</h3>
-                            <p id="announcement-body"></p>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="fact-grid" id="fact-grid">
@@ -309,7 +304,11 @@
                         <span id="hc-progress-label"></span>
                     </div>
                     <div class="hc-foot">
-                        <span id="hc-updated"></span>
+                        <!-- hc-due: the RSVP-by date (rsvp.lockBy in trip-config.js), before the trip only -->
+                        <p class="hc-foot-text">
+                            <span class="hc-due" id="hc-due" hidden></span>
+                            <span id="hc-updated"></span>
+                        </p>
                         <!-- Stays during the trip (outlined) so the RSVP sheet is still reachable -->
                         <button type="button" class="btn btn-copper btn-sm" id="hc-rsvp" data-action="rsvp">RSVP</button>
                     </div>
@@ -431,7 +430,9 @@
             <div id="rsvp-step-form">
                 <p class="eyebrow rsvp-eyebrow" id="rsvp-eyebrow">2027 · Scottsdale · Apr 8–11</p>
                 <h2 id="rsvp-title" style="margin-bottom: 12px;">Are you <em>in?</em></h2>
-                <p class="modal-lede">Change your answer any time. We count your latest one.</p>
+                <!-- Before the trip, with an RSVP-by date (rsvp.lockBy), script.js leads with the date and swaps
+                     "any time" for a line that doesn't argue with it. This text is the one used otherwise. -->
+                <p class="modal-lede" id="rsvp-form-lede">Change your answer any time. We count your latest one.</p>
                 <p class="rsvp-who">RSVPing as <b id="rsvp-who-name"></b>
                     <span class="rsvp-who-links">
                         <button type="button" class="link-btn" data-action="profile">Golf profile</button>
@@ -543,7 +544,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.10"></script>
+    <script src="trip-config.js?v=2027.11"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -571,7 +572,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.11"></script>
+    <script src="script.js?v=2027.12"></script>
 </body>
 
 </html>

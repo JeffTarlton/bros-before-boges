@@ -64,6 +64,7 @@ const ICON_PATHS = {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
     wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
     clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
     trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
     award: '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -200,6 +201,40 @@ function addDays(date, n) {
 // 'Fri Apr 9' for a 'YYYY-MM-DD' date (noon, so no time zone can tip it into another day)
 function shortDay(date) {
     return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+}
+
+// 'Nov 30' for a 'YYYY-MM-DD' date
+function monthDay(date) {
+    return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// A short text typed into trip-config.js, trimmed; '' when it's missing (or isn't text or a number)
+function configText(value) {
+    return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+}
+
+// A dollar amount typed into trip-config.js as a number: '$500', or '$203.13' when it has cents (a
+// payment line must show the exact amount). '' when it isn't a real number.
+function configMoney(n) {
+    if (!Number.isFinite(n)) return '';
+    const cents = Math.round(n * 100) % 100 !== 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
+}
+
+// A date typed into trip-config.js as 'YYYY-MM-DD', or null when it's missing or isn't a real day
+function configDate(value) {
+    const s = configText(value);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? s : null;
+}
+
+// For a part rendered after applyPhase has run that only belongs to some phases ('pre', 'pre trip'):
+// hidden at once if this isn't one of them, and applyPhase shows and hides it from then on, like the
+// [data-phase] parts of index.html
+function phaseAttrs(phases) {
+    return ` data-phase="${phases}"${phases.split(' ').includes(phase.name) ? '' : ' hidden'}`;
 }
 
 // ?preview=2027-04-09T06:45 (trip time; a date alone means 8:00 AM) shows the page as it will be at
@@ -375,13 +410,7 @@ function renderTripDetails() {
     const intro = document.getElementById('trip-intro');
     if (intro && TRIP.intro) intro.innerHTML = TRIP.intro.map(p => `<p>${esc(p)}</p>`).join('');
 
-    const ann = TRIP.announcement;
-    const annEl = document.getElementById('announcement');
-    if (annEl && ann && ann.body) {
-        document.getElementById('announcement-title').textContent = ann.title || 'Event Updates';
-        document.getElementById('announcement-body').textContent = ann.body;
-        annEl.hidden = false;
-    }
+    renderNews();
 
     const grid = document.getElementById('fact-grid');
     if (!grid) return;
@@ -393,7 +422,7 @@ function renderTripDetails() {
     // (home.css, "Trip facts").
     const facts = [
         { key: 'hq', i: 'bed', label: 'HQ', value: hqValue, note: hq.note },
-        { key: 'fly', i: 'plane', label: 'Fly into', value: TRIP.airport ? esc(`${TRIP.airport.code} · ${TRIP.airport.name}`) : 'TBA', note: TRIP.airport && TRIP.airport.note },
+        { key: 'fly', i: 'plane', label: 'Fly into', value: TRIP.airport ? esc(`${TRIP.airport.code} · ${TRIP.airport.name}`) : 'TBA', note: TRIP.airport && TRIP.airport.note, tip: flightTipHTML() },
         { key: 'cost' },
         { key: 'base', i: 'pin', label: 'Home base', value: esc(TRIP.region || TRIP.location), note: TRIP.regionNote },
         { key: 'forecast', i: 'sun', label: 'Forecast', value: esc(TRIP.weather && TRIP.weather.value), note: TRIP.weather && TRIP.weather.note },
@@ -408,9 +437,10 @@ function renderTripDetails() {
             <div class="cost-amount">${cost.approx ? '<span class="approx">approx.</span>' : ''}<sup>$</sup>${Number(cost.perPerson).toLocaleString('en-US')}</div>
             <div class="cost-meta">
                 <b>The damage · per man</b>
-                <p>${esc(cost.note || '')}</p>
+                ${cost.note ? `<p>${esc(cost.note)}</p>` : ''}
+                ${paymentTipHTML(cost)}
             </div>
-            ${breakdown.length ? `<div class="cost-breakdown">${breakdown.map(b => `<div class="cost-line"><span>${esc(b.label)}</span><b>${esc(typeof b.amount === 'number' ? formatMoney(b.amount) : b.amount)}</b></div>`).join('')}</div>` : ''}
+            ${breakdown.length ? `<div class="cost-breakdown">${breakdown.map(b => `<div class="cost-line"><span>${esc(b.label)}</span><b${typeof b.amount === 'number' ? ' class="num"' : ''}>${esc(typeof b.amount === 'number' ? configMoney(b.amount) : b.amount)}</b></div>`).join('')}</div>` : ''}
         </div>` : '';
 
     let n = 0;
@@ -423,8 +453,121 @@ function renderTripDetails() {
             <div class="fact-label">${esc(f.label)}</div>
             <div class="fact-value">${f.value}</div>
             ${f.note ? `<div class="fact-note">${esc(f.note)}</div>` : ''}
+            ${f.tip || ''}
         </div>`;
     }).join('');
+}
+
+// The Fly into card's timing line (trip.airport.arriveBy / departAfter): "Land by 10 AM Thu · fly out
+// after 3 PM Sun", whichever is set. Before either is, and only before the trip, hold off on booking.
+function flightTipHTML() {
+    const air = TRIP.airport || {};
+    const arrive = configText(air.arriveBy);
+    const depart = configText(air.departAfter);
+    if (!arrive && !depart) {
+        return `<p class="fact-tip"${phaseAttrs('pre')}>${icon('clock')}<span>Hold off on flights until tee times post.</span></p>`;
+    }
+    const parts = [arrive ? `Land by ${arrive}` : '', depart ? `${arrive ? 'fly' : 'Fly'} out after ${depart}` : ''];
+    return `<p class="fact-tip"${phaseAttrs('pre trip')}>${icon('clock')}<span>${tipPartsHTML(parts)}</span></p>`;
+}
+
+// "A · B · C", each short part kept on one line ("3 PM Sun", "Venmo @bbb-golf"), longer ones free to wrap
+function tipPartsHTML(parts) {
+    return parts.filter(Boolean).map(p => (p.length <= 24 ? `<span class="nowrap">${esc(p)}</span>` : esc(p))).join(' · ');
+}
+
+// The cost card's payment line (trip.cost.payment): "Deposit $500 due Dec 15 · Venmo @… · note", from
+// whichever parts are set (or the whole line as plain text). Until any are, and only before the trip,
+// don't send money yet.
+function paymentTipHTML(cost) {
+    const pay = cost.payment;
+    let parts = [];
+    if (typeof pay === 'string') {
+        parts = [pay.trim()];
+    } else if (pay && typeof pay === 'object') {
+        const label = configText(pay.label);
+        const amount = typeof pay.amount === 'number' ? configMoney(pay.amount) : configText(pay.amount);
+        const due = configText(pay.due);
+        const dueText = due ? `${label || amount ? 'due' : 'Due'} ${configDate(due) ? monthDay(due) : due}` : '';
+        parts = [[label, amount, dueText].filter(Boolean).join(' '), configText(pay.how), configText(pay.note)];
+    }
+    if (!parts.some(Boolean)) {
+        return `<p class="fact-tip"${phaseAttrs('pre')}>${icon('wallet')}<span>Don’t send money yet. Payment details come with the final breakdown.</span></p>`;
+    }
+    return `<p class="fact-tip is-set">${icon('wallet')}<span>${tipPartsHTML(parts)}</span></p>`;
+}
+
+// ---------------------------------------------------------------------------
+// Trip updates and Still to come, at the top of The Trip section
+// ---------------------------------------------------------------------------
+const NEWS_SHOWN = 3; // the latest three; any older ones fold under "Show older"
+
+// trip.updates, newest first; entries on the same day keep the config's order. An entry without a
+// 'YYYY-MM-DD' date (left out, or typed another way) goes first, undated, so a typo can't fold the
+// newest news away under "Show older".
+function tripUpdates() {
+    return (Array.isArray(TRIP.updates) ? TRIP.updates : [])
+        .map((u, i) => {
+            const entry = typeof u === 'string' ? { text: u } : u || {};
+            return { date: configDate(entry.date), text: configText(entry.text), i };
+        })
+        .filter(u => u.text)
+        .sort((a, b) => {
+            const da = a.date || '9999', db = b.date || '9999';
+            return da === db ? a.i - b.i : da < db ? 1 : -1;
+        });
+}
+
+function stillToCome() {
+    return (Array.isArray(TRIP.stillToCome) ? TRIP.stillToCome : []).map(configText).filter(Boolean);
+}
+
+function newsItemHTML(u) {
+    const when = u.date ? `<time class="news-date" datetime="${u.date}">${esc(monthDay(u.date))}</time><span class="news-sep" aria-hidden="true">·</span>` : '';
+    return `<li>${when}${esc(u.text)}</li>`;
+}
+
+function renderNews() {
+    const el = document.getElementById('trip-news');
+    if (!el) return;
+    const updates = tripUpdates();
+    // An older trip-config.js has one undated announcement { title, body } instead of updates
+    const ann = !updates.length && TRIP.announcement && TRIP.announcement.body ? TRIP.announcement : null;
+    const todo = stillToCome();
+    const head = `<h2 class="news-head"><span class="news-icon" aria-hidden="true">${icon('megaphone')}</span>Trip updates</h2>`;
+
+    let news = '';
+    if (updates.length) {
+        const older = updates.slice(NEWS_SHOWN);
+        news = `${head}
+            <ul class="news-list">${updates.slice(0, NEWS_SHOWN).map(newsItemHTML).join('')}</ul>
+            ${older.length ? `
+            <details class="news-older">
+                <summary><span class="news-older-show">Show ${older.length} older update${older.length === 1 ? '' : 's'}</span><span class="news-older-hide">Hide older updates</span>${icon('chevron')}</summary>
+                <ul class="news-list">${older.map(newsItemHTML).join('')}</ul>
+            </details>` : ''}`;
+    } else if (ann) {
+        news = `${head}
+            ${ann.title ? `<p class="news-title">${esc(ann.title)}</p>` : ''}
+            <p class="news-body">${esc(ann.body)}</p>`;
+    }
+    // Still to come shows before the trip only (a heading of its own when there's no news above it)
+    const tag = news ? 'h3' : 'h2';
+    const todoHTML = todo.length ? `
+        <div class="news-todo"${phaseAttrs('pre')}>
+            <${tag} class="news-head news-head-todo">Still to come</${tag}>
+            <ul class="news-todo-list">${todo.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+        </div>` : '';
+
+    el.innerHTML = `${news ? `<div class="news-updates">${news}</div>` : ''}${todoHTML}`;
+    // No news and no list: no box. Only the list: the box goes with it once the trip starts.
+    if (news || !todo.length) {
+        el.removeAttribute('data-phase');
+        el.hidden = !news;
+    } else {
+        el.dataset.phase = 'pre';
+        el.hidden = phase.name !== 'pre';
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1432,6 +1575,16 @@ function myLatestRsvp() {
     return id ? rsvpState.latest.find(r => r.player_id === id) || null : null;
 }
 
+// The RSVP-by date (rsvp.lockBy, a day in Arizona): "Lock it in by Nov 30 so we can book rooms." through
+// that day, then just "RSVPs were due Nov 30." null when it isn't set, and once the trip has started.
+function rsvpDeadline() {
+    const by = configDate(RSVP.lockBy);
+    if (!by || phase.name !== 'pre') return null;
+    const day = monthDay(by);
+    const passed = tripClock(nowMs()).date > by;
+    return { passed, text: passed ? `RSVPs were due ${day}.` : `Lock it in by ${day} so we can book rooms.` };
+}
+
 function renderHeadcount() {
     const counts = rsvpCounts();
     const grid = elements.confirmedRoster;
@@ -1442,6 +1595,13 @@ function renderHeadcount() {
     setText('hc-out', counts.out.length);
     setText('hc-sunday', counts.sunday);
     setText('hc-updated', rsvpState.lastAt ? `Last RSVP ${timeAgo(rsvpState.lastAt)}` : 'No RSVPs yet');
+    const due = rsvpDeadline();
+    const dueEl = document.getElementById('hc-due');
+    if (dueEl) {
+        dueEl.hidden = !due;
+        dueEl.classList.toggle('is-past', !!(due && due.passed));
+        dueEl.innerHTML = due ? `${icon('calendar')}${esc(due.text)}` : '';
+    }
     setText('confirmed-roster-title', 'I’m in');
     setText('potential-roster-title', 'Probably');
 
@@ -1881,7 +2041,13 @@ function showAccountStep(purpose, note) {
                 : next === 'profile'
                     ? 'Log in to update your GHIN and handicap. It’s the same login as The Bookie.'
                     : 'RSVPs need a player account. It’s the same login you use for The Bookie and to keep score, so you only set it up once.';
-        lede.textContent = note && !failed ? `${note} ${text}` : text;
+        // Most people who haven't answered yet start here: the RSVP-by date too, while it's ahead
+        const due = next === 'rsvp' && !failed ? rsvpDeadline() : null;
+        lede.innerHTML = [
+            note && !failed ? esc(note) : '',
+            due && !due.passed ? `<span class="rsvp-due">${esc(due.text)}</span>` : '',
+            esc(text)
+        ].filter(Boolean).join(' ');
     }
     const set = (id, show, href) => {
         const el = document.getElementById(id);
@@ -1939,6 +2105,18 @@ async function openRsvp(keepValues) {
     if (err) err.hidden = true;
     const sundayLabel = document.getElementById('rsvp-sunday-label');
     if (sundayLabel && RSVP.sundayQuestion) sundayLabel.textContent = RSVP.sundayQuestion;
+    // With an RSVP-by date the lede leads with it, and "Change your answer any time" (index.html, still
+    // used once the trip starts) gives way to a line that doesn't argue with it
+    const lede = document.getElementById('rsvp-form-lede');
+    if (lede) {
+        if (lede.dataset.text === undefined) lede.dataset.text = lede.textContent;
+        const due = rsvpDeadline();
+        lede.innerHTML = due
+            ? `<span class="rsvp-due${due.passed ? ' is-past' : ''}">${esc(due.text)}</span> ${due.passed
+                ? 'You can still answer or change it here, and we count your latest one.'
+                : 'We count your latest answer.'}`
+            : esc(lede.dataset.text);
+    }
     setRsvpEyebrows();
     syncSundayOption();
     showRsvpStep('form');
@@ -2087,9 +2265,11 @@ async function handleRsvpSubmit(e) {
 
 function showRsvpDone(rsvp) {
     const first = rsvp.name.split(' ')[0];
+    const due = rsvpDeadline();
     const copy = {
         in: [`You’re in, ${first}.`, 'See you in Scottsdale. Tee times and rooms get posted here as they’re booked.'],
-        maybe: [`Noted, ${first}.`, 'We’ve got you down as a probably. Come back and lock it in when you can.'],
+        maybe: [`Noted, ${first}.`, `We’ve got you down as a probably. ${!due ? 'Come back and lock it in when you can.'
+            : due.passed ? `${due.text} Lock it in as soon as you know.` : due.text}`],
         out: [`We’ll miss you, ${first}.`, 'Sorry you can’t make it. If plans change, just RSVP again.']
     }[rsvp.status];
     const mark = document.getElementById('rsvp-done-mark');
