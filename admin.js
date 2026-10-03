@@ -644,7 +644,7 @@ async function loadRoster() {
 // included: Admin reads the roster through admin_players(), which only admins can call. Until it
 // has run, the table is read directly and the Roster tab says so (the owner's go-signal).
 let privacyPending = false; // true while privacy_2027.sql hasn't run (admin_players missing)
-const PRIVACY_PENDING_TEXT = 'Email and GHIN privacy isn’t switched on yet: run privacy_2027.sql in the Supabase SQL Editor. Admin works the same either way.';
+const PRIVACY_PENDING_TEXT = 'Email privacy isn’t switched on yet: run privacy_2027.sql in the Supabase SQL Editor. Admin works the same either way.';
 
 // The whole roster with emails and GHINs: admin_players (privacy_2027.sql), or the table until it
 // has run. Asked fresh each time, so an open page switches over the moment the script runs.

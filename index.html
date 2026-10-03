@@ -522,8 +522,7 @@
             </button>
             <p class="eyebrow">2027 · Scottsdale</p>
             <h2 id="registration-title" tabindex="-1" style="margin-bottom: 14px;">Your golf <em>profile</em></h2>
-            <!-- The crew list shows handicaps only (no GHIN numbers); Admin has the GHINs -->
-            <p class="modal-lede" id="profile-lede">The captains use your GHIN to draft fair teams; the crew list shows only your handicap.</p>
+            <p class="modal-lede" id="profile-lede">The captains use your GHIN and handicap to draft fair teams. Both show on the crew list.</p>
             <p class="rsvp-who" id="profile-who">Updating <b id="profile-name"></b></p>
             <form id="registration-form" class="registration-form" novalidate>
                 <div class="form-row">
@@ -583,7 +582,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.14"></script>
+    <script src="trip-config.js?v=2027.15"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -615,7 +614,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.17"></script>
+    <script src="script.js?v=2027.18"></script>
 </body>
 
 </html>

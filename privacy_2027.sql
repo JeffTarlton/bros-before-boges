@@ -1,19 +1,22 @@
 -- ============================================================
--- Bros Before Boges — players' emails and GHIN numbers private, and only admins change matchups
+-- Bros Before Boges — players' emails private, and only admins change matchups
 -- and round scores (2027)
--- Order: 1. push the site update first. Its Admin page then says "Email and GHIN privacy isn't
+-- Order: 1. push the site update first. Its Admin page then says "Email privacy isn't
 --           switched on yet", which is how you know the new site is live.
 --        2. then run this entire script once in the Supabase SQL Editor (it needs
 --           payments_2027.sql, which has already run). Safe to run again.
+-- 2026-10-03: GHIN numbers are public again (the owner's call: show a GHIN when there is one).
+--           Emails stay private. If you ran the earlier version, run this one again: it only
+--           adds GHIN to what everyone can read.
 -- Don't run it before the site update is live: the site from before that update reads emails
 -- straight from the players table, so its Admin login, the Bookie's name linking, the Round
 -- Tracker and the homepage's Golf profile would stop working until the page is reloaded with the
 -- new site. (Nothing would be lost: those requests just fail.)
 -- ============================================================
 -- What it does:
---   1. Emails and GHIN numbers can't be read from the players table with the site's key any more:
+--   1. Emails can't be read from the players table with the site's key any more:
 --      not signed out, not signed in, not as an admin. Neither can any column that looks like
---      contact details (phone, address, ...), if the table has one. Names, handicaps, teams,
+--      contact details (phone, address, ...), if the table has one. Names, GHINs, handicaps, teams,
 --      statuses and which login holds each name stay readable, as the site needs them.
 --      Signed-in users can also still read the table's other columns (is_admin and the like);
 --      signed-out visitors can't, as before.
@@ -32,27 +35,26 @@
 --      looking up their email as the signed-in user, which can't work once emails are private (it
 --      is what stopped this script the first time). payments_2027.sql's admin-only rule already
 --      does its job, so the Ryder Cup total works exactly as before: admins save it, nobody else.
---   5. Closes a way to guess emails and GHINs. Any signed-in login could "save" a guessed email or
---      GHIN onto someone's roster row: the save went through when the guess was right (nothing
+--   5. Closes a way to guess emails. Any signed-in login could "save" a guessed email onto
+--      someone's roster row: the save went through when the guess was right (nothing
 --      changed) and was refused when it was wrong, which gave the answer away. Now, when someone
---      who isn't an admin saves a roster row, the email and GHIN (and any other column they can't
---      read) keep their stored values, whatever was sent. So the answer never depends on them.
+--      who isn't an admin saves a roster row, the email (and any other column they can't
+--      read) keeps its stored value, whatever was sent. So the answer never depends on it.
 --      Non-admins still can't change anything on a roster row except linking a name to their own
 --      login.
 --   Nothing else changes. Admin still adds, edits and removes players, a login can still pick its
 --   name, and RSVPs, the Bookie, scores and payments work as before. The SQL editor and the table
 --   editor still see and change everything.
 --
--- If players_privacy.sql (the 2026 version) is ever run again, it lets signed-out visitors read
--- GHIN numbers again. If rsvp_accounts.sql is run again, it puts back the older roster guard (the
--- one that gave guesses away). Either way, run this script again after it. The check at the end says so.
+-- If players_privacy.sql (the 2026 version) or rsvp_accounts.sql is run again, run this script
+-- again after it. The check at the end says so.
 
 -- 0. Checks first. If one fails the script stops here, before changing anything ---------------
 DO $$
 DECLARE
-  -- Private: email, ghin, and any column whose name looks like contact details (the same rule as
+  -- Private: email, and any column whose name looks like contact details (the same rule as
   -- section 3 and the check at the end)
-  c_private CONSTANT text := '^(email|ghin)$|(^|_)(e_?mail|ghin|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)';
+  c_private CONSTANT text := '^email$|(^|_)(e_?mail|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)';
   -- Section 2 removes this rule (it looks up emails as the signed-in user)
   c_old_cup CONSTANT text := 'Allow admins to update ryder_cup_scores';
   v_missing text;
@@ -273,15 +275,15 @@ BEGIN
 END $$;
 
 -- 3. Who can read which columns of players -----------------------------------------------------
--- Private: email, ghin, and any column whose name looks like contact details. Everyone: the six
+-- Private: email, and any column whose name looks like contact details. Everyone: the seven
 -- columns the homepage, Bookie and Round Tracker read. Signed-in users: every column that isn't
 -- private (as before, minus the private ones). Writing is not touched: Admin still adds, edits and
 -- removes players, and players_guard still stops everyone else. (Section 0 already made sure no
 -- table rule needs a private column.)
 DO $$
 DECLARE
-  c_public  CONSTANT text[] := ARRAY['id', 'name', 'handicap', 'team_id', 'status', 'user_id'];
-  c_private CONSTANT text := '^(email|ghin)$|(^|_)(e_?mail|ghin|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)';
+  c_public  CONSTANT text[] := ARRAY['id', 'name', 'ghin', 'handicap', 'team_id', 'status', 'user_id'];
+  c_private CONSTANT text := '^email$|(^|_)(e_?mail|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)';
   v_anon text;
   v_auth text;
 BEGIN
@@ -382,8 +384,8 @@ NOTIFY pgrst, 'reload schema';
 --   the other rows: nothing else hands out players' private columns, and nothing that runs as the
 --   signed-in user still needs them.
 WITH re AS (
-  SELECT '^(email|ghin)$|(^|_)(e_?mail|ghin|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)'::text AS private_re,
-         ARRAY['id', 'name', 'handicap', 'team_id', 'status', 'user_id'] AS public_cols
+  SELECT '^email$|(^|_)(e_?mail|phone|mobile|cell|tel|sms|whatsapp|text|address|addr|street|city|zip|postal|postcode|birth|dob|ssn|venmo|paypal|zelle|cash_?app|emergency|note)'::text AS private_re,
+         ARRAY['id', 'name', 'ghin', 'handicap', 'team_id', 'status', 'user_id'] AS public_cols
 ), cols AS (
   SELECT a.attnum, a.attname::text AS col,
          CASE WHEN a.attname = ANY (re.public_cols) THEN 'public'
@@ -395,7 +397,7 @@ WITH re AS (
   FROM re, pg_attribute a
   WHERE a.attrelid = to_regclass('public.players') AND a.attnum > 0 AND NOT a.attisdropped
 ), priv AS (
-  SELECT COALESCE(array_agg(col), ARRAY['email', 'ghin']) AS cols FROM cols WHERE kind = 'private'
+  SELECT COALESCE(array_agg(col), ARRAY['email']) AS cols FROM cols WHERE kind = 'private'
 ), caller_fns AS (
   SELECT p.oid, p.proname::text AS proname, n.nspname::text AS nspname
   FROM priv, pg_proc p
@@ -497,11 +499,10 @@ UNION ALL
                                  ELSE 'MISSING: ' || CASE WHEN NOT c.anon_r THEN 'signed-out visitors' ELSE 'signed-in users' END
                                       || ' can''t read it, so the site breaks: run privacy_2027.sql again' END
          WHEN 'private' THEN CASE WHEN NOT (c.anon_r OR c.auth_r OR c.pub_r)
-                                  THEN CASE WHEN c.col IN ('email', 'ghin') THEN 'private: only the player himself (my_player) and admins (admin_players)'
+                                  THEN CASE WHEN c.col = 'email' THEN 'private: only the player himself (my_player) and admins (admin_players)'
                                             ELSE 'private (looks like contact details): only admins (admin_players)' END
                                   ELSE 'READABLE by ' || concat_ws(' and ', CASE WHEN c.anon_r OR c.pub_r THEN 'signed-out visitors' END,
                                                                  CASE WHEN c.auth_r OR c.pub_r THEN 'every signed-in user' END)
-                                       || CASE WHEN c.anon_r AND c.col = 'ghin' THEN ' (players_privacy.sql lets signed-out visitors read GHINs)' ELSE '' END
                                        || ': run privacy_2027.sql again' END
          ELSE CASE WHEN c.anon_r OR c.pub_r THEN 'READABLE by signed-out visitors: run privacy_2027.sql again'
                    WHEN c.auth_r THEN 'signed-in users can read it; signed-out visitors can''t'

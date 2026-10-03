@@ -1378,13 +1378,14 @@ async function loadRosterData() {
     try {
         // Only rows the page shows: confirmed players and names the commissioner added.
         // (Self sign-ups waiting for approval stay private, and can't crowd the list.)
-        // No GHIN numbers: the public lists show handicaps only. A player's own GHIN loads with his
-        // account (loadAccount) for his golf profile, and Admin has everyone's.
-        const { data, error } = await supabaseInstance
+        const read = cols => supabaseInstance
             .from('players')
-            .select('id, name, handicap, team_id, status, user_id')
+            .select(cols)
             .or('status.eq.confirmed,user_id.is.null')
             .order('name');
+        let { data, error } = await read('id, name, ghin, handicap, team_id, status, user_id');
+        // GHIN is unreadable until the 2026-10-03 privacy_2027.sql is run: the list shows handicaps only
+        if (error && error.code === '42501') ({ data, error } = await read('id, name, handicap, team_id, status, user_id'));
 
         if (error) {
             console.error('Error fetching roster:', error);
@@ -1402,6 +1403,7 @@ async function loadRosterData() {
                 roster.confirmed.push({
                     id: p.id,
                     name: p.name,
+                    ghin: p.ghin,
                     handicap: p.handicap !== null && p.handicap !== undefined ? parseFloat(p.handicap) : null,
                     team_id: p.team_id
                 });
@@ -1431,8 +1433,13 @@ function isMe(playerId) {
 
 const YOU_TAG = '<span class="you-tag">You</span>';
 
+// "GHIN 1234567" for a crew card, or '' when there's no real one
+function ghinMeta(p) {
+    const g = realGhin(p && p.ghin);
+    return g ? `GHIN ${g}` : '';
+}
+
 // A handicap as the crew list shows it: "10.0" / "+1.2" over a small HCP, or just "No HCP".
-// (No GHIN numbers on public lists: those are for the captains and Admin.)
 function hcpBadgeHTML(handicap) {
     const hcp = fmtHcp(handicap);
     return hcp === '–'
@@ -1497,7 +1504,7 @@ function renderRoster() {
             if (ca !== cb) return ca - cb;
             return (a.name || '').localeCompare(b.name || '');
         });
-        grid.innerHTML = sorted.map((p, i) => playerCardHTML(p, i, '')).join('');
+        grid.innerHTML = sorted.map((p, i) => playerCardHTML(p, i, ghinMeta(p))).join('');
     }
 
     if (elements.crewCount) {
@@ -1661,7 +1668,8 @@ function renderHeadcount() {
     if (grid) {
         const cards = counts.in.map((r, i) => {
             const player = rosterPlayerById(r.player_id);
-            const meta = r.sunday_round ? 'Sunday round' : `RSVP’d ${timeAgo(r.created_at)}`;
+            const meta = [ghinMeta(player), r.sunday_round ? 'Sunday round' : null]
+                .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
             return playerCardHTML(player, i, meta);
         });
         if (waiting && waiting.status === 'in') cards.push(playerCardHTML(waiting.player, cards.length, 'You, waiting on approval', true));
@@ -2514,7 +2522,7 @@ function showRsvpDone(rsvp) {
 // the picked answer and note as they were, since that RSVP hasn't been sent yet.
 let profileBackToRsvp = false;
 
-// The player's own GHIN and handicap (his account row: the public roster has no GHIN numbers).
+// The player's own GHIN and handicap (his account row).
 // `p` null: blank, with no name, while the login is still being checked.
 function fillProfileForm(p) {
     const hcp = !p || p.handicap === null || p.handicap === undefined || p.handicap === '' ? null : Number(p.handicap);
@@ -2678,9 +2686,11 @@ async function handleProfileSubmit(e) {
             throw error;
         }
         Object.assign(account.player, { ghin: data ? data.ghin : ghin || null, handicap: data ? data.handicap : handicap });
-        // The crew list's copy has the handicap only (no GHIN on public lists)
         const onRoster = roster.confirmed.find(p => p.id === account.player.id);
-        if (onRoster) onRoster.handicap = account.player.handicap === null ? null : parseFloat(account.player.handicap);
+        if (onRoster) {
+            onRoster.handicap = account.player.handicap === null ? null : parseFloat(account.player.handicap);
+            onRoster.ghin = account.player.ghin;
+        }
         renderPersonal();
         // Then the Venmo username, still for the player whose box it is (stillSignedIn checked the login)
         if (venmoChanged && account.player && account.player.id === venmoPlayer) {
@@ -3845,7 +3855,7 @@ function roundTablesHTML(roundScores) {
     return html;
 }
 
-// The confirmed roster ranked by handicap (handicaps only: GHIN numbers are for the captains and Admin)
+// The confirmed roster ranked by handicap (the GHIN column hides on phones)
 function rosterListHTML() {
     const sortedRoster = [...roster.confirmed].sort((a, b) => {
         if (a.handicap === null) return 1;
@@ -3858,6 +3868,7 @@ function rosterListHTML() {
                 <div class="col-rank">Rank</div>
                 <div class="col-player">Player</div>
                 <div class="col-hcp">Handicap</div>
+                <div class="col-ghin">GHIN</div>
             </div>
             ${!sortedRoster.length ? `<div class="leaderboard-row"><div class="col-player">${roster.error ? 'Couldn’t load the crew right now.' : roster.loaded ? 'No one on the roster yet.' : 'Loading the crew…'}</div></div>` : ''}
             ${sortedRoster.map((player, index) => `
@@ -3867,6 +3878,7 @@ function rosterListHTML() {
                     ${player.handicap !== null && !isNaN(player.handicap)
                         ? `<div class="col-hcp" style="color: var(--fairway); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.1rem;">${esc(fmtHcp(player.handicap))}</div>`
                         : '<div class="col-hcp hcp-none">No HCP</div>'}
+                    <div class="col-ghin" style="font-variant-numeric: tabular-nums; color: var(--ink-dim);">${esc(realGhin(player.ghin) || '–')}</div>
                 </div>`).join('')}
         </div>`;
 }
