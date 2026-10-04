@@ -1265,6 +1265,157 @@
             .claim-actions .admin-btn { flex: 1 1 100%; }
             .claims { padding: 14px; }
         }
+
+        /* ── Phones and tablets: a compact header, a pinned tab strip, and one tappable row per player
+           (Roster, RSVPs, Score Entry) that opens to the full card. Desktop shows every column instead. ── */
+        .tab-short { display: none; }
+        .admin-table td.row-sum,
+        .score-entry-table td.se-name .row-toggle { display: none; }
+
+        @media (max-width: 1024px) {
+            .tab-full { display: none; }
+            .tab-short { display: inline; }
+
+            .admin-container { padding: 14px 14px 40px; }
+            .admin-header {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                align-items: center;
+                gap: 2px 12px;
+                margin-bottom: 6px;
+                padding-bottom: 8px;
+                text-align: left;
+            }
+            .admin-brand { min-height: 32px; margin: 0; font-size: 0.85rem; }
+            .admin-brand img { width: 22px; height: 22px; }
+            .admin-title h1 { font-size: 1.45rem; line-height: 1.2; }
+            .admin-nav { justify-content: flex-end; gap: 2px 4px; }
+            .admin-nav a { padding: 0 8px; font-size: 0.9rem; }
+            #logout-btn { padding: 8px 14px; }
+
+            .dashboard.active { gap: 12px; }
+            .admin-sidebar {
+                position: sticky;
+                top: 0;
+                z-index: 40;
+                gap: 6px;
+                margin: 0 -14px;
+                padding: 8px 14px;
+                background: rgba(14, 11, 9, 0.94);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                scrollbar-width: none;
+            }
+            .admin-sidebar::-webkit-scrollbar { display: none; }
+            .sidebar-item {
+                flex: none;
+                padding: 8px 16px;
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                border-radius: 999px;
+                font-size: 0.9rem;
+                line-height: 1.5;
+            }
+            .sidebar-item.active { border: 1px solid var(--admin-accent); }
+
+            .admin-content.glass-panel { padding: 18px 14px; border-radius: 18px; }
+            .admin-content h2 { font-size: 1.35rem; }
+
+            /* One row per player: the name and the essentials; tap for everything else */
+            .admin-table tr.collapsible { margin-bottom: 8px; padding: 4px 14px; }
+            .admin-table tr.collapsible.is-open { padding-bottom: 12px; border-color: rgba(16, 185, 129, 0.45); }
+            .admin-table tr.collapsible:not(.is-open) > td:not(.row-sum):not(.row-keep):not(.se-name):not(.se-total):not(.se-topar) { display: none; }
+            .admin-table td.row-sum { display: block; padding: 0; border: 0; }
+            .admin-table td.row-sum::before { content: none; }
+            .admin-table tr.is-open > td.row-sum { margin-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+            .admin-table td.row-keep { border-bottom: 0; padding-bottom: 8px; }
+
+            .row-toggle {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 20px;
+                grid-template-areas: "main chev" "meta chev";
+                align-items: center;
+                gap: 3px 10px;
+                width: 100%;
+                min-height: 56px;
+                padding: 6px 0;
+                border: 0;
+                background: none;
+                color: #fff;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+            }
+            .row-toggle:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; border-radius: 8px; }
+            .row-toggle-main { grid-area: main; font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
+            .row-toggle-meta {
+                grid-area: meta;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 4px 6px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.65);
+            }
+            .row-toggle-meta:empty { display: none; }
+            .row-toggle-meta .answer-badge { padding: 2px 8px; margin: 0; }
+            .row-toggle-chev {
+                grid-area: chev;
+                justify-self: center;
+                width: 9px;
+                height: 9px;
+                margin-top: -5px;
+                border-right: 2px solid rgba(255, 255, 255, 0.6);
+                border-bottom: 2px solid rgba(255, 255, 255, 0.6);
+                transform: rotate(45deg);
+                transition: transform 0.2s;
+            }
+            tr.is-open .row-toggle-chev { margin-top: 5px; transform: rotate(-135deg); }
+            .row-flag {
+                padding: 1px 8px;
+                border-radius: 999px;
+                background: rgba(251, 191, 36, 0.18);
+                color: #fbbf24;
+                font-size: 0.72rem;
+                font-weight: 700;
+            }
+            .row-paid { color: #fff; font-weight: 700; }
+            .row-toggle-meta .claim-flag { margin: 0; }
+
+            /* Score Entry: the name opens the 18 holes; Total and To Par stay in view */
+            .score-entry-table td.se-name { grid-column: 1 / -1; }
+            .score-entry-table td.se-name .se-name-text,
+            .score-entry-table tr[data-player-id] > td.se-team { display: none; }
+            .score-entry-table td.se-name .row-toggle { display: grid; }
+            .score-entry-table tr.collapsible { padding-bottom: 12px; }
+            .score-entry-table tr.collapsible:not(.is-open) { row-gap: 4px; }
+
+            /* Fill from Round Tracker and Save stay on screen while scrolling the players */
+            #tab-score-entry .se-actions {
+                position: sticky;
+                bottom: var(--save-bar-space, 0px);
+                z-index: 30;
+                margin: 16px -14px -18px !important;
+                padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+                gap: 10px !important;
+                background: rgba(14, 11, 9, 0.96);
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 0 0 18px 18px;
+            }
+            #tab-score-entry .se-actions .admin-btn { flex: 1 1 0; min-height: 48px; padding: 10px !important; font-size: 0.9rem; }
+
+            /* Draft moves: thumb-sized */
+            .draft-btn { min-height: 44px; padding: 8px 12px !important; font-size: 0.8rem !important; }
+        }
+
+        @media (max-width: 640px) {
+            .rsvp-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+            .rsvp-pill { padding: 8px 10px; font-size: 0.75rem; line-height: 1.3; }
+            .rsvp-pill b { font-size: 1.15rem; }
+            .rsvp-filters { gap: 6px; }
+        }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1330,12 +1481,12 @@
             <!-- Sidebar -->
             <!-- Each section has its own address (admin#rsvps, admin#score-entry…) for refreshes and bookmarks -->
             <nav class="admin-sidebar" aria-label="Admin sections">
-                <button type="button" class="sidebar-item active" data-tab="roster" aria-current="true">Confirmed Roster</button>
+                <button type="button" class="sidebar-item active" data-tab="roster" aria-current="true"><span class="tab-full">Confirmed Roster</span><span class="tab-short">Roster</span></button>
                 <button type="button" class="sidebar-item" data-tab="rsvps">RSVPs</button>
-                <button type="button" class="sidebar-item" data-tab="drafting">Team Drafting</button>
-                <button type="button" class="sidebar-item" data-tab="matchups">Ryder Cup Matchups</button>
-                <button type="button" class="sidebar-item" data-tab="scores">Ryder Cup Score</button>
-                <button type="button" class="sidebar-item" data-tab="score-entry"><span aria-hidden="true">📝 </span>Score Entry</button>
+                <button type="button" class="sidebar-item" data-tab="drafting"><span class="tab-full">Team Drafting</span><span class="tab-short">Draft</span></button>
+                <button type="button" class="sidebar-item" data-tab="matchups"><span class="tab-full">Ryder Cup Matchups</span><span class="tab-short">Matchups</span></button>
+                <button type="button" class="sidebar-item" data-tab="scores"><span class="tab-full">Ryder Cup Score</span><span class="tab-short">Cup total</span></button>
+                <button type="button" class="sidebar-item" data-tab="score-entry"><span class="tab-full"><span aria-hidden="true">📝 </span>Score Entry</span><span class="tab-short">Scores</span></button>
                 <button type="button" class="sidebar-item" data-tab="potential">New sign-ups</button>
             </nav>
 
@@ -1582,7 +1733,7 @@
                         </table>
                     </div>
 
-                    <div style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end; flex-wrap: wrap;">
+                    <div class="se-actions" style="margin-top: 20px; display: flex; gap: 15px; justify-content: flex-end; flex-wrap: wrap;">
                         <button id="fill-from-tracker-btn" class="admin-btn secondary" style="width: auto; padding: 12px 24px; margin: 0;" title="Copy this round's scorecards from the Round Tracker into the table. Nothing saves until you press Save.">
                             ⛳ Fill from Round Tracker
                         </button>
@@ -1760,7 +1911,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="trip-config.js?v=2027.15"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.16"></script>
+    <script src="admin.js?v=2027.17"></script>
 </body>
 
 </html>

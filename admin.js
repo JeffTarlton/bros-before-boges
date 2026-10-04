@@ -358,6 +358,11 @@ function setupEventListeners() {
         if (tab && elements.dashboard && elements.dashboard.classList.contains('active')) openTab(tab, { fromHash: true });
     });
 
+    document.addEventListener('click', (e) => {
+        const toggle = e.target.closest('[data-row-toggle]');
+        if (toggle) toggleRow(toggle);
+    });
+
     // Roster "…" menus: one open at a time; a click elsewhere or Escape closes it
     document.addEventListener('click', (e) => {
         document.querySelectorAll('details.row-menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; });
@@ -403,9 +408,15 @@ function setupEventListeners() {
     if (elements.rosterTbody) {
         elements.rosterTbody.addEventListener('input', (e) => {
             if (e.target.classList.contains('edit-input')) {
-                const index = e.target.closest('tr').dataset.index;
+                const row = e.target.closest('tr');
+                const index = row.dataset.index;
                 const field = e.target.dataset.field;
                 updatePlayerData(index, field, e.target.value);
+                const p = players[index];
+                const main = row.querySelector('.row-toggle-main');
+                const meta = row.querySelector('.row-toggle-meta');
+                if (main) main.textContent = p.name || 'New player';
+                if (meta) meta.innerHTML = rosterMetaHtml(p);
             }
         });
 
@@ -422,7 +433,10 @@ function setupEventListeners() {
             // The row is gone: focus the "…" of the row that took its place (or the one above)
             const rows = elements.rosterTbody.querySelectorAll('tr[data-index]');
             const next = rows[Math.min(at, rows.length - 1)];
-            const target = next ? next.querySelector('.row-menu summary') : document.querySelector('#tab-roster h2');
+            // (a closed row on a phone shows only its tappable summary)
+            const target = next
+                ? [next.querySelector('.row-menu summary'), next.querySelector('.row-toggle')].find(el => el && el.offsetParent !== null)
+                : document.querySelector('#tab-roster h2');
             if (target && target.tagName === 'H2') target.setAttribute('tabindex', '-1');
             if (target) target.focus();
         });
@@ -598,8 +612,16 @@ function openTab(tab, { fromHash = false } = {}) {
     if (!fromHash && window.location.hash !== `#${tab}`) {
         try { history.replaceState(history.state, '', `#${tab}`); } catch (e) { /* sandboxed: the tab still opens */ }
     }
-    // On a phone the sidebar is a sideways strip: bring the open section into view
-    if (fromHash && item.scrollIntoView) item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // On a phone the sidebar is a pinned sideways strip: bring the open section's button into view,
+    // and start the section at its top rather than wherever the last one was scrolled to
+    const strip = item.parentElement;
+    if (strip && strip.scrollWidth > strip.clientWidth) {
+        strip.scrollTo({ left: item.offsetLeft - (strip.clientWidth - item.offsetWidth) / 2, behavior: fromHash ? 'auto' : 'smooth' });
+    }
+    if (!fromHash && elements.dashboard) {
+        const top = elements.dashboard.getBoundingClientRect().top + window.scrollY;
+        if (window.scrollY > top) window.scrollTo({ top, behavior: 'auto' });
+    }
 
     if (tab === 'drafting') renderDraftingUI();
     if (tab === 'matchups') renderMatchupsUI();
@@ -768,6 +790,40 @@ async function retryLoads() {
 
 
 
+// Phones and tablets show each player as one tappable row that opens to the full card; desktop
+// hides the row and shows every column. What's open survives redraws (keys: player ids).
+const openRows = { roster: new Set(), rsvps: new Set(), scores: new Set() };
+
+function rowToggleHtml(kind, key, isOpen, mainHtml, metaHtml) {
+    return `<button type="button" class="row-toggle" data-row-toggle="${escHtml(kind)}:${escHtml(key)}" aria-expanded="${isOpen}">
+        <span class="row-toggle-main">${mainHtml}</span>
+        <span class="row-toggle-meta">${metaHtml}</span>
+        <span class="row-toggle-chev" aria-hidden="true"></span>
+    </button>`;
+}
+
+function toggleRow(btn) {
+    const [kind, ...rest] = btn.dataset.rowToggle.split(':');
+    const set = openRows[kind];
+    const tr = btn.closest('tr');
+    if (!set || !tr) return;
+    const key = rest.join(':');
+    const open = !tr.classList.contains('is-open');
+    if (open) set.add(key); else set.delete(key);
+    tr.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+}
+
+// "HCP 10 · GHIN 1234567", flagged when this page has unsaved edits to him
+function rosterMetaHtml(p) {
+    const h = p.handicap;
+    const hcp = h === null || h === undefined || h === '' || isNaN(h) ? '—' : Number(h) < 0 ? `+${Math.abs(Number(h))}` : String(h);
+    const ghin = String(p.ghin || '').trim() || '—';
+    const orig = p.id ? originalPlayers.find(o => o.id === p.id) : null;
+    const edited = !orig || ['name', 'email', 'ghin', 'handicap'].some(f => String(orig[f] ?? '') !== String(p[f] ?? ''));
+    return `HCP ${escHtml(hcp)} · GHIN ${escHtml(ghin)}${edited ? ' <span class="row-flag">Edited</span>' : ''}`;
+}
+
 function renderRosterTable() {
     if (!elements.rosterTbody) return;
 
@@ -789,8 +845,11 @@ function renderRosterTable() {
         const realIndex = players.indexOf(player);
         // Names the boxes for screen readers ("Colby Gibson email"); data-label is only CSS
         const who = escHtml(player.name || 'New player');
+        const key = player.id || `new-${realIndex}`;
+        const isOpen = openRows.roster.has(key);
         return `
-        <tr data-index="${realIndex}">
+        <tr data-index="${realIndex}" class="collapsible${isOpen ? ' is-open' : ''}">
+            <td class="row-sum">${rowToggleHtml('roster', key, isOpen, who, rosterMetaHtml(player))}</td>
             <td data-label="Name"><input type="text" class="edit-input" data-field="name" value="${escHtml(player.name || '')}" placeholder="Name" aria-label="${who} name"></td>
             <td data-label="Email"><input type="email" class="edit-input" data-field="email" value="${escHtml(player.email || '')}" placeholder="Email" aria-label="${who} email"></td>
             <td data-label="GHIN"><input type="text" class="edit-input" data-field="ghin" value="${escHtml(player.ghin || '')}" placeholder="GHIN" aria-label="${who} GHIN"></td>
@@ -987,6 +1046,8 @@ function renderSaveBar() {
     note.hidden = !html;
     // Room to scroll the last rows out from under the floating bar
     document.body.style.paddingBottom = hasChanges && elements.saveBar ? `${elements.saveBar.offsetHeight + 30}px` : '';
+    // Score Entry's pinned buttons sit above the floating bar, not under it
+    document.body.style.setProperty('--save-bar-space', hasChanges && elements.saveBar ? `${elements.saveBar.offsetHeight + 15}px` : '0px');
 }
 
 function renderDraftingUI() {
@@ -1012,9 +1073,9 @@ function renderDraftingUI() {
                 <div style="font-size: 0.75rem; color: var(--admin-accent);">HCP: ${p.handicap !== null ? p.handicap : 'N/A'}</div>
             </div>
             <div style="display: flex; gap: 5px;">
-                ${currentTeam !== 1 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 1)">To T1</button>` : ''}
-                ${currentTeam !== 2 ? `<button class="admin-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0; background: #ef4444;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 2)">To T2</button>` : ''}
-                ${currentTeam !== null ? `<button class="admin-btn secondary" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, null)">Clear</button>` : ''}
+                ${currentTeam !== 1 ? `<button type="button" class="admin-btn draft-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 1)">To T1</button>` : ''}
+                ${currentTeam !== 2 ? `<button type="button" class="admin-btn draft-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0; background: #ef4444;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, 2)">To T2</button>` : ''}
+                ${currentTeam !== null ? `<button type="button" class="admin-btn secondary draft-btn" style="width: auto; padding: 4px 8px; font-size: 0.7rem; margin: 0;" data-name="${escHtml(p.name)}" onclick="moveToTeam(this.dataset.name, null)">Clear</button>` : ''}
             </div>
         `;
         return div;
@@ -1904,9 +1965,11 @@ function renderScoreEntryTable() {
             `;
         }
 
+        const isOpen = openRows.scores.has(String(p.id));
+        const entered = Array.from({ length: 18 }, (_, i) => existing[`h${i + 1}`]).filter(v => v !== null && v !== undefined && v !== '').length;
         return `
-        <tr data-player-id="${pid}">
-            <td class="se-name se-sticky" data-label="Player">${who}</td>
+        <tr data-player-id="${pid}" class="collapsible${isOpen ? ' is-open' : ''}">
+            <td class="se-name se-sticky" data-label="Player"><span class="se-name-text">${who}</span>${rowToggleHtml('scores', p.id, isOpen, who, `${teamLabel} · <span class="se-count">${entered}/18 holes</span>`)}</td>
             <td class="se-team" data-label="Team">${teamLabel}</td>
             <td class="se-total se-pin-total" data-label="${isStableford ? 'Points' : 'Total'}">
                 <input type="number" class="edit-input score-total-input" inputmode="numeric" placeholder="–"
@@ -1932,13 +1995,15 @@ function renderScoreEntryTable() {
             let totalVal = 0;
             let toParVal = 0;
             let hasAny = false;
-            
+            let entered = 0;
+
             document.querySelectorAll(`.score-hole-input[data-player="${pid}"]`).forEach(inp => {
                 const val = parseInt(inp.value);
                 const holeIdx = parseInt(inp.dataset.hole) - 1;
-                
+
                 if (!isNaN(val)) {
                     hasAny = true;
+                    entered++;
                     const par = roundPars ? roundPars[holeIdx] : null;
                     if (isStableford) {
                         // Quota points (rules page): eagle or better 5, birdie 3, par 2, bogey 1, double+ 0
@@ -1956,6 +2021,8 @@ function renderScoreEntryTable() {
             if (totInput) {
                 totInput.value = hasAny ? totalVal : '';
             }
+            const count = e.target.closest('tr')?.querySelector('.se-count');
+            if (count) count.textContent = `${entered}/18 holes`;
 
             // Auto fill To Par for stroke-play rounds on a known course
             if (!isStableford && roundPars) {
@@ -2591,8 +2658,11 @@ function renderRsvpAdmin() {
                 <button type="button" class="admin-btn secondary" data-release="${escHtml(p.id)}">Not him<span class="sr-only">: unlink ${pickLogin} from ${escHtml(e.name)}</span></button>
             </div>`
             : `<button type="button" class="admin-btn" data-approve="${escHtml(p.id)}" style="width: auto; min-height: 44px; margin: 0; padding: 6px 14px; font-size: 0.8rem;">Approve<span class="sr-only"> ${escHtml(e.name)}</span></button>`;
+        const key = p ? p.id : `name-${e.name}`;
+        const isOpen = openRows.rsvps.has(key);
         return `
-        <tr>
+        <tr class="collapsible${isOpen ? ' is-open' : ''}">
+            <td class="row-sum">${rowToggleHtml('rsvps', key, isOpen, escHtml(e.name), `${answer}${tag ? ` ${tag}` : ''}${rsvpPaidMetaHtml(p)}`)}</td>
             <td data-label="Player" style="font-weight: 600;">${name} ${tag}</td>
             <td data-label="Answer">${answer}</td>
             <td data-label="Answered"><span class="rsvp-muted rsvp-when">${e.latest ? escHtml(fmtWhen(e.latest.created_at)).replace(/ /g, '&nbsp;').replace(',&nbsp;', ', ') : '—'}</span></td>
@@ -2600,9 +2670,18 @@ function renderRsvpAdmin() {
             <td data-label="Account">${account}</td>
             <td data-label="Paid">${paidCellHtml(p, e.name)}</td>
             <td data-label="History">${history}</td>
-            <td data-label="${action ? 'Approve' : ''}">${action}</td>
+            <td data-label="${action ? 'Approve' : ''}"${action ? ' class="row-keep"' : ''}>${action}</td>
         </tr>`;
     }).join('');
+}
+
+// An RSVP row's summary on a phone: "$500 paid" and a "Says sent" flag (the Paid cell, in short)
+function rsvpPaidMetaHtml(p) {
+    if (!p || !p.id || !supabaseInstance || payData.trip.state !== 'ok') return '';
+    const cents = paidCentsOf(p.id);
+    const open = openClaimOf(p.id);
+    return (cents ? ` <span class="row-paid">${money(cents)} paid</span>` : '') +
+        (open ? ` <span class="claim-flag">Says sent ${money(centsOf(open.amount))}</span>` : '');
 }
 
 // Confirming a new player puts them on the public roster and head count and lets them bet.
@@ -2844,7 +2923,7 @@ function paymentsChanged(part) {
 }
 
 function focusKey(el) {
-    const attr = ['data-pay', 'data-approve', 'data-release', 'data-approve-pick', 'data-venmo', 'data-pay-delete', 'data-claim-confirm', 'data-claim-reject', 'data-claim-reopen']
+    const attr = ['data-row-toggle', 'data-pay', 'data-approve', 'data-release', 'data-approve-pick', 'data-venmo', 'data-pay-delete', 'data-claim-confirm', 'data-claim-reject', 'data-claim-reopen']
         .find(a => el && el.hasAttribute && el.hasAttribute(a));
     return attr ? `[${attr}="${CSS.escape(el.getAttribute(attr))}"]` : null;
 }
