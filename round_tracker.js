@@ -35,6 +35,12 @@ const SEASON_LIVE = !!(CFG.season && CFG.season.live);
 // The last official Cup total this phone loaded (this trip's only), so the row is there from the first paint
 const CUP_KEY = 'bbb_tracker_cup';
 const CUP_YEAR = (CFG.trip && CFG.trip.year) || null;
+// The last live scores and roster names this phone loaded (this trip's only), so Live scores
+// opens on them with no signal. tracker-sw.js keeps the page itself.
+const BOARD_KEY = 'bbb_tracker_board';
+const ROSTER_KEY = 'bbb_tracker_roster';
+// Where supabase-js keeps the login on this phone (its default storage key)
+const AUTH_KEY = `sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`;
 
 let sb = null;
 const S = {
@@ -350,6 +356,21 @@ function loadStored() {
         localStorage.removeItem('bbb_tracked_players');
     } catch (e) { /* ignore */ }
     dropStaleSession();
+    // Shown until the database answers (and kept on screen, marked as old, if it can't)
+    const board = readStore(BOARD_KEY, null);
+    if (board && board.since === WINDOW_START && board.data && board.at) {
+        S.board.data = board.data;
+        S.board.at = board.at;
+    }
+    const roster = readStore(ROSTER_KEY, null);
+    if (roster && roster.since === WINDOW_START && Array.isArray(roster.players)) S.players = roster.players;
+}
+
+// The login saved on this phone. With no signal an expired login can't be refreshed, so
+// supabase-js reports no session, but it's still there and refreshes once the signal is back.
+function savedLoginUser() {
+    const saved = readStore(AUTH_KEY, null);
+    return saved && saved.refresh_token && saved.user && saved.user.id ? saved.user : null;
 }
 
 // Another tab on this phone may have changed things while this one was in the background
@@ -536,6 +557,8 @@ async function flush() {
     reloadOutbox();
     if (!pendingCount()) { setSync('ok'); renderSyncOnly(); return; }
     if (!S.authUser) { setSync('auth'); renderSyncOnly(); return; }
+    // The phone knows it has no network: don't sit on "Saving" (the 'online' event sends them)
+    if (navigator.onLine === false) { setSync('offline'); renderSyncOnly(); return; }
     flushing = true;
     const hadError = S.sync === 'error';
     setSync('saving');
@@ -665,7 +688,11 @@ async function loadBase() {
         sb.from('courses').select('*')
     ]);
     if (players.error) S.loadError = players.error;
-    else S.players = players.data || [];
+    else {
+        S.players = players.data || [];
+        // Names and teams only: what the board needs to label a card
+        writeStore(ROSTER_KEY, { since: WINDOW_START, players: S.players.map(p => ({ id: p.id, name: p.name, team_id: p.team_id, status: p.status })) });
+    }
     if (courses.error) S.loadError = S.loadError || courses.error;
     else S.courses = courses.data || [];
 }
@@ -1555,6 +1582,7 @@ async function loadBoard(roundNumber, quiet) {
         B.data[roundNumber] = data;
         B.error[roundNumber] = null;
         B.at[roundNumber] = Date.now();
+        writeStore(BOARD_KEY, { since: WINDOW_START, data: B.data, at: B.at });
     } catch (err) {
         console.warn('Leaderboard failed:', err);
         B.error[roundNumber] = err;
@@ -1614,6 +1642,13 @@ function boardHeadHTML(n, format, matches, holesById, pars, empty) {
     </div>`;
 }
 
+// "2:14 PM", or "Fri 2:14 PM" for scores kept on the phone from an earlier day
+function updatedAt(ms) {
+    const d = new Date(ms);
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return localDay(d) === localDay() ? time : `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+}
+
 function renderBoard() {
     const B = S.board;
     if (B.round === null) B.round = defaultBoardRound();
@@ -1655,7 +1690,7 @@ function renderBoard() {
     html += `<div class="board-meta">
         <div><div class="eyebrow">${escHtml(info.name)}</div><p class="fmt-line">${formatLineHTML(info.about, info, true)}</p>${data.courseName ? `<div class="muted small">${escHtml(data.courseName)}${data.date ? ` · ${escHtml(fmtDay(data.date))}` : ''}</div>` : ''}</div>
         <div class="btn-row" style="align-items: center;">
-            <span class="muted small">${B.at[n] ? `Updated ${new Date(B.at[n]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}</span>
+            <span class="muted small">${B.at[n] ? `Updated ${updatedAt(B.at[n])}` : ''}</span>
             <button type="button" class="t-btn small" data-action="board-refresh"${B.loading[n] ? ' aria-busy="true"' : ''}>${B.loading[n] ? 'Updating…' : 'Refresh'}</button>
         </div>
     </div>`;
@@ -1889,6 +1924,25 @@ function loadSupabase() {
 // ==========================================
 // Start up
 // ==========================================
+// tracker-sw.js keeps a copy of this page and its files, so it reopens with no signal. It's
+// handed what this visit loaded, since the very first visit loads before it's running.
+function keepOffline() {
+    if (!navigator.serviceWorker || !window.isSecureContext) return;
+    navigator.serviceWorker.register('tracker-sw.js', { scope: './round_tracker' }).catch(err => console.warn('Offline copy unavailable:', err));
+    const keep = urls => urls.length && navigator.serviceWorker.ready
+        .then(reg => { if (reg.active) reg.active.postMessage({ type: 'keep', urls }); })
+        .catch(() => { /* fine: the next visit tries again */ });
+    const pageFiles = () => keep([location.href.split('#')[0]]
+        .concat([...document.querySelectorAll('script[src], link[rel~="stylesheet"][href], link[rel~="icon"][href], link[rel="apple-touch-icon"][href]')].map(el => el.src || el.href)));
+    if (document.readyState === 'complete') pageFiles();
+    else window.addEventListener('load', pageFiles, { once: true });
+    // Font files are only known once the page has asked for them, often after 'load'
+    try {
+        new PerformanceObserver(list => keep(list.getEntries().map(e => e.name).filter(u => /^https:\/\/fonts\.gstatic\.com\//.test(u))))
+            .observe({ type: 'resource', buffered: true });
+    } catch (e) { /* an old browser: fonts are kept from the next visit on */ }
+}
+
 function measureHeader() {
     const header = document.querySelector('.site-header');
     if (header) document.documentElement.style.setProperty('--hdr', `${header.offsetHeight}px`);
@@ -1924,7 +1978,11 @@ function listen() {
 async function init(retry) {
     if (!retry) {
         loadStored();
+        // Until supabase-js has checked it (with no signal that can take most of a minute), the
+        // login saved on this phone counts, so unsent scores don't say "Log in" meanwhile
+        S.authUser = savedLoginUser();
         listen();
+        keepOffline();
         // Show what's saved on this phone right away, signal or not
         route();
         if (S.droppedStale) showToast(`Round ${S.droppedStale.round} from ${fmtDay(S.droppedStale.date)} is saved. Pick today’s group.`, 'success');
@@ -1942,7 +2000,7 @@ async function init(retry) {
     if (!sb) {
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         sb.auth.onAuthStateChange((event, session) => {
-            S.authUser = session ? session.user : null;
+            S.authUser = session ? session.user : (event === 'SIGNED_OUT' ? null : savedLoginUser());
             if (event === 'SIGNED_OUT') {
                 setSync('auth');
                 renderSyncOnly();
@@ -1953,10 +2011,10 @@ async function init(retry) {
     }
 
     try {
-        const { data: { session } } = await sb.auth.getSession();
-        S.authUser = session ? session.user : null;
+        const { data: { session }, error } = await sb.auth.getSession();
+        S.authUser = session ? session.user : (error && isNetworkError(error) ? savedLoginUser() : null);
     } catch (e) {
-        S.authUser = null;
+        S.authUser = isNetworkError(e) ? savedLoginUser() : null;
     }
     $('nav-login').hidden = !!S.authUser;
 
