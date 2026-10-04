@@ -311,6 +311,7 @@ async function init() {
             });
 
         showGoogleButtonsIfEnabled();
+        loadTeeTimes();
         await Promise.all([loadRosterData(), loadRsvps(), loadAccount()]);
         personalReady = true;
         renderPersonal();
@@ -529,8 +530,11 @@ function tripUpdates() {
         });
 }
 
+// An entry { text, until: 'teeTimes' } drops off once every round's tee time is set (Admin → Tee times)
 function stillToCome() {
-    return (Array.isArray(TRIP.stillToCome) ? TRIP.stillToCome : []).map(configText).filter(Boolean);
+    return (Array.isArray(TRIP.stillToCome) ? TRIP.stillToCome : [])
+        .map(t => (t && typeof t === 'object' ? (t.until === 'teeTimes' && allTeeTimesSet() ? '' : configText(t.text)) : configText(t)))
+        .filter(Boolean);
 }
 
 function newsItemHTML(u) {
@@ -660,6 +664,87 @@ function watchPhase() {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPhase(); });
 }
 
+// ---------------------------------------------------------------------------
+// Tee times: set in Admin → Tee times (teetimes_2027.sql), not in trip-config.js. A slot with
+// tee: 'r1' reads "Morning · tee time TBA" until one is saved, then "Morning · tee time 8:10 AM".
+// The last answer stays on the phone, so a weak signal at the course still shows them.
+// ---------------------------------------------------------------------------
+const TEE_STORE = `bbb-tee-times-${TRIP.year}`;
+let teeTimes = readTeeStore();
+
+function readTeeStore() {
+    try {
+        const v = JSON.parse(localStorage.getItem(TEE_STORE) || 'null');
+        return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function teeSlots() {
+    return (CFG.itinerary || []).flatMap(d => (d && d.slots) || []).filter(s => s && s.tee);
+}
+
+// '08:10' → '8:10 AM' ('' for anything else)
+function teeClock(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+    if (!m || +m[1] > 23 || +m[2] > 59) return '';
+    const h = +m[1];
+    return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+function teeFor(slot) {
+    const t = slot && slot.tee ? teeTimes[slot.tee] : null;
+    const time = t ? teeClock(t.time) : '';
+    return time ? { time, note: configText(t.note) } : null;
+}
+
+function allTeeTimesSet() {
+    const slots = teeSlots().filter(s => !s.teeOptional);
+    return slots.length > 0 && slots.every(teeFor);
+}
+
+// The slot's meta line as text: its own meta, then the tee time (or "tee time TBA") for a tee slot
+function slotMeta(slot) {
+    const base = configText(slot && slot.meta);
+    if (!slot || !slot.tee) return base;
+    const t = teeFor(slot);
+    const tee = t ? [`tee time ${t.time}`, t.note].filter(Boolean).join(' · ') : 'tee time TBA';
+    return base ? `${base} · ${tee}` : tee.charAt(0).toUpperCase() + tee.slice(1);
+}
+
+// The same, marked so loadTeeTimes() can refresh it in place
+function slotMetaHTML(slot) {
+    const text = slotMeta(slot);
+    return slot && slot.tee ? `<span data-tee-slot="${esc(slot.tee)}">${esc(text)}</span>` : esc(text);
+}
+
+async function loadTeeTimes() {
+    if (!supabaseInstance || !teeSlots().length) return;
+    let res;
+    try {
+        res = await supabaseInstance.rpc('trip_tee_times', { p_trip_year: Number(TRIP.year) });
+    } catch (e) {
+        res = { error: e };
+    }
+    if (res.error) {
+        // Before teetimes_2027.sql runs there's nothing to show: "tee time TBA" stays
+        if (!rpcMissing(res.error)) console.error('Tee times check failed:', res.error);
+        return;
+    }
+    const next = res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : {};
+    try { localStorage.setItem(TEE_STORE, JSON.stringify(next)); } catch (e) { /* private mode: fine */ }
+    if (JSON.stringify(next) === JSON.stringify(teeTimes)) return;
+    teeTimes = next;
+    const byKey = {};
+    teeSlots().forEach(s => { byKey[s.tee] = s; });
+    document.querySelectorAll('[data-tee-slot]').forEach(el => {
+        const slot = byKey[el.dataset.teeSlot];
+        if (slot) el.textContent = slotMeta(slot);
+    });
+    try { renderNews(); } catch (err) { console.error('renderNews failed:', err); }
+}
+
 function itineraryDay(date) {
     return (CFG.itinerary || []).find(d => d && d.date === date) || null;
 }
@@ -693,7 +778,7 @@ function todayCardHTML() {
     const day = itineraryDay(phase.date);
     const rows = (day && day.slots || []).map(s => {
         const href = slotCourseHref(s);
-        const cells = `<span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${esc(s.meta || '')}</span>`;
+        const cells = `<span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${slotMetaHTML(s)}</span>`;
         // The whole row is the link (a 44px+ target), to the course card
         return `<li>${href
             ? `<a class="slot today-slot" href="${esc(href)}">${cells}<span class="today-slot-go" aria-hidden="true">${icon('chevronRight')}</span></a>`
@@ -706,7 +791,7 @@ function todayCardHTML() {
     const nextLabel = next && !cupDay(phase.date) && cupDay(next.date) ? 'Cup starts tomorrow:' : 'Tomorrow:';
     const first = next && (next.slots || [])[0];
     const tomorrow = first
-        ? `${slotWhatHTML(first)}${first.meta ? ` · ${esc(first.meta)}` : ''}`
+        ? `${slotWhatHTML(first)}${slotMeta(first) ? ` · ${slotMetaHTML(first)}` : ''}`
         : next ? esc(next.title) : '';
 
     return `
@@ -885,8 +970,9 @@ function renderSchedule() {
         // The dot rides with "Course guide", so a wrapped meta line never ends on a lone "·".
         const slots = (day.slots || []).map(s => {
             const href = slotCourseHref(s);
-            if (!href) return `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${esc(s.meta || '')}</span></li>`;
-            return `<li class="slot has-link"><span class="slot-when">${esc(s.when)}</span><span class="slot-what"><a class="slot-link" href="${esc(href)}">${esc(s.what)}</a></span><span class="slot-meta">${s.meta ? `${esc(s.meta)} ` : ''}<span class="slot-guide nowrap">${s.meta ? '· ' : ''}Course guide</span></span><span class="slot-go" aria-hidden="true">${icon('chevronRight')}</span></li>`;
+            const meta = slotMeta(s);
+            if (!href) return `<li class="slot"><span class="slot-when">${esc(s.when)}</span><span class="slot-what">${esc(s.what)}</span><span class="slot-meta">${slotMetaHTML(s)}</span></li>`;
+            return `<li class="slot has-link"><span class="slot-when">${esc(s.when)}</span><span class="slot-what"><a class="slot-link" href="${esc(href)}">${esc(s.what)}</a></span><span class="slot-meta">${meta ? `${slotMetaHTML(s)} ` : ''}<span class="slot-guide nowrap">${meta ? '· ' : ''}Course guide</span></span><span class="slot-go" aria-hidden="true">${icon('chevronRight')}</span></li>`;
         }).join('');
 
         return `

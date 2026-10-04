@@ -32,9 +32,9 @@ window.BBB = {
         timeZone: 'America/Phoenix',
         timeZoneName: 'Arizona',
         hq: {
-            name: 'TBA',
-            note: 'Lodging is still being locked in. Scottsdale area.',
-            link: null
+            name: 'Talking Stick Resort',
+            note: 'Thu Apr 8 – Mon Apr 12 (4 nights), two to a room. Minutes from Talking Stick Golf Club.',
+            link: 'https://www.google.com/maps/search/?api=1&query=Talking+Stick+Resort+Scottsdale+AZ'
         },
         airport: {
             code: 'PHX',
@@ -50,16 +50,16 @@ window.BBB = {
             note: 'April averages ~85°F highs and ~60°F lows. Rain is rare. Sunset around 6:55 PM.'
         },
         cost: {
-            perPerson: 1413,
+            perPerson: 1786,
             approx: true,
             excludes: 'airfare (~$450)',
-            note: 'Estimated per man: golf plus a shared room (two to a room at about $175 a night). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
+            note: 'Estimated per man: golf plus your half of a room at Talking Stick Resort (about $159 a night each, four nights). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
             breakdown: [
                 { label: 'Talking Stick · Thu practice', amount: 250 },
                 { label: 'We-Ko-Pa · 36 holes Fri', amount: 650 },
                 { label: 'Camelback Ambiente · Sat', amount: 250 },
-                { label: 'Room · 3 nights, 2 to a room', amount: 263 }
+                { label: 'Talking Stick Resort · 4 nights, 2 to a room', amount: 636 }
             ],
             // How to pay, once there's something to pay; leave out any part. The public cost line reads
             // "Deposit $500 due Nov 30 · Venmo · Log in to pay". Never put a Venmo @username in how or note
@@ -81,15 +81,17 @@ window.BBB = {
         // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
+            { date: '2026-10-04', text: 'HQ is Talking Stick Resort, Thursday Apr 8 through checkout Monday Apr 12: four nights, two to a room, about $159 a night each ($636 a man). That puts the estimate at about $1,786 a man plus your flight. Tee times aren’t booked yet; they’ll show on the schedule here as soon as they are.' },
             { date: '2026-10-03', text: 'New date: RSVPs and the $500 deposit are now both due Dec 1.' },
             { date: '2026-10-02', text: 'Thursday at Talking Stick is now a practice round: no Cup points. The Cup is three rounds: We-Ko-Pa Cholla Friday morning, Saguaro Friday afternoon, and Camelback Ambiente on Saturday.' },
             { date: '2026-10-02', text: 'Planning numbers: rooms are running about $175 a night, two to a room (about $263 each for the three nights), and American’s nonstop from Lubbock is about $450 round trip. Both are estimates, not final prices.' },
             { date: '2026-10-02', text: 'Deposit is $500 a man, due Dec 1, by Venmo to Westin. Log in and pay it from Your checklist on the homepage: one tap opens Venmo with the amount filled in. Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All four rounds are locked in. RSVPs are due Dec 1 so we can book rooms.' }
         ],
-        // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. 'Tee times';
-        // delete each one once it's settled. An empty list hides it.
-        stillToCome: ['HQ / lodging', 'Tee times', '2027 Cup formats', 'Course for the optional Sunday round']
+        // "Still to come", listed beside the updates until the trip starts. Plain text, e.g. '2027 Cup formats';
+        // delete each one once it's settled. An empty list hides it. { text, until: 'teeTimes' } drops off by
+        // itself once every round's tee time is set in Admin → Tee times (the optional Sunday round aside).
+        stillToCome: [{ text: 'Tee times', until: 'teeTimes' }, '2027 Cup formats', 'Course for the optional Sunday round']
     },
 
     // RSVP / head count. Needs rsvp_schema.sql and then rsvp_accounts.sql run in Supabase.
@@ -151,6 +153,9 @@ window.BBB = {
     // and a trip day with no R<n> slot hides Keep score. practice: true marks a practice round: no Cup points, and
     // the tracker says so that day. To make a practice round count, label it R<n>, drop practice, renumber the later
     // slots and add the round to roundCourses and roundPlay (and its course card's `round` label).
+    // tee: 'r1' (any short key) marks a slot whose tee time is set in Admin → Tee times (teetimes_2027.sql), not
+    // here: meta reads "Morning · tee time TBA" until then, and "Morning · tee time 8:10 AM" after. Changing a key
+    // drops the time saved under the old one. teeOptional: true keeps a slot out of the Still to come check.
     itinerary: [
         {
             date: '2027-04-08',
@@ -160,7 +165,7 @@ window.BBB = {
             tagSoft: true,
             media: { type: 'image', src: 'assets/courses/talking-stick-oodham/card/oodham-sunset-over-fairways.jpg', alt: 'Sun setting over the O’odham Course at Talking Stick' },
             slots: [
-                { when: 'Prac', practice: true, what: 'Talking Stick · O’odham', meta: 'Practice round · tee time TBA', courseId: 'talking-stick-oodham' }
+                { when: 'Prac', practice: true, tee: 'practice', what: 'Talking Stick · O’odham', meta: 'Practice round', courseId: 'talking-stick-oodham' }
             ]
         },
         {
@@ -170,8 +175,8 @@ window.BBB = {
             tag: '36 holes',
             media: { type: 'split', srcs: ['assets/courses/wekopa-cholla/thumbs/four-peaks-fairway-vista.jpg', 'assets/courses/wekopa-saguaro/thumbs/saguaro-cactus-green.jpg'] },
             slots: [
-                { when: 'R1', what: 'We-Ko-Pa · Cholla', meta: 'Morning · tee time TBA', courseId: 'wekopa-cholla' },
-                { when: 'R2', what: 'We-Ko-Pa · Saguaro', meta: 'Afternoon · tee time TBA', courseId: 'wekopa-saguaro' }
+                { when: 'R1', tee: 'r1', what: 'We-Ko-Pa · Cholla', meta: 'Morning', courseId: 'wekopa-cholla' },
+                { when: 'R2', tee: 'r2', what: 'We-Ko-Pa · Saguaro', meta: 'Afternoon', courseId: 'wekopa-saguaro' }
             ]
         },
         {
@@ -181,19 +186,19 @@ window.BBB = {
             tag: 'Round 3',
             media: { type: 'image', src: 'assets/courses/camelback-ambiente/card/hole-13-bunker-mountain.jpg', alt: 'A big-walled bunker on Ambiente’s 13th hole below a rugged desert mountain' },
             slots: [
-                { when: 'R3', what: 'Camelback · Ambiente', meta: 'Tee time TBA', courseId: 'camelback-ambiente' }
+                { when: 'R3', tee: 'r3', what: 'Camelback · Ambiente', courseId: 'camelback-ambiente' }
             ]
         },
         {
             date: '2027-04-11',
             title: 'Dawn patrol & Masters Sunday',
-            text: 'An optional early round for anyone who’s up for it (sunrise is ~6:00 AM), then flights home. It’s also the final round of the Masters, and Arizona is three hours behind Augusta.',
+            text: 'An optional early round for anyone who’s up for it (sunrise is ~6:00 AM). It’s also the final round of the Masters, and Arizona is three hours behind Augusta. The rooms run through Sunday night, so fly home Sunday evening or Monday.',
             tag: 'Optional',
             tagSoft: true,
             media: { type: 'dawn' },
             slots: [
-                { when: 'AM', what: 'Optional early round', meta: 'Course TBA' },
-                { when: 'PM', what: 'Fly home', meta: 'Masters final round on every airport TV' }
+                { when: 'AM', tee: 'sunday', teeOptional: true, what: 'Optional early round', meta: 'Course TBA' },
+                { when: 'PM', what: 'Masters final round', meta: 'Fly home tonight, or Monday (checkout Apr 12)' }
             ]
         }
     ],

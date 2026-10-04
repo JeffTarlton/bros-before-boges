@@ -1281,6 +1281,26 @@
         .album-preview:hover { text-decoration: underline; }
         .album-preview:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
 
+        /* Tee times tab: one card per round in trip-config.js's itinerary (slots with a tee key) */
+        .tee-list { display: grid; gap: 14px; max-width: 720px; }
+        .tee-card { padding: 16px 18px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+        .tee-card.is-set { border-color: rgba(212, 175, 55, 0.45); }
+        .tee-card h3 { margin: 0; color: #fff; font-size: 1rem; line-height: 1.35; }
+        .tee-card h3 small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 0.82rem; font-weight: 500; }
+        .tee-fields { display: grid; grid-template-columns: minmax(130px, 170px) 1fr; gap: 12px; margin-top: 14px; }
+        .tee-fields .admin-input { margin: 0; }
+        .tee-fields .login-label { margin-bottom: 6px; }
+        .tee-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        .tee-actions .admin-btn { width: auto; min-height: 44px; margin: 0; padding: 10px 20px; }
+        .tee-actions .admin-btn[hidden] { display: none; }
+        .tee-status { margin: 12px 0 0; color: rgba(255, 255, 255, 0.75); font-size: 0.88rem; line-height: 1.45; }
+        .tee-card .sheet-error { margin: 10px 0 0; }
+        .tee-card .sheet-error[hidden] { display: none; }
+        @media (max-width: 520px) {
+            .tee-fields { grid-template-columns: 1fr; }
+            .tee-actions .admin-btn { flex: 1 1 auto; }
+        }
+
         /* ── Phones and tablets: a compact header, a pinned tab strip, and one tappable row per player
            (Roster, RSVPs, Score Entry) that opens to the full card. Desktop shows every column instead. ── */
         .tab-short { display: none; }
@@ -1521,6 +1541,7 @@
                 <button type="button" class="sidebar-item" data-tab="score-entry"><span class="tab-full"><span aria-hidden="true">📝 </span>Score Entry</span><span class="tab-short">Scores</span></button>
                 <button type="button" class="sidebar-item" data-tab="potential">New sign-ups</button>
                 <button type="button" class="sidebar-item" data-tab="photos"><span class="tab-full">Photo album</span><span class="tab-short">Photos</span></button>
+                <button type="button" class="sidebar-item" data-tab="tee-times"><span class="tab-full">Tee times</span><span class="tab-short">Tee times</span></button>
             </nav>
 
             <!-- Content Area -->
@@ -1723,6 +1744,15 @@
                         <p class="album-status" id="album-status" role="status"></p>
                         <a class="album-preview" id="album-preview" href="index.html" target="_blank" rel="noopener">See the homepage as it looks after the trip <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
                     </form>
+                </div>
+
+                <!-- Tee times: shown on the homepage schedule and Today card for everyone (teetimes_2027.sql) -->
+                <div id="tab-tee-times" class="tab-content" style="display: none;">
+                    <h2>Tee times</h2>
+                    <p class="tab-lede">Once a round is booked, set its tee time here. It shows right away for everyone on the homepage schedule and, during the trip, on the Today card. Until then the schedule says <b>tee time TBA</b>. Use the note for anything else the guys need, like “4 groups, 10 min apart”.</p>
+                    <div class="setup-note" id="tee-note" hidden></div>
+                    <div class="tee-list" id="tee-list"></div>
+                    <a class="album-preview" href="index.html#schedule" target="_blank" rel="noopener">See the homepage schedule <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
                 </div>
 
                 <!-- Ryder Cup Score Tab -->
@@ -1963,9 +1993,9 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.16"></script>
+    <script src="trip-config.js?v=2027.17"></script>
     <script src="scoring.js?v=2027.11"></script>
-    <script src="admin.js?v=2027.19"></script>
+    <script src="admin.js?v=2027.20"></script>
 </body>
 
 </html>

@@ -83,7 +83,7 @@ let rsvpLoading = false; // an RSVP load is running (it draws the table itself w
 let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
 
 // Each sidebar section has an address (admin#rsvps), so a refresh or a bookmark opens it again
-const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos'];
+const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos', 'tee-times'];
 
 // Links that go out to the guys (texts and emails), so always the live site, never this page's host
 const SITE_URL = 'https://bros-before-boges.vercel.app';
@@ -386,6 +386,25 @@ function setupEventListeners() {
     });
     document.getElementById('album-url')?.addEventListener('input', () => setAlbumError(''));
 
+    // Tee times tab: each round's card has its own Save and Clear
+    const teeList = document.getElementById('tee-list');
+    teeList?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const card = e.target.closest('[data-tee]');
+        if (card) saveTeeTime(card.dataset.tee, card.querySelector('.tee-time').value, card.querySelector('.tee-note').value);
+    });
+    teeList?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tee-clear');
+        const card = btn && btn.closest('[data-tee]');
+        if (!card) return;
+        if (!confirm(`Clear the tee time for ${card.dataset.label}? The homepage goes back to “tee time TBA”.`)) return;
+        saveTeeTime(card.dataset.tee, '', '');
+    });
+    teeList?.addEventListener('input', (e) => {
+        const card = e.target.closest('[data-tee]');
+        if (card) setTeeError(card.dataset.tee, '');
+    });
+
     // Add Player Button
     if (elements.addPlayerBtn) {
         elements.addPlayerBtn.addEventListener('click', () => {
@@ -641,6 +660,7 @@ function openTab(tab, { fromHash = false } = {}) {
     if (tab === 'potential') renderPotentialUI();
     if (tab === 'rsvps') loadRsvpAdmin();
     if (tab === 'photos') loadAlbum();
+    if (tab === 'tee-times') loadTeeTimes();
 }
 
 async function loadRoster() {
@@ -4163,4 +4183,135 @@ async function saveAlbum(raw) {
     albumState.url = (data && typeof data.url === 'string') ? data.url : '';
     renderAlbum(true);
     window.showToast(url ? 'Photo album link saved.' : 'Photo album link removed.', 'success');
+}
+
+// ---- Tee times (teetimes_2027.sql) ----
+// One tee time (and a short note) per round, for everyone: the homepage schedule and Today card show it in
+// place of "tee time TBA". The rounds are the itinerary slots with a tee key in trip-config.js.
+// state: 'idle' | 'loading' | 'ok' | 'missing' (the script hasn't run) | 'error'
+const teeState = { state: 'idle', times: {}, busy: null };
+
+function teeRounds() {
+    const out = [];
+    ((window.BBB && window.BBB.itinerary) || []).forEach(day => ((day && day.slots) || []).forEach(slot => {
+        if (!slot || !slot.tee) return;
+        const d = new Date(`${day.date}T12:00:00`);
+        const when = Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const round = /^R\d+$/.test(slot.when || '') ? `Round ${slot.when.slice(1)}` : slot.practice ? 'Practice round' : (slot.teeOptional ? 'Optional' : '');
+        out.push({ key: slot.tee, what: slot.what || '', when, sub: [when, round, slot.practice ? '' : slot.meta].filter(Boolean).join(' · ') });
+    }));
+    return out;
+}
+
+// '08:10' → '8:10 AM'
+function teeClock(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+    if (!m || +m[1] > 23 || +m[2] > 59) return '';
+    const h = +m[1];
+    return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+async function loadTeeTimes() {
+    if (!supabaseInstance || teeState.busy) return;
+    teeState.state = 'loading';
+    renderTeeTimes();
+    const { data, error } = await supabaseInstance.rpc('trip_tee_times', { p_trip_year: albumYear() });
+    if (error) {
+        teeState.state = isMissingFunction(error) ? 'missing' : 'error';
+        if (teeState.state === 'error') console.error('Tee times load failed:', error);
+    } else {
+        teeState.state = 'ok';
+        teeState.times = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    }
+    renderTeeTimes();
+}
+
+function setTeeError(key, text) {
+    const card = document.querySelector(`#tee-list [data-tee="${CSS.escape(key)}"]`);
+    const el = card && card.querySelector('.sheet-error');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = !text;
+    const input = card.querySelector('.tee-time');
+    if (text) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+}
+
+function renderTeeTimes() {
+    const list = document.getElementById('tee-list');
+    const note = document.getElementById('tee-note');
+    if (!list || !note) return;
+    const ready = teeState.state === 'ok';
+    note.className = `setup-note${teeState.state === 'error' ? ' is-error' : ''}`;
+    if (teeState.state === 'missing') {
+        note.textContent = 'Tee times aren’t set up yet: run teetimes_2027.sql in the Supabase SQL Editor, then come back here.';
+    } else if (teeState.state === 'error') {
+        note.innerHTML = '<span>Couldn’t load the tee times.</span><button type="button" class="admin-btn secondary" id="tee-retry">Retry</button>';
+        document.getElementById('tee-retry').addEventListener('click', loadTeeTimes);
+    } else if (teeState.state === 'loading') {
+        note.textContent = 'Loading…';
+    } else {
+        note.textContent = '';
+    }
+    note.hidden = !note.textContent;
+
+    const rounds = teeRounds();
+    if (!rounds.length) {
+        list.innerHTML = '<p class="tab-lede">No rounds to set: give an itinerary slot a tee key in trip-config.js (e.g. tee: \'r1\').</p>';
+        return;
+    }
+    list.innerHTML = rounds.map(r => {
+        const t = teeState.times[r.key] || null;
+        const clock = t ? teeClock(t.time) : '';
+        const busy = teeState.busy === r.key;
+        const off = !ready || !!teeState.busy;
+        const id = `tee-${r.key}`;
+        const label = r.when ? `${r.what} (${r.when})` : r.what;
+        const status = !ready ? '' : clock
+            ? `Saved: the homepage says “tee time ${clock}${t.note ? ` · ${t.note}` : ''}”.`
+            : 'Not set: the homepage says “tee time TBA”.';
+        return `
+        <form class="tee-card${clock ? ' is-set' : ''}" data-tee="${escHtml(r.key)}" data-label="${escHtml(label)}" method="post" novalidate>
+            <h3>${escHtml(r.what)}${r.sub ? `<small>${escHtml(r.sub)}</small>` : ''}</h3>
+            <div class="tee-fields">
+                <div>
+                    <label class="login-label" for="${id}-time">Tee time</label>
+                    <input type="time" id="${id}-time" class="admin-input tee-time" step="60" value="${escHtml(t && t.time ? t.time : '')}"${off ? ' disabled' : ''} aria-describedby="${id}-error">
+                </div>
+                <div>
+                    <label class="login-label" for="${id}-note">Note (optional)</label>
+                    <input type="text" id="${id}-note" class="admin-input tee-note" maxlength="80" autocomplete="off" placeholder="4 groups, 10 min apart" value="${escHtml(t && t.note ? t.note : '')}"${off ? ' disabled' : ''}>
+                </div>
+            </div>
+            <p class="sheet-error" id="${id}-error" role="alert" hidden></p>
+            <div class="tee-actions">
+                <button type="submit" class="admin-btn"${off ? ' disabled' : ''}>${busy ? 'Saving…' : 'Save'}</button>
+                <button type="button" class="admin-btn secondary tee-clear"${clock ? '' : ' hidden'}${off ? ' disabled' : ''}>Clear</button>
+            </div>
+            <p class="tee-status" role="status">${escHtml(status)}</p>
+        </form>`;
+    }).join('');
+}
+
+async function saveTeeTime(key, rawTime, rawNote) {
+    if (!supabaseInstance || teeState.state !== 'ok' || teeState.busy) return;
+    const time = String(rawTime || '').trim().slice(0, 5);
+    const note = String(rawNote || '').replace(/\s+/g, ' ').trim();
+    if (!time && !teeState.times[key]) return setTeeError(key, 'Pick the tee time first.');
+    if (time && !teeClock(time)) return setTeeError(key, 'Pick the tee time from the time box (like 8:10 AM).');
+    if (note.length > 80) return setTeeError(key, 'Keep the note to 80 characters.');
+    setTeeError(key, '');
+    teeState.busy = key;
+    renderTeeTimes();
+    const { data, error } = await supabaseInstance.rpc('admin_set_tee_time', { p_trip_year: albumYear(), p_round: key, p_time: time || null, p_note: note || null });
+    teeState.busy = null;
+    if (error) {
+        if (isMissingFunction(error)) teeState.state = 'missing';
+        renderTeeTimes();
+        if (teeState.state === 'ok') setTeeError(key, `Couldn’t save: ${plainError(error)}`);
+        return;
+    }
+    teeState.times = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    renderTeeTimes();
+    window.showToast(time ? `Tee time saved: ${teeClock(time)}.` : 'Tee time cleared.', 'success');
 }
