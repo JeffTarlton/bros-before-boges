@@ -83,7 +83,7 @@ let rsvpLoading = false; // an RSVP load is running (it draws the table itself w
 let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
 
 // Each sidebar section has an address (admin#rsvps), so a refresh or a bookmark opens it again
-const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential'];
+const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos'];
 
 // Links that go out to the guys (texts and emails), so always the live site, never this page's host
 const SITE_URL = 'https://bros-before-boges.vercel.app';
@@ -375,6 +375,17 @@ function setupEventListeners() {
         open.querySelector('summary').focus();
     });
 
+    // Photo album tab
+    document.getElementById('album-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveAlbum(document.getElementById('album-url').value);
+    });
+    document.getElementById('album-remove')?.addEventListener('click', () => {
+        if (!confirm('Remove the photo album link? The homepage’s “Add your photos” button goes away until you add one again.')) return;
+        saveAlbum('');
+    });
+    document.getElementById('album-url')?.addEventListener('input', () => setAlbumError(''));
+
     // Add Player Button
     if (elements.addPlayerBtn) {
         elements.addPlayerBtn.addEventListener('click', () => {
@@ -629,6 +640,7 @@ function openTab(tab, { fromHash = false } = {}) {
     if (tab === 'score-entry') renderScoreEntryUI();
     if (tab === 'potential') renderPotentialUI();
     if (tab === 'rsvps') loadRsvpAdmin();
+    if (tab === 'photos') loadAlbum();
 }
 
 async function loadRoster() {
@@ -4040,4 +4052,115 @@ function setupPaymentListeners() {
             first.focus();
         }
     });
+}
+
+// ---- Photo album (photos_2027.sql) ----
+// The trip's shared album link, behind the homepage's "Add your photos" (only the logged-in crew get it).
+// state: 'idle' | 'loading' | 'ok' | 'missing' (the script hasn't run) | 'error'
+const albumState = { state: 'idle', url: '', busy: false };
+const ALBUM_URL_RE = /^https:\/\/[^\s<>"']+$/i;
+
+function albumYear() {
+    const y = Number(window.BBB && window.BBB.trip && window.BBB.trip.year);
+    return Number.isInteger(y) ? y : new Date().getFullYear();
+}
+
+// The homepage the morning after the trip (index.html's ?preview), to see the wrap card's button
+function albumPreviewHref() {
+    const end = window.BBB && window.BBB.trip && window.BBB.trip.dates && window.BBB.trip.dates.end;
+    const ms = Date.parse(`${end}T12:00:00Z`);
+    if (!Number.isFinite(ms)) return 'index.html';
+    return `index.html?preview=${new Date(ms + 86400000).toISOString().slice(0, 10)}T09:00`;
+}
+
+async function loadAlbum() {
+    if (!supabaseInstance || albumState.busy) return;
+    albumState.state = 'loading';
+    renderAlbum();
+    const { data, error } = await supabaseInstance.rpc('trip_album', { p_trip_year: albumYear() });
+    if (error) {
+        albumState.state = isMissingFunction(error) ? 'missing' : 'error';
+        if (albumState.state === 'error') console.error('Photo album load failed:', error);
+    } else {
+        albumState.state = 'ok';
+        albumState.url = (data && typeof data.url === 'string') ? data.url : '';
+    }
+    renderAlbum(true);
+}
+
+function setAlbumError(text) {
+    const el = document.getElementById('album-error');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = !text;
+    const input = document.getElementById('album-url');
+    if (input) {
+        if (text) input.setAttribute('aria-invalid', 'true');
+        else input.removeAttribute('aria-invalid');
+    }
+}
+
+function renderAlbum(fillInput = false) {
+    const input = document.getElementById('album-url');
+    const save = document.getElementById('album-save');
+    const open = document.getElementById('album-open');
+    const remove = document.getElementById('album-remove');
+    const note = document.getElementById('album-note');
+    const status = document.getElementById('album-status');
+    const year = document.getElementById('album-year');
+    const preview = document.getElementById('album-preview');
+    if (!input || !save || !open || !remove || !note || !status) return;
+    if (year) year.textContent = String(albumYear());
+    if (preview) preview.href = albumPreviewHref();
+    const ready = albumState.state === 'ok';
+    if (fillInput && ready) input.value = albumState.url;
+    input.disabled = !ready || albumState.busy;
+    save.disabled = !ready || albumState.busy;
+    save.textContent = albumState.busy ? 'Saving…' : 'Save link';
+    remove.disabled = albumState.busy;
+    const has = ready && !!albumState.url && ALBUM_URL_RE.test(albumState.url);
+    open.hidden = !has;
+    remove.hidden = !has;
+    if (has) open.href = albumState.url;
+    note.className = `setup-note${albumState.state === 'error' ? ' is-error' : ''}`;
+    if (albumState.state === 'missing') {
+        note.textContent = 'The photo album isn’t set up yet: run photos_2027.sql in the Supabase SQL Editor, then come back here.';
+    } else if (albumState.state === 'error') {
+        note.innerHTML = '<span>Couldn’t load the album link.</span><button type="button" class="admin-btn secondary" id="album-retry">Retry</button>';
+        document.getElementById('album-retry').addEventListener('click', loadAlbum);
+    } else {
+        note.textContent = '';
+    }
+    note.hidden = !note.textContent;
+    status.textContent = albumState.state === 'loading' ? 'Loading…'
+        : !ready ? ''
+        : has ? 'Saved. After the trip, logged-in crew see Add your photos on the homepage.'
+        : 'No album yet, so the homepage shows no photos button.';
+}
+
+async function saveAlbum(raw) {
+    if (!supabaseInstance || albumState.state !== 'ok' || albumState.busy) return;
+    const url = String(raw || '').trim();
+    if (url && !/^https:\/\//i.test(url)) return setAlbumError('The link has to start with https://. Copy it from the album’s Share button.');
+    if (url && !ALBUM_URL_RE.test(url)) return setAlbumError('That link has spaces or odd characters in it. Copy it again from the album’s Share button.');
+    if (url.length > 1000) return setAlbumError('That link is too long to be an album link.');
+    if (!url && !albumState.url) return setAlbumError('Paste the album’s link first.');
+    setAlbumError('');
+    albumState.busy = true;
+    renderAlbum();
+    const { data, error } = await supabaseInstance.rpc('admin_set_trip_album', { p_trip_year: albumYear(), p_url: url || null });
+    albumState.busy = false;
+    if (error) {
+        if (isMissingFunction(error)) {
+            albumState.state = 'missing';
+            renderAlbum();
+            return;
+        }
+        renderAlbum();
+        setAlbumError(`Couldn’t save: ${plainError(error)}`);
+        return;
+    }
+    albumState.url = (data && typeof data.url === 'string') ? data.url : '';
+    renderAlbum(true);
+    window.showToast(url ? 'Photo album link saved.' : 'Photo album link removed.', 'success');
 }

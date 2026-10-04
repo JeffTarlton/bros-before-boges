@@ -224,10 +224,11 @@
                         <div class="today-actions" data-phase="wrap" hidden>
                             <a class="btn btn-copper" href="round_tracker.html#board">Final scores</a>
                             <a class="btn btn-line" href="bookie.html#ledger-panel">Settle up</a>
-                            <!-- Only when this trip's album in trip-config.js has a shareUrl (script.js) -->
-                            <a class="btn btn-line" id="wrap-photos" href="#" target="_blank" rel="noopener" hidden>
+                            <!-- Once Admin has saved the trip's shared album (photos_2027.sql): the album for the
+                                 signed-in crew, "Log in to add your photos" for everyone else (script.js) -->
+                            <a class="btn btn-line" id="wrap-photos" href="#" hidden>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
-                                Add your photos
+                                <span id="wrap-photos-label">Add your photos</span>
                             </a>
                         </div>
                     </div>
@@ -618,7 +619,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="script.js?v=2027.19"></script>
+    <script src="script.js?v=2027.20"></script>
 </body>
 
 </html>

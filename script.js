@@ -730,12 +730,56 @@ function renderTodayCard() {
     if (!el || !body) return;
     body.innerHTML = phase.name === 'trip' ? todayCardHTML() : phase.name === 'wrap' ? wrapCardHTML() : '';
     el.classList.toggle('is-wrap', phase.name === 'wrap');
-    // "Add your photos" only when this trip's album in trip-config has a shareUrl
-    const photos = document.getElementById('wrap-photos');
-    const album = (CFG.photoAlbums || []).find(a => a && String(a.year) === String(TRIP.year) && /^https:\/\//i.test(a.shareUrl || ''));
-    if (photos) {
-        photos.hidden = !album;
-        if (album) photos.href = album.shareUrl;
+    refreshPhotoButton();
+}
+
+// "Add your photos" on the wrap card. The shared album link is set in Admin (photos_2027.sql) and only
+// the confirmed crew and admins get it; a signed-out visitor sees "Log in to add your photos" once
+// there's an album. Asked once per login.
+const albumCheck = { key: null, data: null };
+async function refreshPhotoButton() {
+    const btn = document.getElementById('wrap-photos');
+    const label = document.getElementById('wrap-photos-label');
+    if (!btn || !label) return;
+    const v = viewer();
+    if (phase.name !== 'wrap' || !supabaseInstance || !v) {
+        btn.hidden = true;
+        return;
+    }
+    const key = v.signedIn ? `in:${account.user ? account.user.id : ''}` : 'out';
+    if (albumCheck.key !== key) {
+        albumCheck.key = key;
+        albumCheck.data = null;
+        let res;
+        try {
+            res = await supabaseInstance.rpc('trip_album', { p_trip_year: Number(TRIP.year) });
+        } catch (e) {
+            res = { error: e };
+        }
+        if (albumCheck.key !== key) return; // the login changed while asking
+        if (res.error) {
+            if (!rpcMissing(res.error)) console.error('Photo album check failed:', res.error);
+            albumCheck.key = null; // ask again next time
+        } else {
+            albumCheck.data = res.data;
+        }
+    }
+    const d = albumCheck.data;
+    if (d && typeof d.url === 'string' && /^https:\/\/[^\s<>"']+$/i.test(d.url)) {
+        btn.href = d.url;
+        btn.target = '_blank';
+        btn.rel = 'noopener';
+        label.textContent = 'Add your photos';
+        btn.hidden = false;
+    } else if (d && d.exists && !v.signedIn) {
+        btn.href = accountUrl('home', 'login');
+        btn.removeAttribute('target');
+        label.textContent = 'Log in to add your photos';
+        btn.hidden = false;
+    } else {
+        btn.hidden = true;
+        btn.href = '#';
+        btn.removeAttribute('target');
     }
 }
 
@@ -1786,7 +1830,7 @@ function viewer() {
 // Re-render everything that depends on who's looking. Runs after the first account check, and
 // again after an RSVP, a profile save, a log out, or any later account re-check.
 function renderPersonal() {
-    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction].forEach(fn => {
+    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction, refreshPhotoButton].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
     });
     refreshBetsBadge();

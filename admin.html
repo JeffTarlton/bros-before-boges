@@ -1266,6 +1266,21 @@
             .claims { padding: 14px; }
         }
 
+        /* Photo album tab */
+        .tab-lede { max-width: 640px; margin: 6px 0 22px; color: var(--text-muted); font-size: 0.9rem; line-height: 1.55; }
+        .tab-lede b { color: #fff; }
+        .album-form { max-width: 560px; }
+        .album-form .admin-input { margin: 0; }
+        .album-form .sheet-error { margin: 10px 0 0; }
+        .album-form .sheet-error[hidden] { display: none; }
+        .album-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+        .album-actions .admin-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: auto; min-height: 44px; margin: 0; padding: 10px 20px; text-decoration: none; }
+        .album-actions .admin-btn[hidden] { display: none; }
+        .album-status { min-height: 1.4em; margin: 14px 0 0; color: rgba(255, 255, 255, 0.75); font-size: 0.9rem; line-height: 1.45; }
+        .album-preview { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--admin-accent); font-size: 0.9rem; font-weight: 600; }
+        .album-preview:hover { text-decoration: underline; }
+        .album-preview:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+
         /* ── Phones and tablets: a compact header, a pinned tab strip, and one tappable row per player
            (Roster, RSVPs, Score Entry) that opens to the full card. Desktop shows every column instead. ── */
         .tab-short { display: none; }
@@ -1505,6 +1520,7 @@
                 <button type="button" class="sidebar-item" data-tab="scores"><span class="tab-full">Ryder Cup Score</span><span class="tab-short">Cup total</span></button>
                 <button type="button" class="sidebar-item" data-tab="score-entry"><span class="tab-full"><span aria-hidden="true">📝 </span>Score Entry</span><span class="tab-short">Scores</span></button>
                 <button type="button" class="sidebar-item" data-tab="potential">New sign-ups</button>
+                <button type="button" class="sidebar-item" data-tab="photos"><span class="tab-full">Photo album</span><span class="tab-short">Photos</span></button>
             </nav>
 
             <!-- Content Area -->
@@ -1686,6 +1702,27 @@
                     <div id="potential-list" style="display: flex; flex-direction: column; gap: 15px;">
                         <!-- Content populated by JS -->
                     </div>
+                </div>
+
+                <!-- Photo album: the shared album link for the homepage's "Add your photos" (photos_2027.sql) -->
+                <div id="tab-photos" class="tab-content" style="display: none;">
+                    <h2>Photo album</h2>
+                    <p class="tab-lede">The shared album the crew adds their trip photos to. After the trip, the homepage’s “That’s a wrap” card shows <b>Add your photos</b>, which opens it, to players on the confirmed roster who are logged in. Everyone else sees “Log in to add your photos” and never the link.</p>
+                    <div class="setup-note" id="album-note" hidden></div>
+                    <form id="album-form" class="album-form" method="post" novalidate onsubmit="return false">
+                        <label class="login-label" for="album-url">Shared album link for <span id="album-year">the trip</span></label>
+                        <input type="url" id="album-url" class="admin-input" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
+                            placeholder="https://photos.app.goo.gl/…" aria-describedby="album-hint album-error">
+                        <p class="field-hint" id="album-hint">Google Photos: open the album, tap Share, turn on Collaborate so the guys can add photos, then Copy link. iCloud: Shared Album, turn on Public Website, copy the link. It has to start with https://.</p>
+                        <p class="sheet-error" id="album-error" role="alert" hidden></p>
+                        <div class="album-actions">
+                            <button type="submit" id="album-save" class="admin-btn">Save link</button>
+                            <a id="album-open" class="admin-btn secondary" href="#" target="_blank" rel="noopener" hidden>Open album <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
+                            <button type="button" id="album-remove" class="admin-btn secondary" hidden>Remove</button>
+                        </div>
+                        <p class="album-status" id="album-status" role="status"></p>
+                        <a class="album-preview" id="album-preview" href="index.html" target="_blank" rel="noopener">See the homepage as it looks after the trip <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
+                    </form>
                 </div>
 
                 <!-- Ryder Cup Score Tab -->
@@ -1928,7 +1965,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
     <script src="trip-config.js?v=2027.15"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="admin.js?v=2027.18"></script>
+    <script src="admin.js?v=2027.19"></script>
 </body>
 
 </html>

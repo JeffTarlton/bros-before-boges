@@ -500,11 +500,8 @@ window.BBB = {
     // Hall of Fame photo wall: one album per trip, newest first. The first photo is the
     // big featured tile; `pos` nudges the crop (CSS object-position) for tall photos.
     // Albums whose `year` matches a history entry get a "View photos" link on that row.
-    // Optional shareUrl: an https link to a shared album the crew can add to (Google Photos,
-    // iCloud, …). After the trip, the homepage's "That's a wrap" card shows an "Add your photos"
-    // button for the album whose `year` matches trip.year; no shareUrl, no button. An album can
-    // have a shareUrl and no photos yet, e.g.
-    //   { id: '2027', year: 2027, label: '2027 · Scottsdale', shareUrl: 'https://photos.app.goo.gl/…', photos: [] }
+    // The shared album the crew adds to (the "Add your photos" button after the trip) is NOT set here:
+    // anyone can read this file, and that link is for the signed-in crew only. Paste it in Admin → Photos.
     photoAlbums: [
         {
             id: '2026',
