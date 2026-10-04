@@ -25,7 +25,7 @@ window.BBBScoring = (function () {
         split: { key: 'split', label: 'Front 9 scramble · back 9 alternate shot', teams: true, sharedBall: true, cap: 3 },
         shared: { key: 'shared', label: 'Two-man team, one ball', teams: true, sharedBall: true },
         bestball: { key: 'bestball', label: 'Two-man best ball', teams: true, sharedBall: false },
-        singles: { key: 'singles', label: 'Singles match play', teams: false, sharedBall: false },
+        singles: { key: 'singles', label: 'Head-to-head match play', teams: false, sharedBall: false },
         stroke: { key: 'stroke', label: 'Stroke play', teams: false, sharedBall: false }
     };
     // Used only when trip-config doesn't say (the 2026 rules)
@@ -76,7 +76,7 @@ window.BBBScoring = (function () {
         return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
     }
 
-    // Team point quota, per player per hole
+    // The Grind's team points, per player per hole
     function quotaPoints(score, par) {
         if (score === null || !par) return 0;
         const d = score - par;
