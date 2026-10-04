@@ -13,7 +13,8 @@
 // - Formats come from trip-config.js `roundPlay`; the math lives in scoring.js.
 const SUPABASE_URL = 'https://gxpwgrdyizruzfczzqwn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_uo20KpEYmGXAIB9JGL1CnQ_wIxT8GX4';
-const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+// Pinned, the same file as the page's own script tag (a new 2.x release can't change things under us)
+const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js';
 
 const CFG = window.BBB || {};
 const SC = window.BBBScoring;
@@ -1171,13 +1172,25 @@ function holeStatusLines() {
         const names = m.sides.map(s => (format.teams && TEAM_NAMES[s.team]) || s.ids.map(id => firstName(nameOf(id))).join(' & '));
         return r.parts.map(p => {
             const leader = p.lead > 0 ? 1 : p.lead < 0 ? 2 : 0;
-            return `<div class="status-line"><span>${p.label ? `${escHtml(p.label)} · ` : ''}Match ${m.number}</span><b class="${leader && p.started ? `team-${m.sides[leader - 1].team}` : ''}">${escHtml(SC.partText(p, names))}</b></div>`;
+            const team = leader && p.started ? m.sides[leader - 1].team : 0;
+            return `<div class="status-line${team ? ` lead-t${team}` : ''}"><span>${p.label ? `${escHtml(p.label)} · ` : ''}Match ${m.number}</span><b class="${leader && p.started ? `team-${m.sides[leader - 1].team}` : ''}">${escHtml(SC.partText(p, names))}</b></div>`;
         }).join('');
     }).join('');
 }
 
-// "2 pts · E thru 1 · 4" as HTML parts: on a narrow row the later parts drop out whole
-function unitSubline(unit) {
+// This hole's score in words: "Bogey", or "Bogey · 1 pt" in a points round
+function holeResultText(v, par, format) {
+    if (v === null || !par) return '';
+    const d = v - par;
+    const word = { ace: 'Ace', albatross: 'Albatross', eagle: 'Eagle', birdie: 'Birdie', par: 'Par', bogey: 'Bogey', double: 'Double' }[SC.scoreName(v, par)]
+        || (d === 3 ? 'Triple' : `+${d}`);
+    return format.key === 'points' ? `${word} · ${ptsText(SC.quotaPoints(v, par))}` : word;
+}
+
+// "Bogey · 1 pt  2 pts · E thru 1 · 4" as HTML parts: this hole's result first (in the score's
+// colour), then the round so far. On a narrow row the later parts drop out whole. It stays one
+// line whether or not the hole is scored, so a tap never moves the rows below.
+function unitSubline(unit, hole) {
     const sess = S.sess;
     const format = formatOf(sess.roundNumber);
     const holes = unitHoles(unit);
@@ -1187,7 +1200,10 @@ function unitSubline(unit) {
     const segs = format.key === 'points'
         ? [ptsText(unitPoints(holes, sess.pars)), `· ${toPar}`, `thru ${t.thru}`, `· ${t.strokes}`]
         : [toPar, `thru ${t.thru}`, `· ${t.strokes}`];
-    return segs.map(s => `<span class="seg">${escHtml(s)}</span>`).join(' ');
+    const v = holes[hole - 1];
+    const res = holeResultText(v, sess.pars[hole - 1], format);
+    const lead = res ? `<b class="seg hole-res ${SC.scoreName(v, sess.pars[hole - 1])}">${escHtml(res)}</b> <span class="seg res-sep" aria-hidden="true">|</span> ` : '';
+    return lead + segs.map(s => `<span class="seg">${escHtml(s)}</span>`).join(' ');
 }
 
 // Re-render the Score view, keeping keyboard focus on the same control
@@ -1229,7 +1245,7 @@ function renderScore() {
             <div class="unit${u.team ? ` t${u.team}` : ''}">
                 <div style="min-width: 0;">
                     <div class="unit-name">${escHtml(name)}</div>
-                    <div class="unit-sub">${unitSubline(u)}</div>
+                    <div class="unit-sub">${unitSubline(u, h)}</div>
                 </div>
                 <div class="stepper">
                     <button type="button" class="step minus" data-action="minus" data-unit="${i}" aria-label="One stroke fewer for ${escHtml(unitName(u))} on hole ${h}"${v === 1 ? ' disabled' : ''}>−</button>

@@ -38,10 +38,13 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.10">
-    <link rel="stylesheet" href="home.css?v=2027.16">
+    <link rel="stylesheet" href="home.css?v=2027.17">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" fetchpriority="high">
+    <!-- The hero photo: a phone held upright gets just the middle of it (sized/…-portrait.jpg, the same pixels it would
+         show of the full photo); anything wider picks a width from the set. Same rules as the <picture> in the hero. -->
+    <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/sized/desert-mountain-vista-portrait.jpg" media="(max-aspect-ratio: 2/3)" fetchpriority="high">
+    <link rel="preload" as="image" href="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" imagesrcset="assets/courses/wekopa-saguaro/sized/desert-mountain-vista-640.jpg 640w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-960.jpg 960w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-1280.jpg 1280w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-1920.jpg 1920w, assets/courses/wekopa-saguaro/desert-mountain-vista.jpg 2400w" imagesizes="100vw" media="not all and (max-aspect-ratio: 2/3)" fetchpriority="high">
 </head>
 
 <body>
@@ -166,7 +169,7 @@
         <!-- ============================== HERO ============================== -->
         <section class="hero" id="top">
             <div class="hero-media" id="hero-media" aria-hidden="true">
-                <div class="hero-slide is-active"><img src="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" alt="" fetchpriority="high"></div>
+                <div class="hero-slide is-active"><picture><source media="(max-aspect-ratio: 2/3)" srcset="assets/courses/wekopa-saguaro/sized/desert-mountain-vista-portrait.jpg"><img src="assets/courses/wekopa-saguaro/desert-mountain-vista.jpg" srcset="assets/courses/wekopa-saguaro/sized/desert-mountain-vista-640.jpg 640w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-960.jpg 960w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-1280.jpg 1280w, assets/courses/wekopa-saguaro/sized/desert-mountain-vista-1920.jpg 1920w, assets/courses/wekopa-saguaro/desert-mountain-vista.jpg 2400w" sizes="100vw" alt="" fetchpriority="high"></picture></div>
             </div>
 
             <div class="wrap hero-grid">
@@ -583,6 +586,7 @@
     </div>
 
     <script src="trip-config.js?v=2027.15"></script>
+    <script src="assets/photo-sizes.js?v=2027.1"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
         // the supabase-js bundle below, which can take a while on a weak signal at the course: until
@@ -613,8 +617,8 @@
             } catch (e) { /* script.js picks the phase once it loads */ }
         })();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2027.18"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+    <script src="script.js?v=2027.19"></script>
 </body>
 
 </html>

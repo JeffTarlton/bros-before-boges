@@ -328,9 +328,13 @@
             border-radius: 12px;
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.06);
-            font-size: 0.9rem;
+            font-size: 1rem;
+            align-items: baseline;
         }
-        .status-line b { white-space: nowrap; }
+        .status-line b { white-space: nowrap; font-size: 1.12rem; font-weight: 800; }
+        /* Tinted in the colour of whoever's ahead (no tint when it's all square) */
+        .status-line.lead-t1 { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.4); border-left: 4px solid #60a5fa; }
+        .status-line.lead-t2 { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.4); border-left: 4px solid #f87171; }
 
         .unit {
             display: grid;
@@ -351,6 +355,12 @@
         /* Each part drops out whole when the line is too long, so a number is never cut ("thru 1…" for 13) */
         .unit-sub .seg { display: inline-block; }
         .unit-sub .pend { color: var(--accent-gold); font-weight: 700; }
+        /* This hole's result ("Bogey · 1 pt"), in the same colours as the score's mark */
+        .unit-sub .hole-res { font-weight: 800; color: var(--text-main); }
+        .unit-sub .hole-res.birdie { color: #6ee7b7; }
+        .unit-sub .hole-res.eagle, .unit-sub .hole-res.albatross, .unit-sub .hole-res.ace { color: #fde68a; }
+        .unit-sub .hole-res.double, .unit-sub .hole-res.worse { color: #fca5a5; }
+        .unit-sub .res-sep { color: rgba(255, 255, 255, 0.25); }
 
         .stepper { display: flex; align-items: center; gap: 6px; }
         .step {
@@ -829,10 +839,10 @@
     <div class="toast-container" role="status" aria-live="polite"></div>
     <div id="sync-live" class="sr-only" role="status" aria-live="polite"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
     <script src="trip-config.js?v=2027.15"></script>
     <script src="scoring.js?v=2027.10"></script>
-    <script src="round_tracker.js?v=2027.17"></script>
+    <script src="round_tracker.js?v=2027.18"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

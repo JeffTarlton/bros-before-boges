@@ -368,7 +368,8 @@ function renderHero() {
     const images = hero.images || [];
     if (!media || images.length === 0) return;
     const first = media.querySelector('.hero-slide img');
-    if (first && !first.getAttribute('src').includes(images[0])) first.src = images[0];
+    // A different first photo in trip-config.js than the page's own: swap the whole <picture> (its srcset would win over a new src)
+    if (first && !first.getAttribute('src').includes(images[0])) first.closest('.hero-slide').innerHTML = heroPictureHTML(images[0]);
 
     // Reduced-motion users keep the first photo and never download the rest.
     if (REDUCED_MOTION || images.length < 2) return;
@@ -376,7 +377,7 @@ function renderHero() {
     const addSlide = (src) => {
         const slide = document.createElement('div');
         slide.className = 'hero-slide';
-        slide.innerHTML = `<img src="${esc(src)}" alt="" decoding="async">`;
+        slide.innerHTML = heroPictureHTML(src);
         media.appendChild(slide);
         return slide;
     };
@@ -935,13 +936,37 @@ function courseBodyHTML(course, group) {
         </details>` : ''}`;
 }
 
+// Smaller copies of a photo for phones (tools/photo_sizes.py makes them and lists them in
+// assets/photo-sizes.js). A photo that isn't listed just loads as it always has.
+const PHOTO_SIZES = window.BBB_PHOTO_SIZES || {};
+// How wide a course's big photo shows: the full column on a phone or tablet, about 600px beside the text
+const COURSE_PHOTO_SIZES = 'auto, (max-width: 960px) calc(100vw - 40px), 600px';
+function photoSrcset(src) {
+    const p = PHOTO_SIZES[src];
+    if (!p || !p.sizes || !p.sizes.length) return '';
+    const base = src.replace(/([^/]+)\.jpe?g$/i, 'sized/$1');
+    return p.sizes.map(w => `${base}-${w}.jpg ${w}w`).concat(`${src} ${p.w}w`).join(', ');
+}
+// ` srcset="…" sizes="…"` for an <img>, or nothing. `sizes` starts with auto for lazy images:
+// browsers that know it measure the real box, the rest use the guess after it.
+function photoSizes(src, sizes) {
+    const set = photoSrcset(src);
+    return set ? ` srcset="${esc(set)}" sizes="${esc(sizes)}"` : '';
+}
+// A full-screen hero slide: a phone held upright gets the photo's middle (the same pixels it would show)
+function heroPictureHTML(src) {
+    const p = PHOTO_SIZES[src];
+    const tall = p && p.portrait ? `<source media="(max-aspect-ratio: 2/3)" srcset="${esc(src.replace(/([^/]+)\.jpe?g$/i, 'sized/$1-portrait.jpg'))}">` : '';
+    return `<picture>${tall}<img src="${esc(src)}"${photoSizes(src, '100vw')} alt="" decoding="async"></picture>`;
+}
+
 function courseGalleryHTML(course, round) {
     const imgs = course.images || [];
     if (!imgs.length) return '';
     const hero = imgs[0];
     return `
         <button type="button" class="course-hero" data-lightbox-course="${esc(course.id)}" data-index="0" aria-label="View ${esc(course.name)} photos full screen"${course.heroAspect ? ` style="aspect-ratio: ${esc(course.heroAspect)};"` : ''}>
-            <img src="${esc(hero.src)}" alt="${esc(hero.alt)}" loading="lazy" decoding="async" width="${hero.w || 1600}" height="${hero.h || 1067}">
+            <img src="${esc(hero.src)}"${photoSizes(hero.src, COURSE_PHOTO_SIZES)} alt="${esc(hero.alt)}" loading="lazy" decoding="async" width="${hero.w || 1600}" height="${hero.h || 1067}">
             ${round ? `<span class="round-badge">${round}</span>` : ''}
             <span class="zoom-hint">${icon('expand')}</span>
         </button>
@@ -1018,6 +1043,9 @@ function showCoursePhoto(courseId, index) {
         const el = heroBtn.querySelector('img');
         el.style.opacity = '0';
         setTimeout(() => {
+            // Swap the size choices too: with a srcset the browser ignores a new src
+            const set = photoSrcset(img.src);
+            if (set) { el.srcset = set; el.sizes = COURSE_PHOTO_SIZES; } else { el.removeAttribute('srcset'); el.removeAttribute('sizes'); }
             el.src = img.src;
             el.alt = img.alt;
             el.onload = () => { el.style.opacity = '1'; };
@@ -1162,7 +1190,7 @@ function renderCup() {
     const trophy = cup.trophy;
     html += `
         <div class="cup-card cup-hardware reveal${liveTeams ? ' is-wide' : ''}">
-            ${trophy && trophy.src ? `<button type="button" class="hardware-photo" data-lightbox-single="${esc(trophy.full || trophy.src)}" data-caption="${esc(trophy.caption || '')}" aria-label="View the trophy full screen"><img src="${esc(trophy.src)}" alt="${esc(trophy.alt || 'The Bros before Boges trophy')}" loading="lazy" decoding="async"></button>` : ''}
+            ${trophy && trophy.src ? `<button type="button" class="hardware-photo" data-lightbox-single="${esc(trophy.full || trophy.src)}" data-caption="${esc(trophy.caption || '')}" aria-label="View the trophy full screen"><img src="${esc(trophy.src)}"${photoSizes(trophy.src, 'auto, 300px')} alt="${esc(trophy.alt || 'The Bros before Boges trophy')}" loading="lazy" decoding="async"></button>` : ''}
             <div>
                 <p class="eyebrow">The Hardware</p>
                 <h3>${esc(cup.trophyTitle || 'The Cup')}</h3>
@@ -1314,7 +1342,7 @@ function mosaicHTML(album) {
             : `Open photo ${i + 1} of ${photos.length}: ${p.alt}`;
         return `
         <button type="button" class="mosaic-tile" data-album="${esc(album.id)}" data-index="${i}" aria-label="${esc(label)}">
-            <img src="${esc(p.src)}" alt="${esc(p.alt)}" loading="lazy" decoding="async"${p.pos ? ` style="object-position: ${esc(p.pos)};"` : ''}>
+            <img src="${esc(p.src)}"${photoSizes(p.src, i === 0 ? 'auto, (max-width: 640px) calc(100vw - 32px), 600px' : 'auto, (max-width: 640px) 46vw, 300px')} alt="${esc(p.alt)}" loading="lazy" decoding="async"${p.pos ? ` style="object-position: ${esc(p.pos)};"` : ''}>
             ${i === 0 ? `<span class="mosaic-caption" aria-hidden="true">${esc(album.label)}</span>` : ''}
             ${isLast ? `<span class="mosaic-more" aria-hidden="true">+${extra}<small>more</small></span>` : ''}
         </button>`;
@@ -1761,6 +1789,68 @@ function renderPersonal() {
     [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
     });
+    refreshBetsBadge();
+}
+
+// ---------------------------------------------------------------------------
+// "Bets need you": a count on the Bookie links, by the same rule as The Bookie's own badges
+// (bookie.js needsMe): a challenge to answer, your pool or prop to record a result for, or a
+// live head-to-head of yours once the trip is over. Checked each time the account is.
+// ---------------------------------------------------------------------------
+const BETS_SEASON_START = CFG.bookie && CFG.bookie.seasonStart ? new Date(CFG.bookie.seasonStart) : null;
+let betsCheck = 0;
+function betNeedsMe(w, me) {
+    if (w.status === 'proposed') return w.target_id === me;
+    if (w.status !== 'active') return false;
+    if (w.type === 'h2h') {
+        const end = TRIP.dates && TRIP.dates.end;
+        const made = new Date(w.created_at).getTime();
+        const over = !!end && !isNaN(made) && tripClock(made).date <= end && tripClock(Date.now()).date > end;
+        return (w.creator_id === me || w.target_id === me) && over;
+    }
+    return w.creator_id === me;
+}
+async function refreshBetsBadge() {
+    const v = viewer();
+    const me = v && v.player && v.player.id;
+    const run = ++betsCheck;
+    if (!me || !supabaseInstance) { setBetsBadge(0); return; }
+    try {
+        let q = supabaseInstance.from('wagers').select('status, type, creator_id, target_id, created_at')
+            .in('status', ['proposed', 'active']).or(`creator_id.eq.${me},target_id.eq.${me}`);
+        if (BETS_SEASON_START && !isNaN(BETS_SEASON_START)) q = q.gte('created_at', BETS_SEASON_START.toISOString());
+        const { data, error } = await q;
+        if (error) throw error;
+        if (run === betsCheck) setBetsBadge((data || []).filter(w => betNeedsMe(w, me)).length);
+    } catch (err) {
+        console.warn('Bets check failed:', err); // no badge rather than a wrong one
+        if (run === betsCheck) setBetsBadge(0);
+    }
+}
+function setBetsBadge(n) {
+    const words = n === 1 ? '1 bet needs you' : `${n} bets need you`;
+    document.querySelectorAll('.nav-links a[href="bookie.html"], .drawer > a[href="bookie.html"]').forEach(a => {
+        let badge = a.querySelector('.bets-badge');
+        if (!n) { if (badge) badge.remove(); return; }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'bets-badge';
+            a.appendChild(badge);
+        }
+        badge.innerHTML = `<span aria-hidden="true">${n}</span><span class="sr-only">: ${words}</span>`;
+    });
+    // On a phone the links are in the menu: a dot on the menu button says there's something inside
+    const toggle = document.getElementById('nav-toggle');
+    if (toggle) {
+        toggle.classList.toggle('has-bets', n > 0);
+        if (n) toggle.dataset.bets = words; else delete toggle.dataset.bets;
+        if (toggle.getAttribute('aria-expanded') !== 'true') toggle.setAttribute('aria-label', menuLabel(false));
+    }
+}
+// "Open menu (1 bet needs you)"
+function menuLabel(open) {
+    const bets = elements.navToggle && elements.navToggle.dataset.bets;
+    return open ? 'Close menu' : `Open menu${bets ? ` (${bets})` : ''}`;
 }
 
 const YOU_COPY = {
@@ -4026,7 +4116,7 @@ function setDrawer(open) {
     if (!elements.drawer || !elements.navToggle) return;
     elements.drawer.classList.toggle('is-open', open);
     elements.navToggle.setAttribute('aria-expanded', String(open));
-    elements.navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    elements.navToggle.setAttribute('aria-label', menuLabel(open));
     document.body.classList.toggle('drawer-open', open);
     if (elements.nav) elements.nav.classList.toggle('is-solid', open);
     // The drawer covers the page, so keep Tab inside it while it's open.

@@ -1222,12 +1222,12 @@ function renderMatchupsUI() {
 
             <div style="margin-bottom: 15px;">
                 <div style="font-size: 0.8rem; font-weight: bold; color: var(--accent-emerald); margin-bottom: 5px;">Team 1</div>
-                <select data-field="t1_player1_id" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
+                <select data-field="t1_player1_id" aria-label="Match ${index + 1}, Team 1, ${isSingles ? 'player' : 'player 1'}" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't1_player1_id', this.value)">
                     <option value="">Select T1 Player 1</option>
                     ${getOptions(1, match.t1_player1_id)}
                 </select>
                 ${!isSingles ? `
-                <select data-field="t1_player2_id" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
+                <select data-field="t1_player2_id" aria-label="Match ${index + 1}, Team 1, player 2" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't1_player2_id', this.value)">
                     <option value="">Select T1 Player 2</option>
                     ${getOptions(1, match.t1_player2_id)}
                 </select>` : ''}
@@ -1235,12 +1235,12 @@ function renderMatchupsUI() {
 
             <div>
                 <div style="font-size: 0.8rem; font-weight: bold; color: #ef4444; margin-bottom: 5px;">Team 2</div>
-                <select data-field="t2_player1_id" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
+                <select data-field="t2_player1_id" aria-label="Match ${index + 1}, Team 2, ${isSingles ? 'player' : 'player 1'}" class="admin-input" style="padding: 6px; font-size: 0.85rem;" onchange="updateMatchupTeam(${globalIndex}, 't2_player1_id', this.value)">
                     <option value="">Select T2 Player 1</option>
                     ${getOptions(2, match.t2_player1_id)}
                 </select>
                 ${!isSingles ? `
-                <select data-field="t2_player2_id" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
+                <select data-field="t2_player2_id" aria-label="Match ${index + 1}, Team 2, player 2" class="admin-input" style="padding: 6px; font-size: 0.85rem; margin-top: 5px;" onchange="updateMatchupTeam(${globalIndex}, 't2_player2_id', this.value)">
                     <option value="">Select T2 Player 2</option>
                     ${getOptions(2, match.t2_player2_id)}
                 </select>` : ''}
