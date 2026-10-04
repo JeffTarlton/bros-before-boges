@@ -42,13 +42,5 @@ window.BBB_PHOTO_SIZES = {
     "assets/past_years/2026/thumb/reading-the-green.jpg": {"w": 675, "sizes": [320, 480]},
     "assets/past_years/2026/thumb/team-photo.jpg": {"w": 675, "sizes": [320, 480]},
     "assets/past_years/2026/thumb/waterfall-foursome.jpg": {"w": 900, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_0574.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_0708.jpg": {"w": 632, "sizes": [320, 480]},
-    "assets/past_years/web/thumb/img_1181.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_1256.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_1359.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_1567.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_6933.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_6936.jpg": {"w": 760, "sizes": [320, 480, 640]},
-    "assets/past_years/web/thumb/img_6937.jpg": {"w": 760, "sizes": [320, 480, 640]}
+    "assets/past_years/web/thumb/img_0708.jpg": {"w": 632, "sizes": [320, 480]}
 };

@@ -469,7 +469,7 @@ window.BBB = {
     // Past editions, newest first. The first entry with a score powers the animated
     // champions reel. rosterDisplay: 'collapsed' (button reveals the squad),
     // 'visible' (always shown) or 'hidden' (never shown).
-    // Optional sessions: [{ label: 'Round 1 · Point Quota', blue: 2.5, red: 1.5 }, ...]
+    // Optional sessions: [{ label: 'Round 1 · The Grind', blue: 2.5, red: 1.5 }, ...]
     history: [
         {
             year: 2026,
@@ -487,12 +487,6 @@ window.BBB = {
                 red: ['Jeff Tarlton', 'Andy Mazzolini', 'Colby Gibson', 'Derrick Merchant', 'Dillon Griffin', 'Keith Spacek', 'Kelly Dennard', 'Tyler Lyons']
             },
             sessions: []
-        },
-        {
-            // Result not recorded yet: add champion/score (or resultText) and courses when known
-            year: 2025,
-            location: 'Bandon Dunes, Oregon',
-            courses: []
         }
     ],
     hallOfFameNextNote: 'Talking Stick O’odham · We-Ko-Pa Cholla & Saguaro · Camelback Ambiente',
@@ -516,27 +510,6 @@ window.BBB = {
                 { src: 'assets/past_years/2026/thumb/putting-course-palms.jpg', full: 'assets/past_years/2026/putting-course-palms.jpg', alt: 'Putting-course showdown among the palm trees at dusk' },
                 { src: 'assets/past_years/2026/thumb/lakeside-pair.jpg', full: 'assets/past_years/2026/lakeside-pair.jpg', alt: 'Two of the crew with their putters beside a pond and fountain', pos: '50% 40%' },
                 { src: 'assets/past_years/2026/thumb/hill-country-putt.jpg', full: 'assets/past_years/2026/hill-country-putt.jpg', alt: 'Lining up a putt with Hill Country views behind the green', pos: '50% 45%' }
-            ]
-        },
-        {
-            id: '2025',
-            year: 2025,
-            label: '2025 · Bandon Dunes',
-            photos: [
-                { src: 'assets/past_years/web/thumb/img_1567.jpg', full: 'assets/past_years/web/img_1567.jpg', alt: 'Four of the crew on the Bandon links with the Pacific behind them' },
-                { src: 'assets/past_years/web/thumb/img_1181.jpg', full: 'assets/past_years/web/img_1181.jpg', alt: 'Four of the crew on a clifftop hole above the Pacific' },
-                { src: 'assets/past_years/web/thumb/img_1359.jpg', full: 'assets/past_years/web/img_1359.jpg', alt: 'Two of the crew on a windswept Bandon links hole', pos: '50% 45%' },
-                { src: 'assets/past_years/web/thumb/img_1256.jpg', full: 'assets/past_years/web/img_1256.jpg', alt: 'Three of the crew kicking back on a bench between holes' }
-            ]
-        },
-        {
-            id: 'earlier',
-            label: 'Earlier trips',
-            photos: [
-                { src: 'assets/past_years/web/thumb/img_0574.jpg', full: 'assets/past_years/web/img_0574.jpg', alt: 'A swing from the fairway on a tree-lined hole', pos: '50% 60%' },
-                { src: 'assets/past_years/web/thumb/img_6933.jpg', full: 'assets/past_years/web/img_6933.jpg', alt: 'Two of the crew in matching navy polos on the tee', pos: '50% 40%' },
-                { src: 'assets/past_years/web/thumb/img_6936.jpg', full: 'assets/past_years/web/img_6936.jpg', alt: 'The crew warming up on a hillside range' },
-                { src: 'assets/past_years/web/thumb/img_6937.jpg', full: 'assets/past_years/web/img_6937.jpg', alt: 'Hitting balls on a hillside range' }
             ]
         }
     ],
