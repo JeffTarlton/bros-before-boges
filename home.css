@@ -2024,7 +2024,8 @@ body.drawer-open { overflow: hidden; }
 }
 .hc-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* Four stats, or five once there's a waitlist, in one row */
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
     gap: 10px;
 }
 .hc-stat {
@@ -2051,6 +2052,7 @@ body.drawer-open { overflow: hidden; }
 .hc-stat.maybe b { color: var(--gold); }
 .hc-stat.out b { color: var(--ink-dim); }
 .hc-stat.sunday b { color: var(--copper); }
+.hc-stat.waitlist b { color: var(--gold); }
 .hc-progress { margin-top: 18px; display: grid; gap: 8px; }
 .hc-bar { height: 10px; border-radius: 999px; background: rgba(244, 235, 223, 0.08); overflow: hidden; }
 .hc-bar i {
@@ -2062,6 +2064,27 @@ body.drawer-open { overflow: hidden; }
     transition: width 1.2s var(--ease-out);
 }
 .hc-progress span { font-size: 0.85rem; color: var(--ink-muted); }
+/* The countdown reads as the headline of the card: "8 of 20 spots left" */
+#hc-progress-label { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.hc-progress.is-full .hc-bar i { background: linear-gradient(90deg, #b07a3a, var(--copper)); }
+.hc-progress.is-full #hc-progress-label { color: var(--gold); }
+
+/* The waitlist: numbered chips in the order they move up */
+.waitlist-note { margin: 0 0 12px; font-size: 0.9rem; color: var(--ink-muted); }
+.waitlist-chips { list-style: none; margin: 0; padding: 0; }
+.chip.wait { border-color: rgba(232, 184, 107, 0.35); }
+.chip-num {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(232, 184, 107, 0.16);
+    color: var(--gold);
+    font: 800 0.68rem var(--sans);
+    font-variant-numeric: tabular-nums;
+}
 .hc-foot {
     margin-top: 18px;
     display: flex;
@@ -2276,6 +2299,8 @@ textarea.field-input { resize: vertical; min-height: 64px; line-height: 1.45; }
 
 @media (max-width: 640px) {
     .hc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Five stats (a waitlist): the odd one out takes the full row */
+    .hc-stat:nth-child(odd):last-child { grid-column: 1 / -1; }
 
     /* Bottom-sheet modals on phones */
     .modal { align-items: flex-end; padding: 0; }

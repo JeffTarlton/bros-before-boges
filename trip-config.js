@@ -101,8 +101,13 @@ window.BBB = {
         // RSVP-by date, 'YYYY-MM-DD' in Arizona time: "Lock it in by Nov 30 so we can book rooms." on the head count,
         // the RSVP sheet and the Probably screen, then "RSVPs were due Nov 30." once it's passed. null shows nothing.
         lockBy: '2026-12-01',
-        // Set a number (e.g. 16) to show an "X of 16 spots" progress bar.
-        target: null,
+        // How many can come. The head count counts down ("8 of 20 spots left"); once that many
+        // confirmed players are In, every later In goes on a waitlist in the order they said In
+        // (changing a note or the Sunday answer keeps your place; going Probably/Out and back In
+        // sends you to the back). A new sign-up holds no spot until approved in Admin → RSVPs.
+        // Needs waitlist_2027.sql for the exact order (until then, each player's latest answer time).
+        // null: no cap, no countdown.
+        spots: 20,
         // Email each RSVP to the alerts inbox below.
         emailNotify: true,
         sundayQuestion: 'I’m up for the optional Sunday morning round (Apr 11)'

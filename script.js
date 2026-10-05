@@ -26,6 +26,9 @@ const roster = { confirmed: [], potential: [] };
 // RSVP / head count (Supabase `rsvps` table — see rsvp_schema.sql and rsvp_accounts.sql)
 const RSVP = CFG.rsvp || {};
 const RSVP_YEAR = RSVP.year || TRIP.year;
+// How many can come (trip-config rsvp.spots). Confirmed players who are In fill the spots in the
+// order they said In; everyone after that is on the waitlist. 0: no cap, no countdown.
+const RSVP_SPOTS = Math.max(0, Math.floor(Number(RSVP.spots || RSVP.target) || 0));
 const RSVP_LABELS = { in: 'I’m in', maybe: 'Probably', out: 'Can’t make it' };
 const rsvpState = { available: false, missingTable: false, latest: [], lastAt: null };
 
@@ -1738,11 +1741,48 @@ async function loadRsvps() {
         });
         rsvpState.latest = [...latest.values()];
         rsvpState.lastAt = data && data.length ? data[0].created_at : null;
+        if (RSVP_SPOTS && rsvpState.latest.some(r => r.status === 'in' && r.in_since === undefined)) await fillInSince(rsvpState.latest);
         rsvpState.available = true;
         rsvpState.missingTable = false;
     } catch (e) {
         console.error('RSVP load failed:', e);
     }
+}
+
+// Until waitlist_2027.sql has run, rsvp_latest doesn't say when each player said In (and stayed
+// In): work it out from the answers themselves, which anyone may read. If that fails, the latest
+// answer's time stands in.
+async function fillInSince(rows) {
+    const ids = rows.filter(r => r.status === 'in' && r.player_id).map(r => r.player_id);
+    if (!ids.length) return;
+    try {
+        const { data, error } = await supabaseInstance
+            .from('rsvps')
+            .select('player_id, status, created_at')
+            .eq('trip_year', RSVP_YEAR)
+            .in('player_id', ids)
+            .order('created_at', { ascending: false })
+            .limit(2000);
+        if (error || !data) return;
+        // Newest first: walk back through each player's run of In answers to the first of them
+        const since = new Map();
+        const stopped = new Set();
+        data.forEach(a => {
+            if (!a.player_id || stopped.has(a.player_id)) return;
+            if (a.status === 'in') since.set(a.player_id, a.created_at);
+            else stopped.add(a.player_id);
+        });
+        rows.forEach(r => {
+            if (r.status === 'in' && since.has(r.player_id)) r.in_since = since.get(r.player_id);
+        });
+    } catch (e) {
+        console.warn('RSVP order check failed:', e);
+    }
+}
+
+function whenMs(iso) {
+    const t = new Date(iso || 0).getTime();
+    return isNaN(t) ? 0 : t;
 }
 
 function rosterPlayerById(id) {
@@ -1756,12 +1796,43 @@ function rsvpCounts() {
     const pick = status => list
         .filter(r => r.status === status)
         .sort((a, b) => rsvpName(a).localeCompare(rsvpName(b)));
+    const ins = pick('in');
+    // The line for the spots: the order players said In (in_since, from waitlist_2027.sql; until
+    // that has run, the answer's own time). Past the last spot, the same order is the waitlist.
+    const queue = ins.slice().sort((a, b) =>
+        (whenMs(a.in_since || a.created_at) - whenMs(b.in_since || b.created_at)) ||
+        (whenMs(a.created_at) - whenMs(b.created_at)) ||
+        rsvpName(a).localeCompare(rsvpName(b)));
+    const held = RSVP_SPOTS ? queue.slice(0, RSVP_SPOTS) : queue;
     return {
-        in: pick('in'),
+        in: ins,
         maybe: pick('maybe'),
         out: pick('out'),
-        sunday: list.filter(r => r.sunday_round && r.status !== 'out').length
+        sunday: list.filter(r => r.sunday_round && r.status !== 'out').length,
+        spots: RSVP_SPOTS,
+        queue,
+        held,
+        waitlist: RSVP_SPOTS ? queue.slice(RSVP_SPOTS) : [],
+        left: RSVP_SPOTS ? Math.max(0, RSVP_SPOTS - held.length) : null
     };
+}
+
+// "8 of 20 spots left", "All 20 spots are taken", "All 20 spots are taken · 3 on the waitlist"
+function spotsText(counts) {
+    if (!counts.spots) return '';
+    if (counts.left > 0) return `${counts.left} of ${counts.spots} spot${counts.spots === 1 ? '' : 's'} left`;
+    const n = counts.waitlist.length;
+    return `All ${counts.spots} spots are taken${n ? ` · ${n} on the waitlist` : ''}`;
+}
+
+// Where the signed-in player stands in the In line: { spot, waiting } with spot 1-based and
+// waiting 0 (holds a spot) or their place on the waitlist. null: no cap, or not a confirmed In.
+function mySpot() {
+    const id = account.player && account.player.id;
+    if (!RSVP_SPOTS || !rsvpState.available || !id) return null;
+    const i = rsvpCounts().queue.findIndex(r => r.player_id === id);
+    if (i < 0) return null;
+    return { spot: i + 1, waiting: Math.max(0, i + 1 - RSVP_SPOTS) };
 }
 
 // Prefer the roster's spelling of a name.
@@ -1790,7 +1861,7 @@ function renderHeadcount() {
     const grid = elements.confirmedRoster;
 
     const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-    setText('hc-in', counts.in.length);
+    setText('hc-in', counts.held.length);
     setText('hc-maybe', counts.maybe.length);
     setText('hc-out', counts.out.length);
     setText('hc-sunday', counts.sunday);
@@ -1805,15 +1876,21 @@ function renderHeadcount() {
     setText('confirmed-roster-title', 'I’m in');
     setText('potential-roster-title', 'Probably');
 
-    const target = Number(RSVP.target) || 0;
+    // The countdown: spots held out of the cap, then the waitlist once it's full
     const progress = document.getElementById('hc-progress');
     if (progress) {
-        progress.hidden = !target;
-        if (target) {
+        progress.hidden = !counts.spots;
+        if (counts.spots) {
             const fill = document.getElementById('hc-bar-fill');
-            if (fill) fill.style.width = `${Math.min(100, (counts.in.length / target) * 100)}%`;
-            setText('hc-progress-label', `${counts.in.length} of ${target} spots filled`);
+            if (fill) fill.style.width = `${Math.min(100, (counts.held.length / counts.spots) * 100)}%`;
+            progress.classList.toggle('is-full', counts.left === 0);
+            setText('hc-progress-label', spotsText(counts));
         }
+    }
+    const waitStat = document.getElementById('hc-waitlist-stat');
+    if (waitStat) {
+        waitStat.hidden = !counts.waitlist.length;
+        setText('hc-waitlist', counts.waitlist.length);
     }
     const panel = document.getElementById('headcount');
     if (panel) panel.hidden = false;
@@ -1823,21 +1900,41 @@ function renderHeadcount() {
     const v = viewer();
     const waiting = v && v.pending && v.status ? v : null;
 
+    // A new sign-up who said In: his dashed card sits with the spots while there's room, and on
+    // the waitlist once they're taken (approval puts him in line by the time he said In)
+    const waitingIn = waiting && waiting.status === 'in' ? waiting : null;
+    const waitingListed = !!(waitingIn && counts.spots && counts.left === 0);
     if (grid) {
-        const cards = counts.in.map((r, i) => {
+        const cards = counts.held.map((r, i) => {
             const player = rosterPlayerById(r.player_id);
             const meta = [ghinMeta(player), r.sunday_round ? 'Sunday round' : null]
                 .filter(Boolean).join(' · ') || `RSVP’d ${timeAgo(r.created_at)}`;
             return playerCardHTML(player, i, meta);
         });
-        if (waiting && waiting.status === 'in') cards.push(playerCardHTML(waiting.player, cards.length, 'You, waiting on approval', true));
+        if (waitingIn && !waitingListed) cards.push(playerCardHTML(waiting.player, cards.length, 'You, waiting on approval', true));
         grid.innerHTML = cards.length
             ? cards.join('')
             : `<div class="crew-empty" style="grid-column: 1 / -1;">No one’s in yet. Be the first to RSVP.</div>`;
     }
 
     if (elements.crewCount) {
-        elements.crewCount.textContent = counts.in.length ? `${counts.in.length} golfer${counts.in.length === 1 ? '' : 's'}` : '';
+        const n = counts.held.length;
+        elements.crewCount.textContent = n ? `${n} golfer${n === 1 ? '' : 's'}${!counts.spots ? '' : counts.left ? ` · ${counts.left} ${counts.left === 1 ? 'spot' : 'spots'} left` : ' · full'}` : '';
+    }
+
+    // The waitlist, numbered in the order they'll move up
+    const waitBlock = document.getElementById('waitlist-block');
+    const waitList = document.getElementById('waitlist-roster');
+    if (waitBlock && waitList) {
+        const items = counts.waitlist.map((r, i) =>
+            `<li class="chip wait${isMe(r.player_id) ? ' is-you' : ''}"><span class="chip-num" aria-hidden="true">${i + 1}</span><span class="chip-name">${esc(rsvpName(r))}</span>${isMe(r.player_id) ? YOU_TAG : ''}</li>`);
+        if (waitingListed) items.push(`<li class="chip is-waiting">${esc(waiting.player.name)} · you, waiting on approval</li>`);
+        waitBlock.hidden = !items.length;
+        waitList.innerHTML = items.join('');
+        const count = document.getElementById('waitlist-count');
+        if (count) count.textContent = counts.waitlist.length ? `${counts.waitlist.length} waiting` : '';
+        const note = document.getElementById('waitlist-note');
+        if (note) note.textContent = `All ${counts.spots} spots are taken. If someone drops out, the next in line moves up on their own.`;
     }
     const chipList = (list, cls, status) => list.map(r => rsvpChipHTML(rsvpName(r), cls, r.player_id))
         .concat(waiting && waiting.status === status ? [waitingChipHTML(waiting.player.name)] : []);
@@ -1871,11 +1968,16 @@ function updateHeroHeadcount(counts) {
     const youRow = !!(v && v.player && v.known);
     const asking = phase.name === 'pre';
     const counted = !asking || counts.in.length || counts.maybe.length || (v && v.status);
+    // With a cap it's the countdown that matters: "12 in · 8 spots left", then the waitlist
     const label = !asking
-        ? `${counts.in.length} in the crew`
-        : counted
-            ? `${counts.in.length} in · ${counts.maybe.length} probably`
-            : 'Be the first to RSVP';
+        ? `${counts.held.length} in the crew`
+        : !counted
+            ? 'Be the first to RSVP'
+            : !counts.spots
+                ? `${counts.in.length} in · ${counts.maybe.length} probably`
+                : counts.left > 0
+                    ? `${counts.held.length} in · ${counts.left} spot${counts.left === 1 ? '' : 's'} left`
+                    : `Full · ${counts.waitlist.length ? `${counts.waitlist.length} on the waitlist` : `${counts.spots} in`}`;
     // The count is a link down to the names (the crew list sits far down a phone page)
     const text = counted
         ? `<a class="hero-count-link" href="#attendees">${esc(label)}<span class="sr-only">: see who’s in</span>${icon('chevronRight')}</a>`
@@ -2009,11 +2111,14 @@ function renderYouRow() {
     if (headcount) headcount.after(li);
     else facts.appendChild(li);
 
-    const copy = YOU_COPY[v.status];
-    li.className = `hero-you ${v.status || 'none'}`;
+    // On the waitlist: say where he stands instead of "You're in"
+    const spot = v.status === 'in' && !v.pending ? mySpot() : null;
+    const waiting = !!(spot && spot.waiting);
+    const copy = waiting ? { text: `You’re #${spot.waiting} on the waitlist`, mark: 'clock' } : YOU_COPY[v.status];
+    li.className = `hero-you ${waiting ? 'maybe is-waitlist' : v.status || 'none'}`;
     li.innerHTML = copy
         ? `<span class="you-mark" aria-hidden="true">${icon(copy.mark)}</span>
-           <span class="hero-you-text"><b>${copy.text}</b>${v.pending ? '<span class="hero-you-note"> · shows on the list once the commissioner approves you</span>' : ''}</span>
+           <span class="hero-you-text"><b>${copy.text}</b>${v.pending ? '<span class="hero-you-note"> · shows on the list once the commissioner approves you</span>' : waiting ? '<span class="hero-you-note"> · you move up if a spot opens</span>' : ''}</span>
            <button type="button" class="hero-rsvp" id="hero-you-rsvp" data-action="rsvp" aria-label="Change your RSVP">Change</button>`
         : `<span class="you-mark" aria-hidden="true"></span>
            <span class="hero-you-text"><b>You haven’t RSVP’d yet</b></span>
@@ -2489,6 +2594,17 @@ function setRsvpFormLede() {
             ? 'You can still answer or change it here, and we count your latest one.'
             : 'We count your latest answer.'}`
         : esc(lede.dataset.text);
+    // The In choice says when it means the waitlist (unless he already holds a spot), or how few are left
+    const hint = document.querySelector('.rsvp-choice.in small');
+    if (hint) {
+        if (hint.dataset.text === undefined) hint.dataset.text = hint.textContent;
+        const counts = RSVP_SPOTS && rsvpState.available && !roster.error ? rsvpCounts() : null;
+        const spot = counts ? mySpot() : null;
+        hint.textContent = !counts ? hint.dataset.text
+            : counts.left === 0 ? (spot && !spot.waiting ? 'You hold a spot' : spot ? `You’re #${spot.waiting} on the waitlist` : 'Spots are full: join the waitlist')
+            : counts.left <= 5 ? `${counts.left} spot${counts.left === 1 ? '' : 's'} left`
+            : hint.dataset.text;
+    }
 }
 
 let rsvpOpenSeq = 0; // the latest openRsvp; an older one that finishes later leaves the sheet alone
@@ -2672,19 +2788,23 @@ async function handleRsvpSubmit(e) {
         const saved = Object.assign({}, rsvp, { name: (data && data.name) || account.player.name, pending: !!(data && data.player_status && data.player_status !== 'confirmed') });
         account.myRsvp = { status: saved.status, sunday_round: saved.sunday, note: saved.note || null, created_at: data && data.created_at };
 
+        await loadRsvps();
+        renderPersonal();
+
         if (RSVP.emailNotify !== false) {
-            sendAlert(`BBB ${RSVP_YEAR} RSVP: ${saved.name} — ${RSVP_LABELS[saved.status]}${saved.pending ? ' (new player)' : ''}`, {
+            const spot = saved.status === 'in' && !saved.pending ? mySpot() : null;
+            const where = spot ? (spot.waiting ? `Waitlist #${spot.waiting}` : `Spot ${spot.spot} of ${RSVP_SPOTS}`) : '';
+            sendAlert(`BBB ${RSVP_YEAR} RSVP: ${saved.name} — ${RSVP_LABELS[saved.status]}${where ? ` (${where})` : ''}${saved.pending ? ' (new player)' : ''}`, Object.assign({
                 name: saved.name,
-                rsvp: RSVP_LABELS[saved.status],
+                rsvp: RSVP_LABELS[saved.status]
+            }, where ? { spot: where } : {}, {
                 sunday_round: saved.sunday ? 'Yes' : 'No',
                 note: saved.note || '—',
                 roster: saved.pending ? 'New player: approve in Admin → RSVPs (link below)' : 'On the roster',
                 admin_link: ADMIN_RSVPS_URL
-            });
+            }));
         }
 
-        await loadRsvps();
-        renderPersonal();
         showRsvpDone(saved);
     } catch (err) {
         console.error('RSVP failed:', err);
@@ -2698,27 +2818,33 @@ async function handleRsvpSubmit(e) {
 function showRsvpDone(rsvp) {
     const first = rsvp.name.split(' ')[0];
     const due = rsvpDeadline();
+    const counts = rsvpState.available && !roster.error ? rsvpCounts() : null;
+    const spot = rsvp.status === 'in' && !rsvp.pending ? mySpot() : null;
+    const waiting = !!(spot && spot.waiting);
+    const full = !!(counts && counts.spots && counts.left === 0);
     const copy = {
-        in: [`You’re in, ${first}.`, 'See you in Scottsdale. Tee times and rooms get posted here as they’re booked.'],
+        in: waiting
+            ? [`You’re on the waitlist, ${first}.`, `All ${RSVP_SPOTS} spots are taken, so you’re #${spot.waiting} in line. If someone drops out you move up on your own, and the commissioner will let you know.`]
+            : [`You’re in, ${first}.`, 'See you in Scottsdale. Tee times and rooms get posted here as they’re booked.'],
         maybe: [`Noted, ${first}.`, `We’ve got you down as a probably. ${!due ? 'Come back and lock it in when you can.'
             : due.passed ? `${due.text} Lock it in as soon as you know.` : due.text}`],
         out: [`We’ll miss you, ${first}.`, 'Sorry you can’t make it. If plans change, just RSVP again.']
     }[rsvp.status];
     const mark = document.getElementById('rsvp-done-mark');
     if (mark) {
-        mark.className = `rsvp-done-mark ${rsvp.status}`;
-        mark.innerHTML = icon(rsvp.status === 'in' ? 'check' : rsvp.status === 'maybe' ? 'clock' : 'x');
+        mark.className = `rsvp-done-mark ${waiting ? 'maybe' : rsvp.status}`;
+        mark.innerHTML = icon(rsvp.status === 'in' && !waiting ? 'check' : rsvp.status === 'out' ? 'x' : 'clock');
     }
     document.getElementById('rsvp-done-title').textContent = copy[0];
     document.getElementById('rsvp-done-text').textContent = rsvp.pending
-        ? `${copy[1]} You’re new, so your name shows on the head count once the commissioner confirms you.`
+        ? `${copy[1]} You’re new, so your name shows on the head count once the commissioner confirms you${rsvp.status === 'in' && full ? ', on the waitlist for now, since the spots are taken' : ''}.`
         : copy[1];
 
     const countEl = document.getElementById('rsvp-done-count');
     if (countEl) {
-        if (rsvpState.available && !roster.error) {
-            const c = rsvpCounts();
-            countEl.textContent = `Head count so far: ${c.in.length} in · ${c.maybe.length} probably · ${c.out.length} out`;
+        if (counts) {
+            const spots = spotsText(counts);
+            countEl.textContent = `Head count so far: ${counts.held.length} in · ${counts.maybe.length} probably · ${counts.out.length} out${spots ? ` · ${spots[0].toLowerCase()}${spots.slice(1)}` : ''}`;
             countEl.hidden = false;
         } else {
             countEl.hidden = true;
@@ -3430,7 +3556,12 @@ function checklistModel() {
     if (!v.known) {
         items.push({ key: 'rsvp', state: 'unknown', tone: 'todo', title: 'RSVP', detail: esc('Couldn’t check your RSVP just now.'), actions: checkButton('line', 'check-rsvp-btn', 'data-action="rsvp"', 'RSVP') });
     } else if (v.status === 'in') {
-        items.push({ key: 'rsvp', state: 'in', tone: 'done', title: 'You’re in', detail: pending ? esc('Shows on the list once the commissioner approves you.') : '', actions: checkButton('link', 'check-rsvp-btn', 'data-action="rsvp"', 'Change', 'Change your RSVP') });
+        const spot = pending ? null : mySpot();
+        const waiting = !!(spot && spot.waiting);
+        items.push({ key: 'rsvp', state: 'in', tone: 'done', title: waiting ? 'You’re on the waitlist' : 'You’re in',
+            detail: pending ? esc('Shows on the list once the commissioner approves you.')
+                : waiting ? esc(`#${spot.waiting} in line. If a spot opens you move up on your own.`) : '',
+            actions: checkButton('link', 'check-rsvp-btn', 'data-action="rsvp"', 'Change', 'Change your RSVP') });
     } else if (v.status === 'maybe') {
         items.push({ key: 'rsvp', state: 'maybe', tone: late ? 'alert' : 'todo', title: 'Lock in your RSVP', detail: esc(`You’re a probably. ${due ? due.text : 'Lock it in when you know.'}`), actions: checkButton('line', 'check-rsvp-btn', 'data-action="rsvp"', 'Change', 'Change your RSVP') });
     } else {

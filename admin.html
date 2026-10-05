@@ -493,6 +493,9 @@
         .answer-out { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
         .answer-none { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6); }
         .answer-new { background: rgba(96, 165, 250, 0.18); color: #93c5fd; margin-left: 6px; }
+        /* Spot 3 of 20 / Waitlist #2, next to an In answer */
+        .answer-wait { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
+        .rsvp-spot { font-size: 0.75rem; font-weight: 700; color: rgba(255, 255, 255, 0.55); white-space: nowrap; }
 
         .rsvp-answer { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
         .rsvp-sunday { font-size: 0.8rem; font-weight: 700; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
@@ -1610,6 +1613,7 @@
                     <div class="rsvp-filters" id="rsvp-filters" role="toolbar" aria-label="Filter RSVPs">
                         <button type="button" data-rsvp-filter="all" aria-pressed="true">Everyone</button>
                         <button type="button" data-rsvp-filter="in" aria-pressed="false">In</button>
+                        <button type="button" data-rsvp-filter="waitlist" aria-pressed="false" hidden>Waitlist</button>
                         <button type="button" data-rsvp-filter="maybe" aria-pressed="false">Probably</button>
                         <button type="button" data-rsvp-filter="out" aria-pressed="false">Out</button>
                         <button type="button" data-rsvp-filter="none" aria-pressed="false">No reply yet</button>
@@ -1993,9 +1997,9 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.17"></script>
+    <script src="trip-config.js?v=2027.18"></script>
     <script src="scoring.js?v=2027.11"></script>
-    <script src="admin.js?v=2027.20"></script>
+    <script src="admin.js?v=2027.21"></script>
 </body>
 
 </html>

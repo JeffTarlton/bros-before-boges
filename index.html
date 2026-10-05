@@ -38,7 +38,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2027.10">
-    <link rel="stylesheet" href="home.css?v=2027.17">
+    <link rel="stylesheet" href="home.css?v=2027.18">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <!-- The hero photo: a phone held upright gets just the middle of it (sized/…-portrait.jpg, the same pixels it would
@@ -320,6 +320,8 @@
                         <div class="hc-stat maybe"><b id="hc-maybe">0</b><span>Probably</span></div>
                         <div class="hc-stat out"><b id="hc-out">0</b><span>Can’t make it</span></div>
                         <div class="hc-stat sunday"><b id="hc-sunday">0</b><span>Sunday round</span></div>
+                        <!-- Only once the spots (rsvp.spots in trip-config.js) are all taken -->
+                        <div class="hc-stat waitlist" id="hc-waitlist-stat" hidden><b id="hc-waitlist">0</b><span>Waitlist</span></div>
                     </div>
                     <div class="hc-progress" id="hc-progress" hidden>
                         <div class="hc-bar" aria-hidden="true"><i id="hc-bar-fill"></i></div>
@@ -342,6 +344,16 @@
                 </div>
                 <div class="crew-grid" id="confirmed-roster">
                     <div class="crew-empty">Loading the crew…</div>
+                </div>
+
+                <!-- Everyone who said In after the spots filled, in the order they said it -->
+                <div class="bubble waitlist" id="waitlist-block" hidden>
+                    <div class="crew-head">
+                        <h3>Waitlist</h3>
+                        <span class="crew-count" id="waitlist-count"></span>
+                    </div>
+                    <p class="waitlist-note" id="waitlist-note"></p>
+                    <ol class="chips waitlist-chips" id="waitlist-roster"></ol>
                 </div>
 
                 <div class="bubble" id="bubble-block" hidden>
@@ -586,7 +598,7 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.17"></script>
+    <script src="trip-config.js?v=2027.18"></script>
     <script src="assets/photo-sizes.js?v=2027.3"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
@@ -619,7 +631,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="script.js?v=2027.21"></script>
+    <script src="script.js?v=2027.22"></script>
 </body>
 
 </html>

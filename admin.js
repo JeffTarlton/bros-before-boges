@@ -2342,6 +2342,14 @@ let rsvpRows = [];        // every RSVP row for the trip, oldest first (notes in
 let rsvpRoster = [];      // players as of the last RSVP load (fresher than the roster tab's copy)
 let rsvpFilter = 'all';
 let rsvpLoadError = null;
+let rsvpSince = new Map();   // player id -> when they said In and stayed In (rsvp_latest, waitlist_2027.sql)
+
+// How many can come (trip-config rsvp.spots): the first that many confirmed Ins, in the order
+// they said In, hold spots; the rest are the waitlist. 0: no cap.
+function rsvpSpots() {
+    const cfg = (window.BBB && window.BBB.rsvp) || {};
+    return Math.max(0, Math.floor(Number(cfg.spots || cfg.target) || 0));
+}
 
 function rsvpTripYear() {
     const cfg = window.BBB || {};
@@ -2362,12 +2370,18 @@ async function loadRsvpAdmin() {
     loadDepositClaims(); // Deposits to confirm (deposits_2027.sql)
     // The roster is re-read here too, so players who signed up after this page opened show
     // up (with Approve). It's kept apart from the roster tab so unsaved edits there survive.
-    const [rsvpResult, rosterResult] = await Promise.all([
+    const [rsvpResult, rosterResult, latestResult] = await Promise.all([
         supabaseInstance.rpc('admin_rsvps', { p_trip_year: rsvpTripYear() }),
         // The same read as the roster tab, so rows merged into it below have the same shape
-        loadAdminRoster()
+        loadAdminRoster(),
+        // The public head count's view, for the order of the spots (the same one the homepage uses)
+        rsvpSpots() ? supabaseInstance.rpc('rsvp_latest', { p_trip_year: rsvpTripYear() }).then(r => r, e => ({ error: e })) : Promise.resolve({ data: null })
     ]);
     const { data, error } = rsvpResult;
+    rsvpSince = new Map();
+    (latestResult && latestResult.data || []).forEach(r => {
+        if (r && r.player_id && r.status === 'in' && r.in_since) rsvpSince.set(r.player_id, r.in_since);
+    });
     rsvpRoster = !rosterResult.error && rosterResult.data ? rosterResult.data : originalPlayers.filter(p => p.id);
     // Players added since this page loaded (new sign-ups) join the roster tab's lists as well,
     // so they can be removed on the New sign-ups tab without a reload. Both lists get the same
@@ -2455,8 +2469,52 @@ function rsvpEntries() {
         e.answer = e.latest ? e.latest.status : 'none';
         e.isNew = !!(e.player && e.player.status === 'potential');
         e.needsApproval = e.isNew && !!(e.player.user_id || e.latest);
+        e.spot = 0;        // 1-based place in the In line (confirmed players only)
+        e.waitlisted = false;
     });
-    return entries.sort((a, b) => (RSVP_ORDER[a.answer] - RSVP_ORDER[b.answer]) || a.name.localeCompare(b.name));
+    // The spots: confirmed Ins in the order they said In (and stayed In). rsvp_latest says when
+    // once waitlist_2027.sql has run; until then it's read off the history here.
+    const spots = rsvpSpots();
+    if (spots) {
+        const since = e => rsvpSince.get(e.player.id) || inSinceOf(e.history);
+        const line = entries.filter(e => e.answer === 'in' && e.player && e.player.status !== 'potential')
+            .sort((a, b) => cmpTime(since(a), since(b)) || cmpTime(a.latest.created_at, b.latest.created_at) || a.name.localeCompare(b.name));
+        line.forEach((e, i) => { e.spot = i + 1; e.waitlisted = i >= spots; });
+    }
+    return entries.sort((a, b) => (RSVP_ORDER[a.answer] - RSVP_ORDER[b.answer]) || ((a.spot || 1e9) - (b.spot || 1e9)) || a.name.localeCompare(b.name));
+}
+
+// The start of the trailing run of In answers (history oldest first), or null
+function inSinceOf(history) {
+    let since = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].status !== 'in') break;
+        since = history[i].created_at;
+    }
+    return since;
+}
+
+function cmpTime(a, b) {
+    const ta = new Date(a || 0).getTime() || 0, tb = new Date(b || 0).getTime() || 0;
+    return ta - tb;
+}
+
+// "Spot 3 of 20" / "Waitlist #2" for an In answer, '' otherwise
+function spotLabel(e) {
+    const spots = rsvpSpots();
+    if (!spots || e.answer !== 'in') return '';
+    if (!e.spot) return e.isNew ? 'No spot until approved' : '';
+    return e.waitlisted ? `Waitlist #${e.spot - spots}` : `Spot ${e.spot} of ${spots}`;
+}
+
+// The Spots pill: "12 of 20" with "8 left", or "Full" with "3 on the waitlist"
+function spotsPillHtml(pill, entries) {
+    const spots = rsvpSpots();
+    if (!spots) return '';
+    const held = entries.filter(e => e.spot && !e.waitlisted).length;
+    const waiting = entries.filter(e => e.waitlisted).length;
+    const left = Math.max(0, spots - held);
+    return pill(left ? 'Spots left' : 'Spots', left ? left : 'Full', left ? `${held} of ${spots} taken` : waiting ? `${waiting} on the waitlist` : `${spots} of ${spots} taken`);
 }
 
 // admin_rsvps returns each player's 20 newest answers; say so when a history is trimmed
@@ -2627,6 +2685,7 @@ function renderRsvpAdmin() {
         };
         summary.innerHTML = [
             answerPill('in', 'In'),
+            spotsPillHtml(pill, entries),
             answerPill('maybe', 'Probably'),
             answerPill('out', 'Out'),
             pill('No reply yet', count(e => e.answer === 'none')),
@@ -2650,9 +2709,13 @@ function renderRsvpAdmin() {
         }
     }
 
+    // The Waitlist filter only exists with a cap on the spots
+    const waitBtn = document.querySelector('[data-rsvp-filter="waitlist"]');
+    if (waitBtn) waitBtn.hidden = !rsvpSpots();
     const shown = entries.filter(e => rsvpFilter === 'all' ? true
         : rsvpFilter === 'approve' ? e.needsApproval
         : rsvpFilter === 'noaccount' ? !!(e.player && !e.player.user_id)
+        : rsvpFilter === 'waitlist' ? e.waitlisted
         : e.answer === rsvpFilter);
     if (!shown.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="rsvp-message">Nobody here.</td></tr>';
@@ -2674,8 +2737,11 @@ function renderRsvpAdmin() {
         // The Sunday round goes with the answer ("In + Sunday", as in the history), which leaves the
         // Note column room to be read
         const sunday = !!(e.latest && e.latest.sunday_round && e.answer !== 'out');
+        // With a cap: "In · Spot 3 of 20", or a Waitlist badge in place of In
+        const spotText = spotLabel(e);
+        const spot = !spotText ? '' : e.waitlisted ? '' : ` <span class="rsvp-spot">${escHtml(spotText)}</span>`;
         const answer = e.latest
-            ? `<span class="rsvp-answer"><span class="answer-badge answer-${e.answer}">${RSVP_ANSWERS[e.answer]}</span>${sunday ? ' <span class="rsvp-sunday">+ Sunday</span>' : ''}</span>`
+            ? `<span class="rsvp-answer"><span class="answer-badge answer-${e.waitlisted ? 'wait' : e.answer}">${e.waitlisted ? escHtml(spotText) : RSVP_ANSWERS[e.answer]}</span>${spot}${sunday ? ' <span class="rsvp-sunday">+ Sunday</span>' : ''}</span>`
             : '<span class="answer-badge answer-none">No reply</span>';
         const history = e.history.length > 1
             ? `<details class="rsvp-history"><summary>${answerCount(e)} answers</summary><ul>${e.history.slice().reverse().map(h =>
@@ -2779,7 +2845,7 @@ function csvCell(value) {
 
 function exportRsvpCsv() {
     if (rsvpLoadError) return window.showToast(escHtml(rsvpLoadError), 'error');
-    const header = ['Name', 'Answer', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has account', 'Times answered'];
+    const header = ['Name', 'Answer', 'Spot', 'Answered at', 'Sunday round', 'Note', 'Email', 'GHIN', 'Handicap (plus = negative)', 'Roster status', 'Has account', 'Times answered'];
     // What each player has paid toward the trip, once trip payments are set up (a number, in dollars)
     const withPaid = payData.trip.state === 'ok';
     if (withPaid) header.push(`Paid toward trip (${paymentsYear()})`);
@@ -2801,6 +2867,7 @@ function exportRsvpCsv() {
         return [
             e.name,
             e.latest ? RSVP_ANSWERS[e.answer] : 'No reply',
+            spotLabel(e),
             e.latest ? fmtWhenFull(e.latest.created_at) : '',
             e.latest && e.latest.sunday_round && e.answer !== 'out' ? 'Yes' : 'No',
             e.latest ? e.latest.note || '' : '',
