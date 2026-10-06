@@ -1516,3 +1516,173 @@ input, select, textarea {
 .bbb-bell-more { margin: 0 12px 12px; min-height: 40px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; background: transparent; color: var(--text-muted, #b8a895); font: 600 0.84rem var(--font-body, 'Inter', sans-serif); cursor: pointer; }
 .bbb-bell-more[hidden] { display: none; }
 .bbb-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* --- HELP (help.js): the ? at the top right of every page, left of the bell, and its panel --- */
+.bbb-help {
+    position: relative;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main, #f4ebdf);
+    cursor: pointer;
+}
+.bbb-help:hover { background: rgba(255, 255, 255, 0.08); }
+.bbb-help:focus-visible { outline: 2px solid var(--accent-gold, #fbbf24); outline-offset: 2px; }
+.bbb-help[aria-expanded="true"] { background: rgba(255, 255, 255, 0.1); }
+.bbb-help svg { width: 20px; height: 20px; }
+/* Where it sits: after the header's links, then the bell (signed in), then the menu button. It's the
+   first thing on the right, so on phones it takes the auto margin that pushes the group right. */
+.nav-inner > .bbb-help { margin-left: 8px; }
+.nav-inner > .bbb-help + .bbb-bell,
+.nav-inner > .bbb-help + .nav-toggle { margin-left: 0; }
+@media (max-width: 1080px) {
+    .nav--compact .nav-inner > .bbb-help { margin-left: auto; }
+}
+@media (max-width: 720px) {
+    .nav-inner > .bbb-help { margin-left: auto; }
+}
+.nav-inner > .brand + .bbb-help { margin-left: auto; }   /* 404: the header is only the logo */
+.header-container.has-help { justify-content: flex-start; }
+.header-container.has-help > .main-nav { margin-left: auto; }
+.header-container.has-help > .bbb-help { margin-left: 14px; }
+.header-container.has-help > .bbb-help + .bbb-bell { margin-left: 8px; }
+.header-container.has-help > .bbb-help + .menu-toggle { margin-left: 6px; }
+@media (max-width: 768px) {
+    .header-container.has-help > .bbb-help { margin-left: auto; }
+    .header-container.has-help > .bbb-help + .bbb-bell { margin-left: 6px; }
+}
+.admin-nav > .bbb-help { width: 40px; height: 40px; }
+/* A page without a header help.js knows: top right, over the page */
+.bbb-help.is-floating { position: fixed; top: 12px; right: 12px; z-index: 990; background: rgba(14, 11, 9, 0.85); }
+@media (max-width: 360px) {
+    .bbb-help, .admin-nav > .bbb-help { width: 36px; height: 36px; }
+    .bbb-help svg { width: 18px; height: 18px; }
+    .header-container.has-help > .bbb-help + .bbb-bell { margin-left: 4px; }
+}
+/* The smallest phones, signed in: the ?, the bell and the menu button only fit beside the name without the logo mark */
+@media (max-width: 340px) {
+    .nav .nav-inner:has(> .bbb-bell:not([hidden])) .brand-mark { display: none; }
+}
+
+.bbb-help-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 4000;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(8, 6, 5, 0.6);
+}
+.bbb-help-overlay[hidden] { display: none; }
+.bbb-help-panel {
+    display: flex;
+    flex-direction: column;
+    width: min(460px, 100%);
+    height: 100%;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    background: #1c1612;
+    color: var(--text-main, #f4ebdf);
+    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    line-height: 1.5;
+    text-align: left;
+    animation: bbb-help-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes bbb-help-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 559px) {
+    .bbb-help-panel { border-left: 0; }
+}
+.bbb-help-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: max(12px, env(safe-area-inset-top)) 8px 4px 18px;
+}
+.bbb-help-titles { flex: 1; min-width: 0; padding-top: 7px; }
+.bbb-help-title { margin: 0; font: 700 1.3rem/1.2 var(--font-heading, 'Outfit', sans-serif); letter-spacing: -0.01em; color: var(--text-main, #f4ebdf); }
+.bbb-help-title:focus { outline: none; }
+.bbb-help-sub { margin: 3px 0 0; font-size: 0.86rem; color: var(--text-muted, #b8a895); }
+.bbb-help-close { flex: none; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--text-main, #f4ebdf); font-size: 1.6rem; line-height: 1; cursor: pointer; border-radius: 999px; }
+.bbb-help-close:hover { background: rgba(255, 255, 255, 0.06); }
+.bbb-help-panel .bbb-help-close:focus-visible { outline: 2px solid var(--accent-gold, #fbbf24); outline-offset: -2px; }
+.bbb-help-search { position: relative; margin: 8px 16px 6px; }
+.bbb-help-search svg { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--text-muted, #b8a895); pointer-events: none; }
+.bbb-help-input {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 14px 10px 42px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main, #f4ebdf);
+    font: 500 1rem var(--font-body, 'Inter', sans-serif);   /* 16px: iPhones don't zoom in */
+}
+.bbb-help-input::placeholder { color: #9a8a79; }
+/* (.bbb-help-panel first: pages' own input:focus-visible rules would add a second ring) */
+.bbb-help-panel .bbb-help-input:focus,
+.bbb-help-panel .bbb-help-input:focus-visible { outline: none; border-color: #e8b86b; background: rgba(255, 255, 255, 0.07); }
+/* The search box's own clear button, in the page's colors rather than the browser's blue */
+.bbb-help-input::-webkit-search-cancel-button,
+.help-search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: no-repeat center / 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8a895' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E");
+    cursor: pointer;
+}
+.bbb-help-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 18px; -webkit-overflow-scrolling: touch; }
+.bbb-help-group { margin: 16px 6px 8px; font: 700 0.72rem var(--font-body, 'Inter', sans-serif); letter-spacing: 0.14em; text-transform: uppercase; color: #e8b86b; }
+.bbb-help-status { margin: 10px 6px 8px; font-size: 0.88rem; color: var(--text-muted, #b8a895); }
+.bbb-help-status:empty { display: none; }
+.bbb-help-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bbb-help-topic, .bbb-help-sec { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; background: rgba(255, 255, 255, 0.025); }
+.bbb-help-topic[open] { border-color: rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.045); }
+.bbb-help-topic > summary, .bbb-help-sec > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px 10px 14px;
+    list-style: none;
+    cursor: pointer;
+    border-radius: 12px;
+}
+.bbb-help-topic > summary::-webkit-details-marker, .bbb-help-sec > summary::-webkit-details-marker { display: none; }
+.bbb-help-topic > summary:focus-visible, .bbb-help-sec > summary:focus-visible { outline: 2px solid var(--accent-gold, #fbbf24); outline-offset: -2px; }
+.bbb-help-q { flex: 1; min-width: 0; font-weight: 600; font-size: 0.95rem; line-height: 1.4; }
+.bbb-help-where { display: block; margin-top: 2px; font-weight: 500; font-size: 0.76rem; color: #9a8a79; }
+.bbb-help-chev { flex: none; width: 18px; height: 18px; color: #9a8a79; transition: transform 0.2s; }
+.bbb-help-topic[open] > summary .bbb-help-chev, .bbb-help-sec[open] > summary .bbb-help-chev { transform: rotate(180deg); color: #e8b86b; }
+.bbb-help-sec > summary .bbb-help-q { font-weight: 700; font-size: 0.98rem; }
+.bbb-help-count { flex: none; min-width: 26px; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); font-size: 0.76rem; font-weight: 700; text-align: center; color: var(--text-muted, #b8a895); }
+.bbb-help-sec > .bbb-help-list { padding: 0 8px 8px; }
+.bbb-help-sec .bbb-help-topic { background: rgba(0, 0, 0, 0.14); }
+.bbb-help-a { padding: 0 14px 14px; font-size: 0.92rem; line-height: 1.55; color: #ddd0c1; }
+.bbb-help-a p, .bbb-help-a ul, .bbb-help-a ol { margin: 0; }
+.bbb-help-a > :not(:first-child) { margin-top: 10px; }
+.bbb-help-a ul, .bbb-help-a ol { padding-left: 20px; display: grid; gap: 5px; }
+.bbb-help-a li::marker { color: #e27d4f; }
+.bbb-help-a strong, .bbb-help-a b { color: var(--text-main, #f4ebdf); }
+.bbb-help-a a { color: #e8b86b; text-decoration: underline; text-underline-offset: 2px; }
+.bbb-help-a a:hover { color: #f6cf86; }
+.bbb-help-a .tip { padding: 9px 12px; border-left: 3px solid #93c08b; border-radius: 0 8px 8px 0; background: rgba(147, 192, 139, 0.08); }
+.bbb-help-a .ui { padding: 0 5px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 6px; background: rgba(255, 255, 255, 0.05); font-weight: 600; font-size: 0.88em; color: var(--text-main, #f4ebdf); }
+.bbb-help-empty { margin: 10px 6px; font-size: 0.92rem; color: var(--text-muted, #b8a895); }
+.bbb-help-clear { margin-top: 10px; min-height: 40px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 999px; background: transparent; color: var(--text-main, #f4ebdf); font: 600 0.86rem var(--font-body, 'Inter', sans-serif); cursor: pointer; }
+.bbb-help-clear:hover { background: rgba(255, 255, 255, 0.06); }
+.bbb-help-foot { padding: 12px 18px max(14px, env(safe-area-inset-bottom)); border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 0.86rem; color: var(--text-muted, #b8a895); }
+.bbb-help-foot p { margin: 0; }
+.bbb-help-foot p + p { margin-top: 4px; }
+.bbb-help-foot a { color: #e8b86b; text-decoration: underline; text-underline-offset: 2px; }
+html.bbb-help-open, html.bbb-help-open body { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+    .bbb-help-panel { animation: none; }
+    .bbb-help-chev { transition: none; }
+}

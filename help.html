@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('js');</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Help | Bros before Boges</title>
+    <meta name="description" content="How to RSVP, pay your deposit, bet in The Bookie, keep score on the course and everything else on the Bros before Boges site.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2027.13">
+    <link rel="stylesheet" href="home.css?v=2027.16">
+    <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <style>
+        .help-wrap { max-width: 920px; padding-bottom: 100px; }
+        .help-search { position: relative; margin-top: 26px; max-width: 560px; }
+        .help-search svg { position: absolute; z-index: 1; left: 18px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--ink-muted); pointer-events: none; }
+        .help-search input {
+            width: 100%;
+            min-height: 56px;
+            padding: 12px 18px 12px 50px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            background: rgba(14, 11, 9, 0.65);
+            color: var(--ink);
+            font: 500 1.05rem var(--sans);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+        .help-search input::placeholder { color: var(--ink-dim); }
+        .help-search input:focus { outline: none; border-color: var(--gold); }
+        .help-status { margin-top: 12px; min-height: 1.5em; color: var(--ink-muted); font-size: 0.95rem; }
+        .help-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 34px; }
+        .help-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 38px;
+            padding: 0 14px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            color: var(--ink-muted);
+            font: 600 0.86rem var(--sans);
+        }
+        .help-chip:hover, .help-chip:focus-visible { color: var(--gold); border-color: var(--gold); }
+        .help-sec + .help-sec { margin-top: 40px; }
+        .help-sec-title { font-size: clamp(1.4rem, 3vw, 1.75rem); font-weight: 500; }
+        .help-sec-blurb { margin: 4px 0 14px; color: var(--ink-muted); }
+        .help-sec .bbb-help-topic > summary { min-height: 56px; padding: 14px 16px 14px 18px; }
+        .help-sec .bbb-help-q { font-size: 1.02rem; }
+        .help-sec .bbb-help-a { padding: 0 18px 18px; font-size: 1rem; }
+        .help-sec .bbb-help-topic:target { border-color: rgba(232, 184, 107, 0.6); }
+        .help-copy {
+            display: inline-flex;
+            align-items: center;
+            min-height: 36px;
+            margin-top: 14px;
+            padding: 0 14px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--ink-muted);
+            font: 600 0.82rem var(--sans);
+            cursor: pointer;
+            overflow-wrap: anywhere;
+        }
+        .help-copy:hover { color: var(--ink); }
+        .help-sec .bbb-help-a > .help-copy { margin-top: 16px; }
+        .help-more { margin-top: 48px; padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink-muted); }
+        .help-more a { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+    </style>
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="nav nav--compact is-solid" id="site-nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="index.html" aria-label="Bros before Boges home">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="bbbSun" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#f6cf86" />
+                            <stop offset="1" stop-color="#e27d4f" />
+                        </linearGradient>
+                        <clipPath id="bbbClip"><rect x="2" y="2" width="60" height="60" rx="17" /></clipPath>
+                    </defs>
+                    <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612" />
+                    <g clip-path="url(#bbbClip)">
+                        <circle cx="27" cy="43" r="15" fill="url(#bbbSun)" />
+                        <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09" />
+                        <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f" />
+                    </g>
+                    <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5" />
+                    <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f" />
+                </svg>
+                <span class="brand-word">Bros before <em>Boges</em></span>
+            </a>
+            <nav class="nav-primary" aria-label="Main">
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="index.html#schedule">Itinerary</a></li>
+                <li><a href="rules.html">Rules</a></li>
+                <li><a href="bookie.html">The Bookie</a></li>
+                <li><a href="round_tracker.html#board">Live scores</a></li>
+                <li><a href="help.html" class="is-active" aria-current="page">Help</a></li>
+            </ul>
+            </nav>
+            <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
+        </div>
+    </header>
+
+    <nav class="drawer" id="drawer" aria-label="Site menu">
+        <a href="index.html">Home</a>
+        <a href="index.html#schedule">Itinerary</a>
+        <a href="index.html#courses">Courses</a>
+        <a href="rules.html">Rules</a>
+        <a href="bookie.html">The Bookie</a>
+        <a href="round_tracker.html#board">Live scores</a>
+        <a href="help.html" aria-current="page">Help</a>
+    </nav>
+
+    <main id="main">
+        <section class="page-hero">
+            <div class="page-hero-bg" aria-hidden="true">
+                <img src="assets/courses/wekopa-cholla/sized/aerial-green-bunkers-dusk-1280.jpg" alt="">
+            </div>
+            <div class="wrap" style="max-width: 920px;">
+                <p class="eyebrow">Help</p>
+                <h1 class="h-display">How can we <em>help?</em></h1>
+                <p class="lede" style="margin-top: 18px;">Answers for every part of the site: your account, the RSVP, your deposit, bets, keeping score and more. Tap a question to open it.</p>
+                <div class="help-search" role="search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                    <input type="search" data-help-search placeholder="Search: deposit, odds, offline…" aria-label="Search help" autocomplete="off" enterkeyhint="search">
+                </div>
+                <p class="help-status" data-help-status role="status" aria-live="polite"></p>
+            </div>
+        </section>
+
+        <section class="wrap help-wrap">
+            <nav class="help-chips" aria-label="Help topics" data-help-sections></nav>
+            <!-- Every section and answer, drawn by help.js from its TOPICS (one place to edit them) -->
+            <div data-help-list></div>
+            <p class="help-more">Still stuck? Text the commissioner or ask in the group text. You can also email <a href="mailto:brosbeforeboges@lokdit.net">brosbeforeboges@lokdit.net</a>.</p>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="wrap">
+            <div class="footer-word">Bros before <em>Boges</em></div>
+            <p class="footer-motto-line">Swing hard in case you hit it.</p>
+            <div class="footer-grid">
+                <ul class="footer-links">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="index.html#schedule">Itinerary</a></li>
+                    <li><a href="bookie.html">The Bookie</a></li>
+                    <li><a href="round_tracker.html#board">Live scores</a></li>
+                    <li><a href="privacy.html">Privacy</a></li>
+                    <li><a href="help.html" aria-current="page">Help</a></li>
+                </ul>
+                <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            var year = document.getElementById('footer-year');
+            if (year) year.textContent = new Date().getFullYear();
+
+            var toggle = document.getElementById('nav-toggle');
+            var drawer = document.getElementById('drawer');
+            function setDrawer(open) {
+                drawer.classList.toggle('is-open', open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+                document.body.classList.toggle('drawer-open', open);
+                // Keep Tab inside the drawer while it covers the page.
+                ['main', 'footer', '.skip-link'].forEach(function (sel) {
+                    var n = document.querySelector(sel);
+                    if (n) n.inert = open;
+                });
+            }
+            if (toggle && drawer) {
+                toggle.addEventListener('click', function () { setDrawer(!drawer.classList.contains('is-open')); });
+                drawer.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { setDrawer(false); }); });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Escape') return;
+                    if (drawer.contains(document.activeElement)) toggle.focus();
+                    setDrawer(false);
+                });
+                window.matchMedia('(min-width: 1081px)').addEventListener('change', function (e) { if (e.matches) setDrawer(false); });
+            }
+        })();
+    </script>
+    <script src="trip-config.js?v=2027.19"></script>
+    <script src="help.js?v=2027.1"></script>
+    <script>
+        if (window.BBBHelp) window.BBBHelp.renderPage(document.getElementById('main'));
+    </script>
+</body>
+
+</html>

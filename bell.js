@@ -212,15 +212,19 @@
         }
     }
 
-    // Does the bell fit in its header? If it would hang off the edge (the homepage's full desktop row on a
-    // trip day at 1100-1280px), the header gets .bell-tight and folds its links into the menu button
+    // Does the bell fit in its header? If it, or the help ? beside it, would hang off the edge (the
+    // homepage's full desktop row on a trip day at 1100-1280px), the header gets .bell-tight and folds its
+    // links into the menu button. help.js runs the same check, so whichever runs last agrees.
     function fit() {
         const parent = button && button.parentElement;
         if (!parent) return;
         parent.classList.remove('bell-tight');
-        if (button.hidden) return;
-        const r = button.getBoundingClientRect();
-        if (r.right > window.innerWidth - 2 || r.left < 0) parent.classList.add('bell-tight');
+        const over = [...parent.children].some(el => {
+            if (!el.matches('.bbb-bell, .bbb-help') || el.hidden) return false;
+            const r = el.getBoundingClientRect();
+            return r.right > window.innerWidth - 2 || r.left < 0;
+        });
+        if (over) parent.classList.add('bell-tight');
     }
 
     function schedule() {

@@ -86,6 +86,11 @@ const WALL = Object.assign({
         title: 'Commissioner login',
         text: 'Log in with your admin account.'
     },
+    messages: {
+        title: 'Messages',
+        text: 'Log in to message the crew. It’s the same player account you use to RSVP and keep score.',
+        unlinkedText: 'Pick your name on the trip roster so the crew can message you.'
+    },
     bookie: {
         title: BET_LINK ? 'Log in to see the bet' : 'Log in to The Bookie',
         text: BET_LINK
