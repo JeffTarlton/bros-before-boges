@@ -1382,39 +1382,137 @@ input, select, textarea {
     background: var(--glass-border);
 }
 
-/* --- PHONE NOTIFICATIONS (push.js) --- */
-/* A one-line row with a switch-style button: the homepage account row, The Bookie's bell, Admin */
-.push-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.push-row .push-state { color: var(--text-muted, #a89f94); font-size: 0.9rem; line-height: 1.4; }
-.push-row .push-state b { color: inherit; font-weight: 600; }
-.push-bell {
+/* --- THE NOTIFICATION BELL (bell.js) --- */
+.bbb-bell {
     position: relative;
+    flex: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0 10px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     border-radius: 999px;
-    background: transparent;
-    color: inherit;
-    border: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main, #f4ebdf);
     cursor: pointer;
-    font: inherit;
 }
-.push-bell[aria-pressed="true"] { color: var(--accent-gold, #e8b86b); }
-.push-bell[disabled] { opacity: 0.6; cursor: default; }
-.push-bell .push-bell-label { font-size: 0.85rem; font-weight: 600; }
-/* In the phone menu it reads like the links around it, words and all */
+.bbb-bell:hover { background: rgba(255, 255, 255, 0.08); }
+.bbb-bell:focus-visible { outline: 2px solid var(--accent-gold, #fbbf24); outline-offset: 2px; }
+.bbb-bell[aria-expanded="true"] { background: rgba(255, 255, 255, 0.1); }
+.bbb-bell svg { width: 20px; height: 20px; }
+.bbb-bell-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #e27d4f;
+    color: #1a0f08;
+    font: 800 0.7rem/19px var(--font-body, 'Inter', sans-serif);
+    text-align: center;
+    box-shadow: 0 0 0 2px #0e0b09;
+}
+/* Where it sits: the right-hand end of each header, left of the phone menu button */
+.header-container.has-bell { justify-content: flex-start; }
+.header-container.has-bell > .main-nav { margin-left: auto; }
+.header-container.has-bell > .bbb-bell { margin-left: 14px; }
 @media (max-width: 768px) {
-    .main-nav .push-bell { display: inline-flex; gap: 10px; padding: 0 12px; font-size: 1.5rem; color: var(--text-muted, #a89f94); }
-    .main-nav .push-bell[aria-pressed="true"] { color: var(--accent-gold, #e8b86b); }
-    .main-nav .push-bell .push-bell-label { font-size: inherit; font-weight: 600; }
+    .header-container.has-bell > .bbb-bell { margin-left: auto; }
+    .header-container.has-bell > .menu-toggle { margin-left: 6px; }
 }
+.nav-inner > .bbb-bell { margin-left: 8px; }
+.nav-inner > .bbb-bell + .nav-toggle { margin-left: 8px; }
+@media (max-width: 720px) {
+    .nav-inner > .bbb-bell { margin-left: auto; }
+}
+.admin-nav > .bbb-bell,
+.header-container > .bbb-bell { width: 40px; height: 40px; }
+/* Narrow phones: everything in the header gets a little room back */
+@media (max-width: 360px) {
+    .bbb-bell, .header-container > .bbb-bell, .admin-nav > .bbb-bell { width: 36px; height: 36px; }
+    .bbb-bell svg { width: 18px; height: 18px; }
+    .nav .nav-inner { gap: 8px; }
+    .nav .nav-inner > .bbb-bell + .nav-toggle { margin-left: 0; width: 44px; height: 44px; }
+    .nav .nav-inner .brand { gap: 8px; }
+    .nav .nav-inner .brand-word { font-size: 1.05rem; }
+    .nav-toggle, .menu-toggle { flex: none; }
+    .admin-nav { gap: 4px 6px; }
+}
+@media (max-width: 330px) {
+    .nav .nav-inner .brand-word { font-size: 0.98rem; }
+}
+/* Homepage: when the bell doesn't fit beside the full desktop row (the widest trip-day button pair at
+   1100-1280px), the row's links fold into the menu button, as on smaller screens (bell.js adds bell-tight) */
+.nav:not(.nav--compact) .nav-inner.bell-tight .nav-primary { display: none; }
+.nav:not(.nav--compact) .nav-inner.bell-tight .nav-toggle { display: inline-flex; }
+.nav:not(.nav--compact) .nav-inner.bell-tight .nav-actions { margin-left: auto; }
+@media (max-width: 340px) {
+    .header-container.has-bell .logo { font-size: 1.2rem; }
+}
+
+.bbb-bell-panel {
+    position: fixed;
+    z-index: 3000;
+    width: min(380px, calc(100vw - 16px));
+    max-height: min(70vh, 620px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    background: #1c1612;
+    color: var(--text-main, #f4ebdf);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    overflow: hidden;
+}
+.bbb-bell-panel[hidden] { display: none; }
+@media (max-width: 519px) { .bbb-bell-panel { width: auto; } }
+.bbb-bell-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 6px 16px; }
+.bbb-bell-title { margin: 0; font: 700 1.1rem var(--font-heading, 'Outfit', sans-serif); color: var(--text-main, #f4ebdf); }
+.bbb-bell-title:focus { outline: none; }
+.bbb-bell-close { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--text-main, #f4ebdf); font-size: 1.5rem; line-height: 1; cursor: pointer; border-radius: 999px; }
+.bbb-bell-close:hover { background: rgba(255, 255, 255, 0.06); }
+.bbb-bell-phone { margin: 0 12px 8px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.045); }
+.bbb-bell-phone-text { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--text-muted, #b8a895); }
+.bbb-bell-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.bbb-bell-btn {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: #e27d4f;
+    color: #1a0f08;
+    font: 700 0.88rem var(--font-body, 'Inter', sans-serif);
+    cursor: pointer;
+}
+.bbb-bell-btn.is-quiet { background: transparent; color: var(--text-main, #f4ebdf); border-color: rgba(255, 255, 255, 0.22); }
+.bbb-bell-btn[disabled] { opacity: 0.55; cursor: default; }
+.bbb-bell-btn[hidden] { display: none; }
+.bbb-bell-status { margin: 8px 0 0; font-size: 0.84rem; line-height: 1.45; color: var(--text-main, #f4ebdf); }
+.bbb-bell-status:empty { display: none; }
+.bbb-bell-list { list-style: none; margin: 0; padding: 4px 6px 8px; overflow-y: auto; flex: 1; }
+.bbb-bell-item + .bbb-bell-item { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.bbb-bell-link { display: block; padding: 10px 10px; border-radius: 10px; color: inherit; text-decoration: none; }
+.bbb-bell-link:hover, .bbb-bell-link:focus-visible { background: rgba(255, 255, 255, 0.05); }
+.bbb-bell-row { display: flex; align-items: baseline; gap: 10px; }
+.bbb-bell-item-title { flex: 1; font-weight: 700; font-size: 0.93rem; line-height: 1.35; overflow-wrap: anywhere; }
+.bbb-bell-item.is-new .bbb-bell-item-title::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #e27d4f;
+    vertical-align: 1px;
+}
+.bbb-bell-when { flex: none; font-size: 0.75rem; color: var(--text-muted, #b8a895); }
+.bbb-bell-body { display: block; margin-top: 3px; font-size: 0.86rem; line-height: 1.4; color: var(--text-muted, #b8a895); overflow-wrap: anywhere; }
+.bbb-bell-empty { padding: 16px 10px; font-size: 0.88rem; line-height: 1.5; color: var(--text-muted, #b8a895); }
+.bbb-bell-more { margin: 0 12px 12px; min-height: 40px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; background: transparent; color: var(--text-muted, #b8a895); font: 600 0.84rem var(--font-body, 'Inter', sans-serif); cursor: pointer; }
+.bbb-bell-more[hidden] { display: none; }
+.bbb-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

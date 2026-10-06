@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.11">
+    <link rel="stylesheet" href="style.css?v=2027.12">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -1785,7 +1785,7 @@
                 <!-- Announcements: a phone notification to everyone who turned them on (push_2027.sql) -->
                 <div id="tab-announcements" class="tab-content" style="display: none;">
                     <h2>Announcements</h2>
-                    <p class="tab-lede">A notification straight to the phones of every approved player who has turned them on (the site added to their home screen, then <b>Turn on notifications</b> from the homepage checklist or the bell in The Bookie). Bets, tee times, approvals and new RSVPs already notify on their own; this is for everything else.</p>
+                    <p class="tab-lede">A notification to every approved player: it shows in their bell (top right of every page), and pops up on the phones of those who have turned notifications on there (once the site is on their home screen). Bets, tee times, approvals and new RSVPs already notify on their own; this is for everything else.</p>
                     <div class="setup-note" id="announce-note" hidden></div>
                     <p class="album-status" id="announce-summary" role="status"></p>
                     <form id="announce-form" class="tee-card announce-card" method="post" novalidate onsubmit="return false">
@@ -2054,8 +2054,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
     <script src="trip-config.js?v=2027.19"></script>
     <script src="push.js?v=2027.19"></script>
+    <script src="bell.js?v=2027.1"></script>
     <script src="scoring.js?v=2027.11"></script>
-    <script src="admin.js?v=2027.23"></script>
+    <script src="admin.js?v=2027.24"></script>
 </body>
 
 </html>

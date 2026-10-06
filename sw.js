@@ -25,7 +25,13 @@ self.addEventListener('push', event => {
     };
     // Same tag: the newer banner replaces the older one (four tee-time saves make one banner)
     if (data.tag) options.tag = String(data.tag);
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil(Promise.all([
+        self.registration.showNotification(title, options),
+        // Any open page updates its bell (bell.js)
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(list => list.forEach(c => c.postMessage({ type: 'bbb-push' })))
+            .catch(() => {})
+    ]));
 });
 
 // Tapping it opens the page it's about: in the app window that's already open when there is one

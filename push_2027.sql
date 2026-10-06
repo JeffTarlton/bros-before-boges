@@ -16,9 +16,8 @@
 --             Timeout         5000
 --             HTTP Headers    x-bbb-secret = the PUSH_WEBHOOK_SECRET you gave Vercel
 --           (The secret lives in the dashboard and in Vercel, never in this repo.)
---        5. On your phone: add the site to the home screen, open it from there, turn on
---           notifications (homepage checklist, or the bell in The Bookie), then Admin →
---           Announcements → "Send me a test".
+--        5. On your phone: add the site to the home screen, open it from there, tap the bell (top
+--           right), Turn on, then Send a test.
 -- ============================================================
 -- What it does:
 --   1. push_subscriptions: the phones each player turned notifications on for. Nobody reads or
@@ -30,8 +29,8 @@
 --      sent_at. Rows older than 30 days are cleared as new ones are queued.
 --   3. notify_players(): who gets a row. Only a confirmed roster name linked to a login (the crew:
 --      a sign-up waiting for approval hears nothing until "You're on the roster", and a name whose
---      login was removed hears nothing). Never the player who did the thing, never a player with no
---      phone turned on, and never the same tag twice within 20 seconds (The Bookie writes a
+--      login was removed hears nothing). Never the player who did the thing, and never the same
+--      tag twice within 20 seconds (The Bookie writes a
 --      "Declined the challenge." comment right after a decline; the status push wins). When a
 --      name's login changes, the phones saved under it are forgotten (zzz_push_forget_phones).
 --   4. The triggers, each wrapped so a notification bug can never block a bet, an RSVP or a save:
@@ -73,7 +72,11 @@ CREATE OR REPLACE FUNCTION public.push_safe_url(p_url text)
 RETURNS boolean
 LANGUAGE sql IMMUTABLE
 AS $$
-  SELECT COALESCE(p_url, '') ~ '^/([^/\\[:space:][:cntrl:]][^\\[:space:][:cntrl:]]{0,198})?$';
+  SELECT COALESCE(p_url, '') ~ '^/([^/\\[:space:][:cntrl:]][^\\[:space:][:cntrl:]]{0,198})?$'
+     -- and nothing a browser could turn into "//other.site": no // anywhere, no ./ or ../ segments
+     -- (also written %2e), which "/.//other.site" and "/a/..//other.site" would collapse into
+     AND COALESCE(p_url, '') !~ '//'
+     AND COALESCE(p_url, '') !~* '(^|/)(\.|%2e){1,2}(/|\?|#|$)';
 $$;
 
 -- A phone's push address: only the real push services' (Google for Chrome and Android, Apple for
@@ -231,15 +234,15 @@ AS $$
                  WHERE pl.id = p_player AND COALESCE(pl.status, 'confirmed') = 'confirmed' AND pl.user_id IS NOT NULL);
 $$;
 
--- Everyone with a phone turned on who can get notifications, except one player (NULL: everyone)
+-- Every approved player (the crew), except one (NULL: everyone): tee times, "<Name> is in", announcements
 CREATE OR REPLACE FUNCTION public.push_everyone_but(p_except uuid)
 RETURNS uuid[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
-  SELECT COALESCE(array_agg(DISTINCT s.player_id), '{}'::uuid[])
-  FROM public.push_subscriptions s
-  WHERE s.failed_at IS NULL AND (p_except IS NULL OR s.player_id <> p_except)
-    AND public.push_can_receive(s.player_id);
+  SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
+  FROM public.players p
+  WHERE COALESCE(p.status, 'confirmed') = 'confirmed' AND p.user_id IS NOT NULL
+    AND (p_except IS NULL OR p.id <> p_except);
 $$;
 
 -- Who holds a spot: confirmed players who are In, in the order they said In (the same order as
@@ -291,9 +294,10 @@ AS $$
   ) t WHERE t.status = 'in';
 $$;
 
--- Queue one notification for each of these players. Skips players who aren't confirmed, the player who did the thing (unless
--- p_include_actor), players with no phone turned on, and a player who already has a row with the
--- same tag from the last 20 seconds. Returns how many rows were queued.
+-- Queue one notification for each of these players (the bell's list; api/push.js also sends a banner to
+-- any phones they've turned on). Skips players who aren't confirmed and linked, the player who did the
+-- thing (unless p_include_actor), and a player who already has a row with the same tag from the last
+-- 20 seconds. Returns how many rows were queued.
 CREATE OR REPLACE FUNCTION public.notify_players(p_recipients uuid[], p_kind text, p_title text, p_body text, p_url text, p_tag text, p_include_actor boolean DEFAULT false)
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
@@ -308,20 +312,26 @@ BEGIN
   v_actor := CASE WHEN p_include_actor THEN NULL ELSE public.push_actor() END;
   -- Old rows go as new ones arrive, so the table stays small
   DELETE FROM public.notifications WHERE created_at < now() - interval '30 days';
-  INSERT INTO public.notifications (player_id, kind, title, body, url, tag)
+  INSERT INTO public.notifications (player_id, kind, title, body, url, tag, sent_at, result)
   SELECT r.id, p_kind, left(btrim(p_title), 80), NULLIF(left(btrim(COALESCE(p_body, '')), 200), ''),
-         CASE WHEN public.push_safe_url(p_url) THEN p_url ELSE '/' END, NULLIF(left(p_tag, 80), '')
-  FROM (SELECT DISTINCT unnest(p_recipients) AS id) r
+         CASE WHEN public.push_safe_url(p_url) THEN p_url ELSE '/' END, NULLIF(left(p_tag, 80), ''),
+         -- No phone turned on: nothing to send, so it's stamped done now (api/push.js skips it)
+         CASE WHEN r.phones THEN NULL ELSE now() END,
+         CASE WHEN r.phones THEN NULL ELSE 'no devices' END
+  FROM (SELECT DISTINCT x.id,
+               EXISTS (SELECT 1 FROM public.push_subscriptions s WHERE s.player_id = x.id AND s.failed_at IS NULL) AS phones
+        FROM unnest(p_recipients) AS x(id)) r
   WHERE r.id IS NOT NULL
     AND r.id IS DISTINCT FROM v_actor
-    AND EXISTS (SELECT 1 FROM public.push_subscriptions s WHERE s.player_id = r.id AND s.failed_at IS NULL)
-    -- The crew only (push_can_receive): bets, trash talk and announcements aren't for a sign-up
-    -- waiting for approval, nor for a name whose login was removed. "You're on the roster" still
-    -- reaches a new player, because it's sent once his status is already confirmed.
+    -- The crew only (push_can_receive): a confirmed roster name linked to a login. Phone or not:
+    -- the bell shows it either way, and api/push.js sends a banner to any phones that are on.
     AND public.push_can_receive(r.id)
     AND NOT (NULLIF(p_tag, '') IS NOT NULL AND EXISTS (
           SELECT 1 FROM public.notifications n
-          WHERE n.player_id = r.id AND n.tag = p_tag AND n.created_at > now() - interval '20 seconds'));
+          WHERE n.player_id = r.id AND n.tag = p_tag AND n.created_at > now() - interval '20 seconds'))
+    -- Nobody's bell or phone gets more than 30 in 5 minutes, whatever anyone does
+    AND (SELECT count(*) FROM public.notifications n
+         WHERE n.player_id = r.id AND n.created_at > now() - interval '5 minutes') < 30;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;
@@ -458,6 +468,27 @@ BEGIN
   RETURN NULL;
 END;
 $$;
+
+-- A bet that's deleted (a challenge pulled before anyone answered, an untouched pool) takes its
+-- notifications with it: they'd only point at a bet that's gone
+CREATE OR REPLACE FUNCTION public.push_on_wager_delete()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+BEGIN
+  BEGIN
+    DELETE FROM public.notifications WHERE tag = 'bet-' || OLD.id;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'push_on_wager_delete: %', SQLERRM;
+  END;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS zzz_push_on_wager_delete ON public.wagers;
+CREATE TRIGGER zzz_push_on_wager_delete
+  AFTER DELETE ON public.wagers
+  FOR EACH ROW EXECUTE FUNCTION public.push_on_wager_delete();
 
 DROP TRIGGER IF EXISTS zzz_push_on_comment ON public.wager_comments;
 CREATE TRIGGER zzz_push_on_comment
@@ -643,7 +674,9 @@ AS $$
 BEGIN
   BEGIN
     IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+      -- The old login's phones and its bell list go; the new login starts with neither
       DELETE FROM public.push_subscriptions WHERE player_id = NEW.id;
+      DELETE FROM public.notifications WHERE player_id = NEW.id;
     END IF;
   EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'push_forget_phones: %', SQLERRM;
@@ -762,7 +795,8 @@ BEGIN
   IF NOT public.payments_crew() THEN
     RETURN '{}'::uuid[];
   END IF;
-  RETURN public.push_everyone_but(NULL);
+  RETURN COALESCE((SELECT array_agg(DISTINCT s.player_id) FROM public.push_subscriptions s
+                   WHERE s.failed_at IS NULL AND public.push_can_receive(s.player_id)), '{}'::uuid[]);
 END;
 $$;
 
@@ -790,7 +824,7 @@ BEGIN
 END;
 $$;
 
--- Admin: a test banner to the admin's own phones. Returns how many were queued (0: none turned on).
+-- Admin's test: queued for his bell; returns how many of his phones it went to (0: none turned on)
 CREATE OR REPLACE FUNCTION public.admin_test_push()
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
@@ -808,8 +842,9 @@ BEGIN
   IF NOT public.push_can_receive(v_me) THEN
     RAISE EXCEPTION 'Your roster name isn''t confirmed, and notifications only go to confirmed players. Approve it in Admin → RSVPs first.' USING ERRCODE = '42501';
   END IF;
-  RETURN public.notify_players(ARRAY[v_me], 'test', 'Test from Bros before Boges',
+  PERFORM public.notify_players(ARRAY[v_me], 'test', 'Test from Bros before Boges',
     'Notifications are working on this phone.', '/', 'test-' || extract(epoch FROM clock_timestamp())::bigint, true);
+  RETURN (SELECT count(*)::integer FROM public.push_subscriptions WHERE player_id = v_me AND failed_at IS NULL);
 END;
 $$;
 
@@ -901,6 +936,7 @@ REVOKE ALL ON FUNCTION public.push_first_name(uuid) FROM PUBLIC, anon, authentic
 REVOKE ALL ON FUNCTION public.push_everyone_but(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.push_can_receive(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.push_forget_phones() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.push_on_wager_delete() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.push_spot_holders(integer, uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.push_in_count(integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.notify_players(uuid[], text, text, text, text, text, boolean) FROM PUBLIC, anon, authenticated;
@@ -953,8 +989,8 @@ SELECT 'nobody can queue a notification from the site',
        'notify_players is internal'
 UNION ALL
 SELECT 'triggers',
-       (SELECT count(*) FROM pg_trigger WHERE tgname IN ('zzz_push_on_wager', 'zzz_push_on_comment', 'zzz_push_on_paid', 'zzz_push_on_tee_time', 'zzz_push_on_rsvp', 'zzz_push_on_player_status', 'zzz_push_forget_phones', 'zzz_push_on_announcement') AND NOT tgisinternal) = 8,
-       'wagers, wager_comments, bookie_payments, trip_tee_times, rsvps, players (status and login), announcements'
+       (SELECT count(*) FROM pg_trigger WHERE tgname IN ('zzz_push_on_wager', 'zzz_push_on_comment', 'zzz_push_on_paid', 'zzz_push_on_tee_time', 'zzz_push_on_rsvp', 'zzz_push_on_player_status', 'zzz_push_forget_phones', 'zzz_push_on_wager_delete', 'zzz_push_on_announcement') AND NOT tgisinternal) = 9,
+       'wagers (and deleted bets), wager_comments, bookie_payments, trip_tee_times, rsvps, players (status and login), announcements'
 UNION ALL
 SELECT 'player functions',
        bool_and(p.prosecdef AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND has_function_privilege('authenticated', p.oid, 'EXECUTE')),

@@ -12,6 +12,15 @@ try {
     console.error('Supabase initialization failed:', e);
 }
 
+// The notification bell, top right beside the menu button (bell.js)
+if (supabaseInstance && window.BBBBell) {
+    window.BBBBell.mount({ client: supabaseInstance, place: el => {
+        const toggle = document.getElementById('nav-toggle');
+        if (toggle && toggle.parentNode) toggle.parentNode.insertBefore(el, toggle);
+        else document.body.appendChild(el);
+    } });
+}
+
 // All trip content lives in trip-config.js (window.BBB). Update that file each year.
 const CFG = window.BBB || {};
 if (!window.BBB) console.error('trip-config.js is missing or has a syntax error — trip content will not render.');
@@ -2177,8 +2186,6 @@ function renderAccountMenus() {
 
     const who = v.player ? v.player.name : v.email || 'your account';
     const loginUrl = accountUrl('home', 'login');
-    // Notifications on this phone: a line while they can be turned on or off here (push.js)
-    const pushLabel = pushState.status === 'on' ? 'Notifications: on' : pushState.status === 'off' ? 'Turn on notifications' : '';
     // Messages (messages_2027.sql): once it's live and he's on the roster, with how many are unread
     const msgLabel = msgState.ready ? `Messages${msgState.unread ? ` (${msgState.unread > 99 ? '99+' : msgState.unread} new)` : ''}` : '';
     if (drawerRow) {
@@ -2189,7 +2196,6 @@ function renderAccountMenus() {
                    ? '<button type="button" class="drawer-link" data-action="profile">Golf profile</button>'
                    : `<a href="${accountUrl('home')}">Finish setting up</a>`}
                ${v.player && msgLabel ? `<a class="drawer-link" href="messages.html">${esc(msgLabel)}</a>` : ''}
-               ${v.player && pushLabel ? `<button type="button" class="drawer-link" data-action="notify">${pushLabel}</button>` : ''}
                <button type="button" class="drawer-link" data-action="logout">Log out</button>`;
     }
     if (clubRow) {
@@ -2200,7 +2206,6 @@ function renderAccountMenus() {
                    ? `<button type="button" data-action="profile">${icon('flag')}Golf profile</button>`
                    : `<a href="${accountUrl('home')}">${icon('user')}Finish setting up</a>`}
                ${v.player && msgLabel ? `<a href="messages.html">${icon('users')}${esc(msgLabel)}</a>` : ''}
-               ${v.player && pushLabel ? `<button type="button" data-action="notify">${icon('megaphone')}${pushLabel}</button>` : ''}
                <button type="button" data-action="logout">${icon('logout')}Log out</button>`;
     }
 }
@@ -2254,10 +2259,7 @@ async function checkPush(force) {
         const changed = status !== pushState.status;
         pushState.status = status;
         pushState.checking = null;
-        if (changed) {
-            renderChecklist();
-            renderAccountMenus();
-        }
+        if (changed) renderChecklist();
         if (status === 'on' && supabaseInstance) P.refresh(supabaseInstance);
     })();
     return pushState.checking;
@@ -2292,7 +2294,14 @@ async function togglePush() {
     }
     await checkPush(true);
     renderChecklist();
+    // An open bell shows this phone's new state too
+    window.dispatchEvent(new CustomEvent('bbb-push-change', { detail: { state: pushState.status } }));
 }
+
+// Turned on or off from the bell: the checklist item catches up
+window.addEventListener('bbb-push-change', e => {
+    if (e.detail && e.detail.fromBell) checkPush(true);
+});
 
 // The Admin links (Clubhouse menu, drawer, footer) show only to admins. The database decides, by its
 // own rule (is_trip_admin: an is_admin roster row with this login's email), asked once per login.

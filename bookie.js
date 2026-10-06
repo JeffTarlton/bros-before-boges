@@ -304,6 +304,7 @@ async function initBookie() {
 
     // Create the Supabase client here so we know the CDN script has run
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    mountBell();
 
     setupEventListeners();
 
@@ -993,7 +994,6 @@ function setNavLogin(signedIn) {
     navLoginBtn.closest('li').hidden = false;
     navLoginBtn.dataset.signedIn = signedIn ? 'true' : 'false';
     navLoginBtn.textContent = signedIn ? 'Log out' : 'Log in';
-    if (!signedIn && pushBellItem) pushBellItem.hidden = true;
     if (!signedIn) { const mi = document.getElementById('nav-messages-item'); if (mi) mi.hidden = true; }
 }
 
@@ -1042,8 +1042,7 @@ function showChecking(message) {
 function showWall(note, signedIn, opts) {
     opts = opts || {};
     wallState = signedIn ? 'in' : 'out';
-    // The notifications bell and the Messages link belong with the board (showDashboard brings them back)
-    if (pushBellItem) pushBellItem.hidden = true;
+    // The Messages link belongs with the board (showDashboard brings it back)
     const messagesItem = document.getElementById('nav-messages-item');
     if (messagesItem) messagesItem.hidden = true;
     document.body.classList.remove('is-authed');
@@ -1093,8 +1092,8 @@ function showDashboard() {
     dashboard.style.display = 'block';
     currentUserNameEl.textContent = currentUser.name;
     setNavLogin(true);
-    // Phone notifications: the bell, who has them on, and a re-save of this phone's subscription
-    renderPushBell();
+    // Phone notifications: who has them on (for "Their phone got a notification"), and a re-save of
+    // this phone's subscription. Turning them on and off is the bell's job (bell.js).
     loadPushPlayers();
     if (window.BBBPush) window.BBBPush.refresh(supabaseClient);
     renderMessagesLink();
@@ -4266,60 +4265,26 @@ if (document.readyState === 'complete') {
 }
 
 // ==========================================
-// Phone notifications (push.js, push_2027.sql)
+// Phone notifications (push.js, bell.js, push_2027.sql)
 // ==========================================
-// The bell in the header: filled when this phone has them on, crossed out when not. On an iPhone
-// that hasn't added the site to its home screen, a tap says how (Safari only allows notifications
-// in the home-screen app). pushPlayers is who has a phone on, so a challenge can say "Kyle gets a
+// The bell in the header's top-right corner (bell.js) lists notifications and turns them on or off
+// for this phone. The Bookie only needs to know who has a phone on, so a challenge can say "Kyle gets a
 // notification" instead of "text Kyle".
-var pushBell = document.getElementById('push-bell'); // var: setNavLogin may ask before this line has run
-var pushBellItem = pushBell ? pushBell.closest('li') : null;
 let pushPlayers = null;
 
-async function renderPushBell() {
-    if (!pushBell || !pushBellItem) return;
-    if (!window.BBBPush || !currentUser) { pushBellItem.hidden = true; return; }
-    const state = await window.BBBPush.status(supabaseClient);
-    if (state === 'unsupported' || state === 'setup') { pushBellItem.hidden = true; return; }
-    pushBellItem.hidden = false;
-    const on = state === 'on';
-    pushBell.dataset.state = state;
-    pushBell.setAttribute('aria-pressed', on ? 'true' : 'false');
-    pushBell.setAttribute('aria-label', on ? 'Notifications are on for this phone. Turn them off' : 'Turn on notifications for this phone');
-    pushBell.innerHTML = `<i class="fas ${on ? 'fa-bell' : 'fa-bell-slash'}" aria-hidden="true"></i><span class="push-bell-label">${on ? 'Notifications on' : 'Notifications'}</span>`;
-}
-
-window.togglePush = async function () {
-    const P = window.BBBPush;
-    if (!P || !currentUser || !pushBell || pushBell.disabled) return;
-    const state = pushBell.dataset.state || await P.status(supabaseClient);
-    if (state === 'install') {
-        if (P.canInstall()) { await P.install(); renderPushBell(); return; }
-        showToast(P.installHint(), 'info');
-        return;
-    }
-    if (state === 'blocked') {
-        showToast('Notifications are blocked for this site. Allow them in your phone’s Settings, then tap the bell again.', 'error');
-        return;
-    }
-    pushBell.disabled = true;
-    try {
-        if (state === 'on') {
-            await P.disable(supabaseClient);
-            showToast('Notifications off on this phone.', 'info');
-        } else {
-            const result = await P.enable(supabaseClient);
-            if (result === 'on') showToast('Notifications on. You’ll hear about challenges, results and trash talk.', 'success');
-            else if (result === 'blocked') showToast('Notifications are blocked for this site. Allow them in your phone’s Settings to turn them on.', 'error');
-            else if (result === 'setup') showToast('Notifications are being set up. Check back soon.', 'info');
-            else if (result === 'error') showToast(`Couldn’t turn on notifications: ${(P.lastError && P.lastError.message) || 'try again'}`, 'error');
+function mountBell() {
+    if (!window.BBBBell || !supabaseClient) return;
+    const header = document.querySelector('.site-header .header-container');
+    const menuBtn = header && header.querySelector('.menu-toggle');
+    window.BBBBell.mount({
+        client: supabaseClient,
+        place: el => {
+            if (!header) { document.body.appendChild(el); return; }
+            header.classList.add('has-bell');
+            header.insertBefore(el, menuBtn || null);
         }
-    } finally {
-        pushBell.disabled = false;
-        renderPushBell();
-        loadPushPlayers(true);
-    }
-};
+    });
+}
 
 async function loadPushPlayers(force) {
     if (!supabaseClient || !currentUser || (Array.isArray(pushPlayers) && !force)) return;

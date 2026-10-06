@@ -2015,6 +2015,17 @@ async function init(retry) {
     }
     if (!sb) {
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // The notification bell, top right (bell.js)
+        if (window.BBBBell) {
+            const header = document.querySelector('.site-header .header-container');
+            const menuBtn = header && header.querySelector('.menu-toggle');
+            window.BBBBell.mount({ client: sb, place: el => {
+                if (!header) { document.body.appendChild(el); return; }
+                header.classList.add('has-bell');
+                header.insertBefore(el, menuBtn || null);
+            } });
+        }
         sb.auth.onAuthStateChange((event, session) => {
             S.authUser = session ? session.user : (event === 'SIGNED_OUT' ? null : savedLoginUser());
             if (event === 'SIGNED_OUT') {

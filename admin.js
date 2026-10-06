@@ -12,6 +12,16 @@ try {
     console.error('Supabase initialization failed:', e);
 }
 
+// The notification bell, beside Log out (bell.js): an admin's own notifications, on/off and a test
+if (supabaseInstance && window.BBBBell) {
+    window.BBBBell.mount({ client: supabaseInstance, place: el => {
+        const nav = document.getElementById('auth-status');
+        const logout = document.getElementById('logout-btn');
+        if (!nav) { document.body.appendChild(el); return; }
+        nav.insertBefore(el, logout && logout.parentNode === nav ? logout : null);
+    } });
+}
+
 // Toast Notification System. Successes fade after 3 s; errors stay until tapped, because
 // they're often the only record of what did or didn't save. opts.timeout lets a passing
 // notice fade anyway; opts.kind ('save') lets the next message about the same thing replace it.
@@ -4467,7 +4477,7 @@ function renderAnnouncements() {
         const waiting = Number(s.waiting) || 0;
         el.summary.textContent = (on
             ? `${on} of ${s.players_total} players have notifications on (${phones} phone${phones === 1 ? '' : 's'}): ${names.join(', ')}.`
-            : 'Nobody has notifications on yet. They turn them on from the homepage checklist or the bell in The Bookie, once the site is on their home screen.')
+            : 'Nobody has phone notifications on yet. Everyone still gets announcements in their bell; they turn on phone banners from the bell, once the site is on their home screen.')
             + (waiting ? ` ${waiting} new sign-up${waiting === 1 ? '' : 's'} waiting for approval ${waiting === 1 ? 'has' : 'have'} them on too, and will start getting them once approved.` : '');
     } else {
         el.summary.textContent = '';
@@ -4484,10 +4494,9 @@ function renderAnnouncements() {
     }
     el.history.innerHTML = announceState.history.length
         ? announceState.history.map(a => {
-            const delivered = Number(a.delivered) || 0;
             const queued = Number(a.recipients) || 0;
             return `<div class="announce-item"><b>${escHtml(a.title)}</b>${a.body ? `<p>${escHtml(a.body)}</p>` : ''}`
-                + `<small>${escHtml(announceWhen(a.created_at))}${a.sent_by ? ` · ${escHtml(a.sent_by)}` : ''} · ${queued ? `${delivered} of ${queued} sent` : 'nobody had notifications on'}`
+                + `<small>${escHtml(announceWhen(a.created_at))}${a.sent_by ? ` · ${escHtml(a.sent_by)}` : ''} · ${queued ? `to ${queued} player${queued === 1 ? '' : 's'}` : 'nobody to send it to'}`
                 + `${a.url && a.url !== '/' ? ` · opens ${escHtml(a.url)}` : ''}</small></div>`;
         }).join('')
         : '<p class="tab-lede">Nothing sent yet.</p>';
@@ -4502,11 +4511,10 @@ async function sendAnnouncement() {
     if (!title) { setAnnounceError('Give it a title.'); el.title.focus(); return; }
     if (title.length > 80) { setAnnounceError('Keep the title to 80 characters.'); return; }
     if (body.length > 200) { setAnnounceError('Keep the message to 200 characters.'); return; }
-    if (url && !/^\/(?:[^/\\\s][^\\\s]{0,198})?$/.test(url)) { setAnnounceError('The link should be a page on the site, like /#schedule or /bookie.'); return; }
+    if (url && (!/^\/(?:[^/\\\s][^\\\s]{0,198})?$/.test(url) || /\/\//.test(url) || /(^|\/)(\.|%2e){1,2}(\/|\?|#|$)/i.test(url))) { setAnnounceError('The link should be a page on the site, like /#schedule or /bookie.'); return; }
     setAnnounceError('');
     const on = Number(announceState.summary && announceState.summary.players_on) || 0;
-    if (!on) { setAnnounceError('Nobody has notifications on yet, so there’s no one to send it to.'); return; }
-    if (!window.confirm(`Send “${title}” to ${on} player${on === 1 ? '' : 's'}?`)) return;
+    if (!window.confirm(`Send “${title}” to every approved player? It goes to everyone’s bell${on ? `, and as a banner to the ${on} with notifications on` : ''}.`)) return;
     announceState.busy = 'send';
     renderAnnouncements();
     const { data, error } = await supabaseInstance.rpc('admin_send_announcement', { p_title: title, p_body: body || null, p_url: url || null });
@@ -4539,7 +4547,9 @@ async function testPush() {
         return;
     }
     const n = Number(data) || 0;
-    el.status.textContent = n ? `Test sent to your phone${n === 1 ? '' : 's'}. It should show in a few seconds.` : '';
-    if (n) window.showToast('Test sent. Check your phone.', 'success', { kind: 'announce' });
-    else setAnnounceError('Turn on notifications on this phone first (the homepage checklist, or the bell in The Bookie), then try again.');
+    el.status.textContent = n
+        ? `Test sent to your phone${n === 1 ? '' : 's'}. It should show in a few seconds, and in your bell.`
+        : 'Test sent to your bell (top right). To get it on this phone too, open the bell and turn notifications on.';
+    window.showToast(n ? 'Test sent. Check your phone.' : 'Test sent to your bell.', 'success', { kind: 'announce' });
+    if (window.BBBBell) window.BBBBell.refresh();
 }
