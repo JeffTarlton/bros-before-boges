@@ -49,8 +49,8 @@ Authentication → Emails → SMTP Settings: host `smtp.gmail.com`, port `465`, 
 sender `brosbeforeboges@lokdit.net`, sender name `Bros before Boges`.
 
 **Link setup (required for every email link):** Authentication → URL Configuration:
-Site URL `https://bros-before-boges.vercel.app`, and Redirect URLs include
-`https://bros-before-boges.vercel.app/**`. Without it, Supabase ignores the site's return
+Site URL `https://www.bros-before-boges.com`, and Redirect URLs include
+`https://www.bros-before-boges.com/**`. Without it, Supabase ignores the site's return
 address and sends reset and confirmation links to the Site URL (by default `localhost`,
 which is a dead page on a phone).
 
@@ -64,7 +64,7 @@ RSVPs need a player account (the same login as The Bookie). To switch this on:
    "has a login"; if one says "NO LOGIN YET", have them log in once (or turn on Confirm email).
 3. Keep **Allow new users to sign up** on: new players create their own accounts.
 
-**The invite link to send the guys:** https://bros-before-boges.vercel.app/signup
+**The invite link to send the guys:** https://www.bros-before-boges.com/signup
 It opens the sign-up form (name from the roster, or “I’m new”), sends the “Confirm your email”
 message, and the link in that email logs them in and drops them straight into the RSVP. Anyone who
 already has an account taps “Already have an account? Log in” on the same page. New players show
@@ -115,7 +115,7 @@ only appear while the provider is enabled in Supabase, so a half-finished setup 
    **Publish app**. With only the basic email/profile scopes, Google doesn't require a review;
    while the app is in "Testing", only listed test users can sign in.
 4. **Clients → Create client → Web application**:
-   - Authorized JavaScript origins: `https://bros-before-boges.vercel.app`
+   - Authorized JavaScript origins: `https://www.bros-before-boges.com`
    - Authorized redirect URIs: `https://gxpwgrdyizruzfczzqwn.supabase.co/auth/v1/callback`
 5. Copy the **Client ID** and **Client secret** into **Supabase → Authentication → Sign In / Providers →
    Google**, then turn on **Enable Sign in with Google**. Leave "Skip nonce checks" and "Allow users
