@@ -335,6 +335,7 @@ async function init() {
         // otherwise would restart the champions reel animation.
         if (SEASON_LIVE) renderCup();
         initReveals();
+        restoreResumeScroll();
     } catch (err) {
         console.error('CRITICAL: Site failed to initialize.', err);
     }
@@ -674,6 +675,56 @@ function checkPhase() {
 function watchPhase() {
     setInterval(checkPhase, 30000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPhase(); });
+    watchResume();
+}
+
+// The home-screen app has no reload button or pull-to-refresh, and a phone keeps it in memory for
+// days: reopened, it would still show the head count, tee times and news it first loaded. Back
+// after RESUME_RELOAD_MS away, the page loads itself again, at the same scroll spot. Not while
+// something is open or being typed in, and not without signal (a reload with none is a dead end).
+const RESUME_RELOAD_MS = 10 * 60 * 1000;
+const RESUME_SCROLL_KEY = 'bbb-resume-y';
+let hiddenAt = 0;
+
+function watchResume() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { hiddenAt = Date.now(); return; }
+        const away = hiddenAt ? Date.now() - hiddenAt : 0;
+        hiddenAt = 0;
+        if (away >= RESUME_RELOAD_MS) reloadIfIdle();
+    });
+}
+
+function busyOnPage() {
+    if (document.querySelector('.modal.active, .lightbox.active, #drawer.is-open')) return true;
+    if (['bbb-bell-panel', 'bbb-help-panel'].some(id => { const p = document.getElementById(id); return p && !p.hidden; })) return true;
+    const f = document.activeElement;
+    return !!(f && f.matches && f.matches('input, textarea, select, [contenteditable="true"]'));
+}
+
+async function reloadIfIdle() {
+    if (busyOnPage() || navigator.onLine === false) return;
+    try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch('trip-config.js', { method: 'HEAD', cache: 'no-store', signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) return;
+    } catch (e) { return; /* no signal: keep what's showing */ }
+    if (busyOnPage() || document.hidden) return;
+    try { sessionStorage.setItem(RESUME_SCROLL_KEY, String(Math.round(window.scrollY))); } catch (e) { /* no storage: top of page */ }
+    location.reload();
+}
+
+// After that reload, back to the spot it was at (once the crew list and RSVPs have filled in)
+function restoreResumeScroll() {
+    let y = null;
+    try {
+        y = sessionStorage.getItem(RESUME_SCROLL_KEY);
+        sessionStorage.removeItem(RESUME_SCROLL_KEY);
+    } catch (e) { return; }
+    const top = Number(y);
+    if (y !== null && top > 0) window.scrollTo(0, top);
 }
 
 // ---------------------------------------------------------------------------
