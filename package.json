@@ -1,0 +1,8 @@
+{
+  "name": "bros-before-boges",
+  "private": true,
+  "description": "Static site on Vercel. The one dependency is for api/push.js (phone notifications).",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

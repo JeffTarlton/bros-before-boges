@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS wager_comments (
 ALTER TABLE wager_comments ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access (so anyone can view the trash talk on the board)
+-- NOTE (2027): reads are crew-only now. bookie_crew_read_2027.sql replaces this "public read" rule; if this
+-- script is ever re-run, its crew-only rules still apply on top, but run bookie_crew_read_2027.sql again after it.
 DROP POLICY IF EXISTS "Allow public read access to wager_comments" ON wager_comments;
 CREATE POLICY "Allow public read access to wager_comments" 
   ON wager_comments FOR SELECT USING (true);

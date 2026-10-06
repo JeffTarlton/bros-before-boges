@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS wagers (
 -- Turn on Row Level Security (RLS)
 ALTER TABLE wagers ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to read wagers (since the app needs to display the board)
+-- NOTE (2027): reads are crew-only now. bookie_crew_read_2027.sql replaces this "public read" rule; if this
+-- script is ever re-run, its crew-only rules still apply on top, but run bookie_crew_read_2027.sql again after it.
+-- (Historical) Let anyone read wagers, back when the board was public
 DROP POLICY IF EXISTS "Allow public read access to wagers" ON wagers;
 CREATE POLICY "Allow public read access to wagers" 
   ON wagers FOR SELECT 
@@ -74,6 +76,8 @@ CREATE TABLE IF NOT EXISTS wager_comments (
 
 ALTER TABLE wager_comments ENABLE ROW LEVEL SECURITY;
 
+-- NOTE (2027): reads are crew-only now. bookie_crew_read_2027.sql replaces this "public read" rule; if this
+-- script is ever re-run, its crew-only rules still apply on top, but run bookie_crew_read_2027.sql again after it.
 DROP POLICY IF EXISTS "Allow public read access to wager_comments" ON wager_comments;
 CREATE POLICY "Allow public read access to wager_comments" 
   ON wager_comments FOR SELECT USING (true);

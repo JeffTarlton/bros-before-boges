@@ -21,6 +21,9 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Bros before Boges 2027 | Scottsdale, Arizona</title>
     <meta name="description" content="The annual Bros before Boges golf trip. April 8–11, 2027 in Scottsdale, Arizona: Talking Stick, We-Ko-Pa Cholla & Saguaro, Camelback Ambiente, and the Cup on the line.">
     <meta property="og:type" content="website">
@@ -37,9 +40,10 @@
     <!-- supabase-js (end of the page): open the connection now so the download starts sooner -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.10">
+    <link rel="stylesheet" href="style.css?v=2027.11">
     <link rel="stylesheet" href="home.css?v=2027.18">
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <!-- The hero photo: a phone held upright gets just the middle of it (sized/…-portrait.jpg, the same pixels it would
          show of the full photo); anything wider picks a width from the set. Same rules as the <picture> in the hero. -->
@@ -409,6 +413,7 @@
                     <li><a href="round_tracker.html#board">Live scores</a></li>
                     <li><a href="round_tracker.html#setup">Keep score</a></li>
                     <li data-admin-link hidden><a href="admin.html">Admin</a></li>
+                    <li><a href="privacy.html">Privacy</a></li>
                 </ul>
                 <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
             </div>
@@ -598,7 +603,8 @@
         </div>
     </div>
 
-    <script src="trip-config.js?v=2027.18"></script>
+    <script src="trip-config.js?v=2027.19"></script>
+    <script src="push.js?v=2027.19"></script>
     <script src="assets/photo-sizes.js?v=2027.3"></script>
     <script>
         // Pick the trip's phase (before / during / after, by the date in Arizona) now rather than after
@@ -631,7 +637,7 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="script.js?v=2027.22"></script>
+    <script src="script.js?v=2027.23"></script>
 </body>
 
 </html>

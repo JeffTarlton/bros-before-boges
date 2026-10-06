@@ -83,7 +83,7 @@ let rsvpLoading = false; // an RSVP load is running (it draws the table itself w
 let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
 
 // Each sidebar section has an address (admin#rsvps), so a refresh or a bookmark opens it again
-const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos', 'tee-times'];
+const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos', 'tee-times', 'announcements'];
 
 // Links that go out to the guys (texts and emails), so always the live site, never this page's host
 const SITE_URL = 'https://bros-before-boges.vercel.app';
@@ -661,6 +661,7 @@ function openTab(tab, { fromHash = false } = {}) {
     if (tab === 'rsvps') loadRsvpAdmin();
     if (tab === 'photos') loadAlbum();
     if (tab === 'tee-times') loadTeeTimes();
+    if (tab === 'announcements') loadAnnouncements();
 }
 
 async function loadRoster() {
@@ -4381,4 +4382,164 @@ async function saveTeeTime(key, rawTime, rawNote) {
     teeState.times = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
     renderTeeTimes();
     window.showToast(time ? `Tee time saved: ${teeClock(time)}.` : 'Tee time cleared.', 'success');
+}
+
+// ---- Announcements (push_2027.sql) ----
+// A phone notification to everyone who turned them on. admin_push_summary says how many that is,
+// admin_send_announcement sends, admin_announcements lists what went out, admin_test_push pings the
+// admin's own phone. state: 'idle' | 'loading' | 'ok' | 'missing' (the script hasn't run) | 'error'
+const announceState = { state: 'idle', summary: null, history: [], busy: false, wired: false, error: '' };
+
+function announceEls() {
+    const byId = id => document.getElementById(id);
+    return { form: byId('announce-form'), title: byId('announce-title'), body: byId('announce-body'), url: byId('announce-url'), count: byId('announce-count'),
+             error: byId('announce-error'), send: byId('announce-send'), test: byId('announce-test'), status: byId('announce-status'),
+             note: byId('announce-note'), summary: byId('announce-summary'), history: byId('announce-history') };
+}
+
+function wireAnnouncements() {
+    if (announceState.wired) return;
+    const el = announceEls();
+    if (!el.form) return;
+    announceState.wired = true;
+    el.form.addEventListener('submit', e => { e.preventDefault(); sendAnnouncement(); });
+    el.test.addEventListener('click', testPush);
+    el.body.addEventListener('input', () => { el.count.textContent = String(el.body.value.length); });
+}
+
+async function loadAnnouncements() {
+    if (!supabaseInstance || announceState.busy) return;
+    wireAnnouncements();
+    announceState.state = 'loading';
+    renderAnnouncements();
+    const [sum, hist] = await Promise.all([
+        supabaseInstance.rpc('admin_push_summary'),
+        supabaseInstance.rpc('admin_announcements', { p_limit: 20 })
+    ]);
+    const err = sum.error || hist.error;
+    if (err) {
+        announceState.state = isMissingFunction(err) ? 'missing' : 'error';
+        announceState.error = plainError(err);
+        if (announceState.state === 'error') console.error('Announcements load failed:', err);
+    } else {
+        announceState.state = 'ok';
+        announceState.summary = sum.data && typeof sum.data === 'object' ? sum.data : { players_on: 0, devices: 0, players_total: 0, names: [] };
+        announceState.history = Array.isArray(hist.data) ? hist.data : [];
+    }
+    renderAnnouncements();
+}
+
+function announceWhen(iso) {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function setAnnounceError(text) {
+    const el = announceEls();
+    if (!el.error) return;
+    el.error.textContent = text || '';
+    el.error.hidden = !text;
+}
+
+function renderAnnouncements() {
+    const el = announceEls();
+    if (!el.form) return;
+    const ready = announceState.state === 'ok';
+    el.note.className = `setup-note${announceState.state === 'error' ? ' is-error' : ''}`;
+    if (announceState.state === 'missing') {
+        el.note.textContent = 'Notifications aren’t set up yet: run push_2027.sql in the Supabase SQL Editor, then come back here.';
+    } else if (announceState.state === 'error') {
+        el.note.innerHTML = '<span>Couldn’t load: </span><span class="announce-err"></span><button type="button" class="admin-btn secondary" id="announce-retry">Retry</button>';
+        el.note.querySelector('.announce-err').textContent = announceState.error;
+        document.getElementById('announce-retry').addEventListener('click', loadAnnouncements);
+    } else if (announceState.state === 'loading') {
+        el.note.textContent = 'Loading…';
+    } else {
+        el.note.textContent = '';
+    }
+    el.note.hidden = !el.note.textContent;
+
+    const s = announceState.summary;
+    if (ready && s) {
+        const on = Number(s.players_on) || 0;
+        const phones = Number(s.devices) || 0;
+        const names = Array.isArray(s.names) ? s.names : [];
+        const waiting = Number(s.waiting) || 0;
+        el.summary.textContent = (on
+            ? `${on} of ${s.players_total} players have notifications on (${phones} phone${phones === 1 ? '' : 's'}): ${names.join(', ')}.`
+            : 'Nobody has notifications on yet. They turn them on from the homepage checklist or the bell in The Bookie, once the site is on their home screen.')
+            + (waiting ? ` ${waiting} new sign-up${waiting === 1 ? '' : 's'} waiting for approval ${waiting === 1 ? 'has' : 'have'} them on too, and will start getting them once approved.` : '');
+    } else {
+        el.summary.textContent = '';
+    }
+
+    const off = !ready || !!announceState.busy;
+    [el.title, el.body, el.url, el.send, el.test].forEach(x => { x.disabled = off; });
+    el.send.textContent = announceState.busy === 'send' ? 'Sending…' : 'Send to everyone';
+    el.test.textContent = announceState.busy === 'test' ? 'Sending…' : 'Send me a test';
+
+    if (!ready) {
+        el.history.innerHTML = '';
+        return;
+    }
+    el.history.innerHTML = announceState.history.length
+        ? announceState.history.map(a => {
+            const delivered = Number(a.delivered) || 0;
+            const queued = Number(a.recipients) || 0;
+            return `<div class="announce-item"><b>${escHtml(a.title)}</b>${a.body ? `<p>${escHtml(a.body)}</p>` : ''}`
+                + `<small>${escHtml(announceWhen(a.created_at))}${a.sent_by ? ` · ${escHtml(a.sent_by)}` : ''} · ${queued ? `${delivered} of ${queued} sent` : 'nobody had notifications on'}`
+                + `${a.url && a.url !== '/' ? ` · opens ${escHtml(a.url)}` : ''}</small></div>`;
+        }).join('')
+        : '<p class="tab-lede">Nothing sent yet.</p>';
+}
+
+async function sendAnnouncement() {
+    const el = announceEls();
+    if (!supabaseInstance || announceState.state !== 'ok' || announceState.busy) return;
+    const title = el.title.value.replace(/\s+/g, ' ').trim();
+    const body = el.body.value.replace(/\s+/g, ' ').trim();
+    const url = el.url.value.trim();
+    if (!title) { setAnnounceError('Give it a title.'); el.title.focus(); return; }
+    if (title.length > 80) { setAnnounceError('Keep the title to 80 characters.'); return; }
+    if (body.length > 200) { setAnnounceError('Keep the message to 200 characters.'); return; }
+    if (url && !/^\/(?:[^/\\\s][^\\\s]{0,198})?$/.test(url)) { setAnnounceError('The link should be a page on the site, like /#schedule or /bookie.'); return; }
+    setAnnounceError('');
+    const on = Number(announceState.summary && announceState.summary.players_on) || 0;
+    if (!on) { setAnnounceError('Nobody has notifications on yet, so there’s no one to send it to.'); return; }
+    if (!window.confirm(`Send “${title}” to ${on} player${on === 1 ? '' : 's'}?`)) return;
+    announceState.busy = 'send';
+    renderAnnouncements();
+    const { data, error } = await supabaseInstance.rpc('admin_send_announcement', { p_title: title, p_body: body || null, p_url: url || null });
+    announceState.busy = false;
+    if (error) {
+        if (isMissingFunction(error)) announceState.state = 'missing';
+        renderAnnouncements();
+        if (announceState.state === 'ok') setAnnounceError(`Couldn’t send: ${plainError(error)}`);
+        return;
+    }
+    const n = Number(data && data.recipients) || 0;
+    el.form.reset();
+    el.count.textContent = '0';
+    el.status.textContent = data && data.duplicate ? 'That one already went out a moment ago.' : `Sent to ${n} player${n === 1 ? '' : 's'}.`;
+    window.showToast(`Announcement sent to ${n} player${n === 1 ? '' : 's'}.`, 'success', { kind: 'announce' });
+    loadAnnouncements();
+}
+
+async function testPush() {
+    if (!supabaseInstance || announceState.state !== 'ok' || announceState.busy) return;
+    const el = announceEls();
+    setAnnounceError('');
+    announceState.busy = 'test';
+    renderAnnouncements();
+    const { data, error } = await supabaseInstance.rpc('admin_test_push');
+    announceState.busy = false;
+    renderAnnouncements();
+    if (error) {
+        setAnnounceError(`Couldn’t send a test: ${plainError(error)}`);
+        return;
+    }
+    const n = Number(data) || 0;
+    el.status.textContent = n ? `Test sent to your phone${n === 1 ? '' : 's'}. It should show in a few seconds.` : '';
+    if (n) window.showToast('Test sent. Check your phone.', 'success', { kind: 'announce' });
+    else setAnnounceError('Turn on notifications on this phone first (the homepage checklist, or the bell in The Bookie), then try again.');
 }

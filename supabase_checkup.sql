@@ -13,6 +13,7 @@
 --          tracker_ready    = true    (tracker_2027.sql)
 --          rsvp_accounts_ready = true (rsvp_accounts.sql)
 --          emails_public    = false  (players_privacy.sql)
+--          bets_public      = false  (bookie_crew_read_2027.sql)
 SELECT
   EXISTS (SELECT 1 FROM information_schema.tables
           WHERE table_schema = 'public' AND table_name = 'rsvps')              AS rsvp_table_ready,
@@ -24,7 +25,8 @@ SELECT
    WHERE conname = 'wagers_type_check')                                        AS wager_types,
   EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'wagers_guard' AND NOT tgisinternal) AS bet_rules_guarded,
   EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'is_confirmed_player')         AS tracker_ready,
-  has_column_privilege('anon', 'public.players', 'email', 'SELECT')             AS emails_public;
+  has_column_privilege('anon', 'public.players', 'email', 'SELECT')             AS emails_public,
+  has_any_column_privilege('anon', 'public.wagers', 'SELECT')                   AS bets_public;
 
 -- 2. Rounds still marked active. The Round Tracker now groups rounds by round number and
 --    day, so old ones no longer get in the way; this is just housekeeping.

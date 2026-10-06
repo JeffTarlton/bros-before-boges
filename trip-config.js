@@ -128,6 +128,12 @@ window.BBB = {
         google: false
     },
 
+    // Phone notifications (push_2027.sql, push.js, sw.js, api/push.js). publicKey is the VAPID public
+    // key, which is safe to publish: the private half lives only in Vercel's env vars (.env.local has
+    // both, gitignored). null switches the feature off everywhere: every page hides its notification
+    // controls and nothing subscribes.
+    push: { publicKey: 'BCA224KjLJkd5XkU5507kQmW3ENgw0hR_7sq7g3ZUWk8w_qmDjgWNtZ__WAyiAUVDDQ1Q560dm0V0Zbz3RVBMfA' },
+
     // Flip to true once teams are drafted and last year's scores are cleared in Admin.
     // While false, the homepage shows last year's champions instead of live teams/scores,
     // and the Scoreboard shows pre-tournament rankings.

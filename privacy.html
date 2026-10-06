@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('js');</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Privacy | Bros before Boges</title>
+    <meta name="description" content="What the Bros before Boges trip site keeps about you, who can see it, and how to change or delete it.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2027.11">
+    <link rel="stylesheet" href="home.css?v=2027.16">
+    <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <style>
+        .privacy h2 { margin: 44px 0 14px; font-family: var(--font-display, 'Fraunces', serif); font-size: clamp(1.4rem, 3.2vw, 1.8rem); color: var(--ink, #f4ebdf); scroll-margin-top: 90px; }
+        .privacy p, .privacy dd, .privacy li { line-height: 1.6; }
+        .privacy p { margin: 0 0 12px; color: var(--ink-soft, #dacfc1); }
+        .privacy a { color: var(--copper, #e27d4f); text-decoration: underline; text-underline-offset: 2px; }
+        .privacy .callout h2 { margin-top: 0; }
+        .privacy-list { margin: 0; display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 12px 22px; }
+        .privacy-list dt { font-weight: 700; color: var(--ink, #f4ebdf); }
+        .privacy-list dd { margin: 0; color: var(--ink-soft, #dacfc1); }
+        .privacy-table { display: grid; gap: 10px; }
+        .pt-row { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 6px 22px; padding: 14px 16px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; background: rgba(255, 255, 255, 0.025); color: var(--ink-soft, #dacfc1); line-height: 1.55; }
+        .pt-who { font-weight: 700; color: var(--ink, #f4ebdf); }
+        .privacy-note { margin-top: 12px; font-size: 0.92rem; }
+        .house-list { padding-left: 18px; display: grid; gap: 10px; color: var(--ink); }
+        .house-list li::marker { color: var(--copper); }
+        @media (max-width: 640px) {
+            .privacy-list, .pt-row { grid-template-columns: 1fr; }
+            .privacy-list dd { margin-bottom: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="nav nav--compact is-solid" id="site-nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="index.html" aria-label="Bros before Boges home">
+                <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="bbbSun" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#f6cf86" />
+                            <stop offset="1" stop-color="#e27d4f" />
+                        </linearGradient>
+                        <clipPath id="bbbClip"><rect x="2" y="2" width="60" height="60" rx="17" /></clipPath>
+                    </defs>
+                    <rect x="2" y="2" width="60" height="60" rx="17" fill="#1c1612" />
+                    <g clip-path="url(#bbbClip)">
+                        <circle cx="27" cy="43" r="15" fill="url(#bbbSun)" />
+                        <path d="M2 45 L13 35 L20 40 L31 29 L43 41 L50 36 L62 44 V62 H2 Z" fill="#0e0b09" />
+                        <path d="M2 52 Q20 46 35 50 T62 48 V62 H2 Z" fill="#35502f" />
+                    </g>
+                    <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#e8b86b" stroke-opacity=".5" stroke-width="1.5" />
+                    <path d="M45 17 V50" stroke="#f4ebdf" stroke-width="2.2" stroke-linecap="round" />
+                    <path d="M46 17.5 L56 21.5 L46 25.5 Z" fill="#e27d4f" />
+                </svg>
+                <span class="brand-word">Bros before <em>Boges</em></span>
+            </a>
+            <nav class="nav-primary" aria-label="Main">
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="index.html#schedule">Itinerary</a></li>
+                <li><a href="index.html#courses">Courses</a></li>
+                <li><a href="index.html#cup">The Cup</a></li>
+                <li><a href="rules.html">Rules</a></li>
+                <li><a href="bookie.html">The Bookie</a></li>
+                <li><a href="round_tracker.html#board">Live scores</a></li>
+            </ul>
+            </nav>
+            <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span></button>
+        </div>
+    </header>
+
+    <nav class="drawer" id="drawer" aria-label="Site menu">
+        <a href="index.html">Home</a>
+        <a href="index.html#schedule">Itinerary</a>
+        <a href="index.html#courses">Courses</a>
+        <a href="index.html#cup">The Cup</a>
+        <a href="rules.html">Rules</a>
+        <a href="bookie.html">The Bookie</a>
+        <a href="round_tracker.html#board">Live scores</a>
+    </nav>
+
+    <main id="main">
+        <section class="page-hero">
+            <div class="page-hero-bg" aria-hidden="true">
+                <img src="assets/courses/wekopa-saguaro/hole-14-panorama.jpg" alt="">
+            </div>
+            <div class="wrap" style="max-width: 920px;">
+                <p class="eyebrow">The fine print</p>
+                <h1 class="h-display">Your <em>privacy</em></h1>
+                <p class="lede" style="margin-top: 18px;">What this site keeps about you, who can see it, and how to get it changed or removed. Last updated October 6, 2026.</p>
+            </div>
+        </section>
+
+        <section class="wrap privacy" style="padding-bottom: 100px; max-width: 920px;">
+            <div class="callout" id="short-version">
+                <h2>The short version</h2>
+                <ul class="house-list">
+                    <li>This is a private site for one golf trip and the friends on it, run by the trip’s organizers (“we” below).</li>
+                    <li>We keep only what it takes to run the trip: who’s coming, scores, side bets, payments and messages between players.</li>
+                    <li>No ads, no tracking or analytics tools, and we never sell or share your information with anyone outside the trip.</li>
+                    <li>Want something changed or deleted? Email <a href="mailto:brosbeforeboges@lokdit.net">brosbeforeboges@lokdit.net</a>.</li>
+                </ul>
+            </div>
+
+            <h2 id="what-we-keep">What we keep</h2>
+            <dl class="privacy-list">
+                <dt>Your account</dt>
+                <dd>Your email address and a password. Passwords are handled by our login service and stored scrambled (hashed), so nobody, including us, can read them.</dd>
+                <dt>Your roster details</dt>
+                <dd>Your name, GHIN number, handicap and Cup team.</dd>
+                <dt>RSVPs</dt>
+                <dd>Your answer (in, probably or out), whether you’re up for the Sunday round, and any note you add. Every change is kept, so the waitlist order is fair.</dd>
+                <dt>Money</dt>
+                <dd>Your Venmo username if you add one, deposits and trip payments the organizers record, and the “Paid” marks on The Bookie’s settle-up. No card or bank details ever touch this site: paying happens in Venmo.</dd>
+                <dt>The Bookie and scores</dt>
+                <dd>Bets you post or join, results, comments, and the scores entered in the Round Tracker.</dd>
+                <dt>Messages</dt>
+                <dd>Messages you send to other players, when they were sent, and when they were read.</dd>
+                <dt>Notifications</dt>
+                <dd>If you turn them on: the address your phone’s notification service gives this site, a short description of your browser (so you can tell your phones apart), and a record of each notification sent. Records older than 30 days are cleared whenever a new notification goes out.</dd>
+            </dl>
+
+            <h2 id="who-sees-what">Who can see what</h2>
+            <div class="privacy-table" role="table" aria-label="Who can see what">
+                <div class="pt-row" role="row">
+                    <div class="pt-who" role="rowheader">Anyone who visits</div>
+                    <div role="cell">Names on the roster, GHIN numbers and handicaps, teams, the head count (who’s in, without notes), the schedule and tee times, scores and the live board.</div>
+                </div>
+                <div class="pt-row" role="row">
+                    <div class="pt-who" role="rowheader">Logged-in players the commissioner has approved</div>
+                    <div role="cell">The Bookie’s bets, results and comments, Venmo usernames, “Paid” marks, the shared photo album link, and who has notifications turned on (so a challenge can say they’ll hear about it). A new sign-up sees none of this until the commissioner approves them.</div>
+                </div>
+                <div class="pt-row" role="row">
+                    <div class="pt-who" role="rowheader">Only you</div>
+                    <div role="cell">Your email address, your RSVP notes and your own payment history (the organizers see these too). Your messages are seen only by you and the player you’re talking to.</div>
+                </div>
+                <div class="pt-row" role="row">
+                    <div class="pt-who" role="rowheader">The organizers</div>
+                    <div role="cell">What Admin shows: everyone’s email, RSVP notes and payments, and how many players and phones have notifications on. The site gives them no way to read messages between players.</div>
+                </div>
+            </div>
+            <p class="privacy-note">The organizers who run the database can technically reach anything stored in it; that access is only used to keep the site working, never to read private messages.</p>
+
+            <h2 id="notifications">Notifications</h2>
+            <p>They go to approved players only. They’re off until you turn them on, on each phone, and you can turn them off any time (the bell in The Bookie, or your checklist on the homepage). They tell you about challenges and results, comments on your bets, payments involving you, tee times, roster news, messages to you and the commissioner’s announcements. Each one travels through your phone’s own notification service (Apple’s, Google’s or Mozilla’s) encrypted, so that service carries it without being able to read it.</p>
+
+            <h2 id="services">Services the site uses</h2>
+            <ul class="house-list">
+                <li><strong>Supabase</strong> stores the data and runs logins.</li>
+                <li><strong>Vercel</strong> hosts the site and sends notifications.</li>
+                <li><strong>Google Workspace</strong> sends the login and password-reset emails from brosbeforeboges@lokdit.net.</li>
+                <li><strong>FormSubmit</strong> forwards new RSVPs, sign-ups and deposit claims (name, answer and note) to the organizers’ inbox.</li>
+                <li><strong>Venmo</strong>, only when you tap a Pay button: the site opens Venmo with the amount filled in.</li>
+                <li><strong>Google Fonts, jsDelivr and cdnjs</strong> deliver the site’s fonts and code. Like any website, they see your device’s IP address when they do.</li>
+                <li><strong>The shared photo album</strong> (Google Photos or iCloud) follows that service’s own privacy terms.</li>
+            </ul>
+
+            <h2 id="on-your-phone">What’s saved on your phone</h2>
+            <p>Your login, so you stay signed in. The Round Tracker’s offline copy and any scores waiting for a signal. Whether notifications are on. An unsent message draft until you close the page. No advertising cookies, and nothing that follows you to other sites.</p>
+
+            <h2 id="how-long">How long we keep it</h2>
+            <p>Trip results, rosters and the Hall of Fame are kept as the group’s history. RSVPs, bets and payments are kept with the trip they belong to. Messages stay until the sender unsends them. Notification records older than 30 days are cleared whenever a new one goes out. Ask us and we’ll delete your account and what goes with it, except past results that other players’ records depend on, which we can keep under your name or remove your name from.</p>
+
+            <h2 id="your-choices">Your choices</h2>
+            <ul class="house-list">
+                <li>Change your GHIN, handicap or Venmo username in your Golf profile on the homepage.</li>
+                <li>Turn notifications off on any phone, any time.</li>
+                <li>Unsend any message you’ve sent: it disappears for both of you (a notification already on their phone stays there).</li>
+                <li>Email <a href="mailto:brosbeforeboges@lokdit.net">brosbeforeboges@lokdit.net</a> to see what we have on you, correct it, or delete it.</li>
+            </ul>
+
+            <h2 id="security">How it’s protected</h2>
+            <p>Every connection to the site is encrypted. The database has rules that limit what each person can read or change to what’s theirs, and anything private goes through checks tied to your own login, so the site itself can’t be used to read someone else’s details or messages. Messages and announcements are limited in length and in how many can be sent, and links in notifications can only open pages on this site. No system is perfect: if you ever spot something wrong, tell us.</p>
+
+            <h2 id="changes">Changes</h2>
+            <p>If this changes, the date at the top changes with it, and anything that matters will go out as a trip update.</p>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="wrap">
+            <div class="footer-word">Bros before <em>Boges</em></div>
+            <p class="footer-motto-line">Swing hard in case you hit it.</p>
+            <div class="footer-grid">
+                <!-- No Admin link here: this page can't check who's signed in. The homepage shows
+                     Admin to admins once they're logged in, and /admin always works. -->
+                <ul class="footer-links">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="index.html#schedule">Itinerary</a></li>
+                    <li><a href="bookie.html">The Bookie</a></li>
+                    <li><a href="round_tracker.html#board">Live scores</a></li>
+                    <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+                </ul>
+                <small>&copy; <span id="footer-year">2026</span> Bros before Boges. All rights reserved.</small>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function () {
+            var year = document.getElementById('footer-year');
+            if (year) year.textContent = new Date().getFullYear();
+
+            var toggle = document.getElementById('nav-toggle');
+            var drawer = document.getElementById('drawer');
+            function setDrawer(open) {
+                drawer.classList.toggle('is-open', open);
+                toggle.setAttribute('aria-expanded', String(open));
+                toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+                document.body.classList.toggle('drawer-open', open);
+                // Keep Tab inside the drawer while it covers the page.
+                ['main', 'footer', '.skip-link'].forEach(function (sel) {
+                    var n = document.querySelector(sel);
+                    if (n) n.inert = open;
+                });
+            }
+            if (toggle && drawer) {
+                toggle.addEventListener('click', function () { setDrawer(!drawer.classList.contains('is-open')); });
+                drawer.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { setDrawer(false); }); });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Escape') return;
+                    if (drawer.contains(document.activeElement)) toggle.focus();
+                    setDrawer(false);
+                });
+                window.matchMedia('(min-width: 1081px)').addEventListener('change', function (e) { if (e.matches) setDrawer(false); });
+            }
+
+            // Links like rules.html#split (from the Round Tracker and elsewhere): open the section the
+            // URL names and bring it into view. html's scroll-padding-top keeps it clear of the fixed header.
+            var main = document.getElementById('main');
+            var reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+            function hashTarget() {
+                var id = location.hash.slice(1);
+                if (!id) return null;
+                try { id = decodeURIComponent(id); } catch (e) { return null; }
+                var el = document.getElementById(id);
+                return el && main && el !== main && main.contains(el) ? el : null;
+            }
+            // Opens the target (and any closed section around it) and scrolls to it. Returns it, or null.
+            function showTarget(animate, scroll) {
+                var el = hashTarget();
+                if (!el) return null;
+                for (var d = el.closest('details'); d; d = d.parentElement ? d.parentElement.closest('details') : null) d.open = true;
+                if (!scroll) return el;
+                if (animate && !(reduceMotion && reduceMotion.matches)) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    // style.css turns on smooth scrolling for the whole page; jump instead
+                    var root = document.documentElement, was = root.style.scrollBehavior;
+                    root.style.scrollBehavior = 'auto';
+                    el.scrollIntoView({ block: 'start' });
+                    root.style.scrollBehavior = was;
+                }
+                return el;
+            }
+            // On a reload or Back/Forward the browser puts the page back where it was: only open the section.
+            var nav = window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+            var fresh = !nav || nav.type === 'navigate';
+            var landed = showTarget(false, fresh);
+            if (landed && fresh) {
+                // Web fonts and the hero image can shift the page as they load. Re-align once they're in,
+                // unless the reader has already taken over: scrolled, tapped, typed, or closed the section.
+                var landedAt = window.scrollY, touched = false;
+                var markTouched = function () { touched = true; };
+                ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (type) {
+                    window.addEventListener(type, markTouched, { capture: true, passive: true, once: true });
+                });
+                var realign = function () {
+                    if (touched || Math.abs(window.scrollY - landedAt) > 2) return;
+                    var section = landed.closest('details');
+                    if (section && !section.open) return;
+                    if (showTarget(false, true)) landedAt = window.scrollY;
+                };
+                window.addEventListener('load', realign, { once: true });
+                if (document.fonts && document.fonts.ready) document.fonts.ready.then(realign);
+            }
+            window.addEventListener('hashchange', function () { showTarget(true, true); });
+            // A link to the hash already in the address bar fires no hashchange: open and show it anyway.
+            document.addEventListener('click', function (e) {
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                var a = e.target.closest ? e.target.closest('a[href*="#"]') : null;
+                if (!a || a.target || !a.hash || a.hash !== location.hash) return;
+                if (a.origin !== location.origin || a.pathname !== location.pathname || a.search !== location.search) return;
+                setTimeout(function () { showTarget(true, true); }, 0);
+            });
+        })();
+    </script>
+</body>
+</html>

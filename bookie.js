@@ -25,7 +25,7 @@ const BET_LINK = /^[\w-]{1,80}$/.test(LINK_PARAMS.get('bet') || '') ? LINK_PARAM
 // a roster name they go straight back. `mode` opens the log-in or sign-up form on arrival.
 // `round` (keep score) and `board` (live scores) both go to the tracker, but someone who only
 // came to watch lands back on the scores, not on "Who is this phone scoring?".
-const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', board: 'round_tracker.html#board', admin: 'admin.html' };
+const NEXT_PAGES = { rsvp: 'index.html#rsvp', profile: 'index.html#profile', home: 'index.html', round: 'round_tracker.html', board: 'round_tracker.html#board', admin: 'admin.html', messages: 'messages.html' };
 // An invite from the Supabase dashboard is someone new to the trip: like a sign-up link, it
 // ends on the RSVP unless the link says otherwise
 const NEXT_PARAM = LINK_PARAMS.get('next') || (LINK_PARAMS.get('type') === 'invite' ? 'rsvp' : null);
@@ -316,6 +316,7 @@ async function initBookie() {
             if (sheetOpen) {
                 closeModal();
                 showToast('You were logged out. Log in again to keep betting.', 'error');
+                loggedOutNoteAt = Date.now(); // a failed action right after says nothing more
             }
             resetCreateForm();
             showWall();
@@ -992,6 +993,8 @@ function setNavLogin(signedIn) {
     navLoginBtn.closest('li').hidden = false;
     navLoginBtn.dataset.signedIn = signedIn ? 'true' : 'false';
     navLoginBtn.textContent = signedIn ? 'Log out' : 'Log in';
+    if (!signedIn && pushBellItem) pushBellItem.hidden = true;
+    if (!signedIn) { const mi = document.getElementById('nav-messages-item'); if (mi) mi.hidden = true; }
 }
 
 // While the login check runs (and on the way back to ?next=) the wall says so, with no Log in
@@ -1039,6 +1042,10 @@ function showChecking(message) {
 function showWall(note, signedIn, opts) {
     opts = opts || {};
     wallState = signedIn ? 'in' : 'out';
+    // The notifications bell and the Messages link belong with the board (showDashboard brings them back)
+    if (pushBellItem) pushBellItem.hidden = true;
+    const messagesItem = document.getElementById('nav-messages-item');
+    if (messagesItem) messagesItem.hidden = true;
     document.body.classList.remove('is-authed');
     authWall.style.display = 'block';
     authWall.removeAttribute('aria-busy');
@@ -1086,6 +1093,30 @@ function showDashboard() {
     dashboard.style.display = 'block';
     currentUserNameEl.textContent = currentUser.name;
     setNavLogin(true);
+    // Phone notifications: the bell, who has them on, and a re-save of this phone's subscription
+    renderPushBell();
+    loadPushPlayers();
+    if (window.BBBPush) window.BBBPush.refresh(supabaseClient);
+    renderMessagesLink();
+}
+
+// The header's Messages link, with how many are unread. Hidden until messages_2027.sql has run, and
+// for a sign-up still waiting for approval (messages open once he's confirmed).
+async function renderMessagesLink() {
+    const item = document.getElementById('nav-messages-item');
+    const link = document.getElementById('nav-messages');
+    if (!item || !link) return;
+    if (!currentUser || currentUser.status === 'potential') { item.hidden = true; return; }
+    try {
+        const { data, error } = await supabaseClient.rpc('my_unread_messages');
+        if (error) { item.hidden = true; return; }
+        const n = Number(data) || 0;
+        link.textContent = n ? `Messages (${n > 99 ? '99+' : n})` : 'Messages';
+        link.setAttribute('aria-label', n ? `Messages, ${n} unread` : 'Messages');
+        item.hidden = false;
+    } catch (e) {
+        item.hidden = true;
+    }
 }
 
 function setAuthMessage(text, isError) {
@@ -1340,6 +1371,30 @@ async function handleLogout() {
 // ==========================================
 // Data
 // ==========================================
+// This login stopped being crew while the page was open: take the board down at once (no empty board,
+// no open sheet) and let the login check put up the right wall ("Betting opens once the commissioner
+// confirms you", the name picker...). The old bets go too, so an empty board can't start this again.
+function lostCrewAccess() {
+    currentUser = null;
+    allWagers = [];
+    allComments = [];
+    commentsLoaded = false;
+    if (modal.classList.contains('active')) closeModal();
+    showChecking();
+    loadSession().catch(() => {});
+}
+
+// Can this login still read bets (payments_crew: linked to a confirmed name, or an admin)? null when
+// it couldn't be asked (offline, or payments_2027.sql not run), so nothing changes on a guess.
+async function stillCrew() {
+    try {
+        const { data, error } = await supabaseClient.rpc('payments_me');
+        return error || !data || typeof data.crew !== 'boolean' ? null : data.crew;
+    } catch (e) {
+        return null;
+    }
+}
+
 async function fetchBaseData() {
     loadError = null;
 
@@ -1363,6 +1418,21 @@ async function fetchBaseData() {
     if (wagersError) {
         console.error('Wagers failed to load:', wagersError);
         loadError = wagersError;
+    } else if (!(wagers || []).length && allWagers.length && currentUser) {
+        // The board came back empty after showing bets. Either every bet really was deleted, or this
+        // login isn't crew any more (unlinked, or no longer confirmed, while the page was open) and
+        // the database now shows it none. Ask which before drawing anything.
+        const crewNow = await stillCrew();
+        if (crewNow === false) {
+            lostCrewAccess();
+            return 'not-crew';
+        }
+        if (crewNow === null) {
+            // Couldn't ask: keep the last board with the "couldn't refresh" banner; the next refresh asks again
+            loadError = new Error('The board came back empty and the login couldn’t be checked.');
+        } else {
+            allWagers = [];
+        }
     } else {
         // One malformed row shouldn't take the whole board down
         const idList = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string') : []);
@@ -1400,7 +1470,7 @@ async function fetchBaseData() {
 // opts.recheck: look for the Venmo and Paid tables again even if they weren't there (the Refresh
 // button and pull-to-refresh; other refreshes don't ask again on this visit)
 async function refreshBoard(opts) {
-    await fetchBaseData();
+    if (await fetchBaseData() === 'not-crew') return; // the login check is putting up the wall
     // Venmo usernames and Paid marks load next, without holding up the board, the Ledger or whoever
     // is waiting on them: the Ledger shows the last marks that loaded and re-renders when the new
     // ones land. The first time there are none yet, so Settle up waits for them (a few seconds at
@@ -1445,7 +1515,25 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function isNetworkError(err) {
     return /Failed to fetch|Load failed|NetworkError|network connection|fetch failed/i.test((err && err.message) || String(err || ''));
 }
+// Bets are crew-only in the database (bookie_crew_read_2027.sql): a request sent after the login has
+// ended comes back "permission denied for table wagers". Say that in words, once, instead of the raw
+// error. (wagers_guard's own refusals also use code 42501, so this goes by the text, not the code.)
+let loggedOutNoteAt = 0;
+function isLoggedOutError(err) {
+    return /permission denied for table (wagers|wager_comments)\b/i.test(String((err && err.message) || ''));
+}
+function sayLoggedOut() {
+    if (Date.now() - loggedOutNoteAt > 5000) showToast('You were logged out. Log in again to keep betting.', 'error');
+    loggedOutNoteAt = Date.now();
+    // Still holding a player? Then the login ran out without a SIGNED_OUT: check it again (shows the wall)
+    if (currentUser) loadSession().catch(() => {});
+}
+
 function actionError(prefix, err) {
+    if (!currentUser || isLoggedOutError(err)) {
+        sayLoggedOut();
+        return;
+    }
     if (isNetworkError(err)) {
         showToast('No signal. That may not have gone through. Check the board once you have a bar or two.', 'error');
         refreshBoard().catch(() => {});
@@ -1515,6 +1603,12 @@ async function updateWager(id, values, expectedStatuses, extraFilter) {
 }
 
 async function betChangedUnderYou(message) {
+    // Not a conflict at all when this login just lost access to bets (the database hides every bet
+    // from a login that isn't crew): put up the right wall instead of "that bet was deleted".
+    if (currentUser && await stillCrew() === false) {
+        lostCrewAccess();
+        return;
+    }
     showToast(message || 'That bet just changed on someone else’s phone. Here’s the latest.', 'error');
     // Close the Settle sheet it came from, but never a Create sheet someone is typing in
     if (settleWagerForm.style.display === 'block') closeModal();
@@ -2027,9 +2121,10 @@ function actionsHTML(wager) {
                     actionButton('Decline', 'fa-times', `window.declineWager('${id}')`, RED, 'decline-btn'));
             }
             if (isCreator) {
-                // Nobody gets a notification, so make texting them one tap
+                // A phone with notifications on heard about it (push_2027.sql); otherwise make texting them one tap
                 const them = escHtml(firstName(wager.target_id));
-                return note(`<i class="fas fa-clock" style="margin-right: 5px;" aria-hidden="true"></i>${them} hasn’t answered yet. The Bookie can’t notify them, so send a text.`) +
+                const heard = hasPush(wager.target_id);
+                return note(`<i class="fas fa-clock" style="margin-right: 5px;" aria-hidden="true"></i>${them} hasn’t answered yet. ${heard ? 'Their phone got a notification.' : 'The Bookie can’t notify them, so send a text.'}`) +
                     row(`<button type="button" class="btn text-challenge-btn" onclick="window.textChallenge('${id}')"><i class="fas fa-paper-plane" style="margin-right: 6px;" aria-hidden="true"></i>Text ${them} about it</button>`) +
                     row(cancelBtn);
             }
@@ -3989,7 +4084,9 @@ async function handleCreateWager(e) {
             if (first) first.focus({ preventScroll: true });
         }
         showToast(type === 'h2h'
-            ? `Challenge posted. Text ${getPlayerName(targetId).split(' ')[0]} so they know it’s waiting.`
+            ? (hasPush(targetId)
+                ? `Challenge sent. ${getPlayerName(targetId).split(' ')[0]} gets a notification.`
+                : `Challenge posted. Text ${getPlayerName(targetId).split(' ')[0]} so they know it’s waiting.`)
             : (type === 'prop' ? 'Your prop is live.' : 'Your pool is open.'), 'success');
         if (firstVersionLive) showToast('Heads up: your first version posted too. Cancel it from its card if you only want this one.', 'error');
     } catch (err) {
@@ -4015,8 +4112,8 @@ async function handleCreateWager(e) {
 // ==========================================
 // Texting a challenge
 // ==========================================
-// No notifications go out, so the challenger sends the link: the share sheet where the phone
-// has one, a text message on a phone without it, otherwise the message is copied.
+// A phone with notifications off hears nothing, so the challenger sends the link: the share
+// sheet where the phone has one, a text message on a phone without it, otherwise the message is copied.
 function betLink(id) {
     return `${window.location.origin}/bookie.html?bet=${encodeURIComponent(id)}`;
 }
@@ -4166,4 +4263,74 @@ if (document.readyState === 'complete') {
     startBookie();
 } else {
     window.addEventListener('load', startBookie);
+}
+
+// ==========================================
+// Phone notifications (push.js, push_2027.sql)
+// ==========================================
+// The bell in the header: filled when this phone has them on, crossed out when not. On an iPhone
+// that hasn't added the site to its home screen, a tap says how (Safari only allows notifications
+// in the home-screen app). pushPlayers is who has a phone on, so a challenge can say "Kyle gets a
+// notification" instead of "text Kyle".
+var pushBell = document.getElementById('push-bell'); // var: setNavLogin may ask before this line has run
+var pushBellItem = pushBell ? pushBell.closest('li') : null;
+let pushPlayers = null;
+
+async function renderPushBell() {
+    if (!pushBell || !pushBellItem) return;
+    if (!window.BBBPush || !currentUser) { pushBellItem.hidden = true; return; }
+    const state = await window.BBBPush.status(supabaseClient);
+    if (state === 'unsupported' || state === 'setup') { pushBellItem.hidden = true; return; }
+    pushBellItem.hidden = false;
+    const on = state === 'on';
+    pushBell.dataset.state = state;
+    pushBell.setAttribute('aria-pressed', on ? 'true' : 'false');
+    pushBell.setAttribute('aria-label', on ? 'Notifications are on for this phone. Turn them off' : 'Turn on notifications for this phone');
+    pushBell.innerHTML = `<i class="fas ${on ? 'fa-bell' : 'fa-bell-slash'}" aria-hidden="true"></i><span class="push-bell-label">${on ? 'Notifications on' : 'Notifications'}</span>`;
+}
+
+window.togglePush = async function () {
+    const P = window.BBBPush;
+    if (!P || !currentUser || !pushBell || pushBell.disabled) return;
+    const state = pushBell.dataset.state || await P.status(supabaseClient);
+    if (state === 'install') {
+        if (P.canInstall()) { await P.install(); renderPushBell(); return; }
+        showToast(P.installHint(), 'info');
+        return;
+    }
+    if (state === 'blocked') {
+        showToast('Notifications are blocked for this site. Allow them in your phone’s Settings, then tap the bell again.', 'error');
+        return;
+    }
+    pushBell.disabled = true;
+    try {
+        if (state === 'on') {
+            await P.disable(supabaseClient);
+            showToast('Notifications off on this phone.', 'info');
+        } else {
+            const result = await P.enable(supabaseClient);
+            if (result === 'on') showToast('Notifications on. You’ll hear about challenges, results and trash talk.', 'success');
+            else if (result === 'blocked') showToast('Notifications are blocked for this site. Allow them in your phone’s Settings to turn them on.', 'error');
+            else if (result === 'setup') showToast('Notifications are being set up. Check back soon.', 'info');
+            else if (result === 'error') showToast(`Couldn’t turn on notifications: ${(P.lastError && P.lastError.message) || 'try again'}`, 'error');
+        }
+    } finally {
+        pushBell.disabled = false;
+        renderPushBell();
+        loadPushPlayers(true);
+    }
+};
+
+async function loadPushPlayers(force) {
+    if (!supabaseClient || !currentUser || (Array.isArray(pushPlayers) && !force)) return;
+    try {
+        const { data, error } = await supabaseClient.rpc('players_with_push');
+        pushPlayers = error || !Array.isArray(data) ? [] : data;
+    } catch (e) {
+        pushPlayers = [];
+    }
+}
+
+function hasPush(playerId) {
+    return Array.isArray(pushPlayers) && pushPlayers.includes(playerId);
 }

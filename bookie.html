@@ -36,7 +36,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2027.10">
+    <link rel="stylesheet" href="style.css?v=2027.11">
     <!-- Icons never hold up the first paint: loaded as "print" (non-blocking), switched on when it arrives -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
@@ -1520,6 +1520,7 @@
         }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 
@@ -1535,8 +1536,12 @@
                     <li><a href="index.html">Back to Home</a></li>
                     <li><a href="round_tracker.html#board">Live scores</a></li>
                     <li><a href="rules.html" class="nav-link">Rules</a></li>
+                    <!-- Messages (messages_2027.sql): shown once logged in and it's set up, with the unread count -->
+                    <li id="nav-messages-item" hidden><a href="messages.html" id="nav-messages">Messages</a></li>
                     <!-- Hidden until the login check finishes, so a signed-in player never sees "Log in" -->
                     <li hidden><button type="button" id="bookie-login-btn" class="btn-nav">Log in</button></li>
+                    <!-- Phone notifications (push.js): shown once logged in, where the phone can do them -->
+                    <li id="push-bell-item" hidden><button type="button" id="push-bell" class="btn-nav push-bell" aria-pressed="false" onclick="window.togglePush()"><i class="fas fa-bell-slash" aria-hidden="true"></i><span class="push-bell-label">Notifications</span></button></li>
                 </ul>
             </nav>
             <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
@@ -1821,8 +1826,9 @@
     <div class="toast-container" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.17"></script>
-    <script src="bookie.js?v=2027.17" defer></script>
+    <script src="trip-config.js?v=2027.19"></script>
+    <script src="push.js?v=2027.19"></script>
+    <script src="bookie.js?v=2027.19" defer></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

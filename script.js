@@ -2018,7 +2018,7 @@ function viewer() {
 // Re-render everything that depends on who's looking. Runs after the first account check, and
 // again after an RSVP, a profile save, a log out, or any later account re-check.
 function renderPersonal() {
-    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction, refreshPhotoButton].forEach(fn => {
+    [renderRoster, renderYouRow, renderHeroCtas, renderCrewCta, renderAccountMenus, refreshTripPaid, refreshDeposit, renderChecklist, renderCostPayAction, refreshPhotoButton, checkPush, checkMessages].forEach(fn => {
         try { fn(); } catch (err) { console.error(`${fn.name} failed:`, err); }
     });
     refreshBetsBadge();
@@ -2177,6 +2177,10 @@ function renderAccountMenus() {
 
     const who = v.player ? v.player.name : v.email || 'your account';
     const loginUrl = accountUrl('home', 'login');
+    // Notifications on this phone: a line while they can be turned on or off here (push.js)
+    const pushLabel = pushState.status === 'on' ? 'Notifications: on' : pushState.status === 'off' ? 'Turn on notifications' : '';
+    // Messages (messages_2027.sql): once it's live and he's on the roster, with how many are unread
+    const msgLabel = msgState.ready ? `Messages${msgState.unread ? ` (${msgState.unread > 99 ? '99+' : msgState.unread} new)` : ''}` : '';
     if (drawerRow) {
         drawerRow.innerHTML = !v.signedIn
             ? `<a href="${loginUrl}">Log in</a>`
@@ -2184,6 +2188,8 @@ function renderAccountMenus() {
                ${v.player
                    ? '<button type="button" class="drawer-link" data-action="profile">Golf profile</button>'
                    : `<a href="${accountUrl('home')}">Finish setting up</a>`}
+               ${v.player && msgLabel ? `<a class="drawer-link" href="messages.html">${esc(msgLabel)}</a>` : ''}
+               ${v.player && pushLabel ? `<button type="button" class="drawer-link" data-action="notify">${pushLabel}</button>` : ''}
                <button type="button" class="drawer-link" data-action="logout">Log out</button>`;
     }
     if (clubRow) {
@@ -2193,8 +2199,99 @@ function renderAccountMenus() {
                ${v.player
                    ? `<button type="button" data-action="profile">${icon('flag')}Golf profile</button>`
                    : `<a href="${accountUrl('home')}">${icon('user')}Finish setting up</a>`}
+               ${v.player && msgLabel ? `<a href="messages.html">${icon('users')}${esc(msgLabel)}</a>` : ''}
+               ${v.player && pushLabel ? `<button type="button" data-action="notify">${icon('megaphone')}${pushLabel}</button>` : ''}
                <button type="button" data-action="logout">${icon('logout')}Log out</button>`;
     }
+}
+
+// Messages: is it set up and open to him, and how many are unread (my_unread_messages is 0 for anyone
+// it isn't open to). Asked once per account check; a change redraws the menus.
+const msgState = { ready: false, unread: 0, asked: null };
+async function checkMessages() {
+    const v = viewer();
+    const userId = v && v.signedIn && v.player && account.user ? account.user.id : null;
+    if (!userId || !supabaseInstance) {
+        if (msgState.ready) { msgState.ready = false; renderAccountMenus(); }
+        return;
+    }
+    if (msgState.asked === userId) return;
+    msgState.asked = userId;
+    let ready = false;
+    let unread = 0;
+    try {
+        const { data, error } = await supabaseInstance.rpc('my_unread_messages');
+        // Open to him: confirmed (a sign-up waiting for approval sees no Messages link yet)
+        ready = !error && v.player.status !== 'potential';
+        unread = ready ? Number(data) || 0 : 0;
+    } catch (e) { /* offline: no link until the next check */ }
+    if (ready !== msgState.ready || unread !== msgState.unread) {
+        msgState.ready = ready;
+        msgState.unread = unread;
+        renderAccountMenus();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Phone notifications (push.js, push_2027.sql). The status is kept here so the checklist, which
+// draws without waiting, can show it; a change redraws the card and the account rows.
+// ---------------------------------------------------------------------------
+const pushState = { status: null, error: '', busy: false, checking: null };
+
+async function checkPush(force) {
+    const P = window.BBBPush;
+    if (!P) return;
+    const v = viewer();
+    if (!v || !v.player) {
+        if (pushState.status !== null) { pushState.status = null; renderChecklist(); }
+        return;
+    }
+    if (pushState.checking && !force) return pushState.checking;
+    pushState.checking = (async () => {
+        let status = null;
+        try { status = await P.status(supabaseInstance); } catch (e) { status = null; }
+        if (status === 'unsupported' || status === 'setup') status = null;
+        const changed = status !== pushState.status;
+        pushState.status = status;
+        pushState.checking = null;
+        if (changed) {
+            renderChecklist();
+            renderAccountMenus();
+        }
+        if (status === 'on' && supabaseInstance) P.refresh(supabaseInstance);
+    })();
+    return pushState.checking;
+}
+
+// The checklist's Turn on / Turn off (and Install, on a phone that offers it)
+async function togglePush() {
+    const P = window.BBBPush;
+    if (!P || pushState.busy) return;
+    const status = pushState.status;
+    if (status === 'install') {
+        if (P.canInstall()) await P.install();
+        else announce(P.installHint());
+        return checkPush(true);
+    }
+    if (status !== 'on' && status !== 'off') return checkPush(true);
+    pushState.busy = true;
+    pushState.error = '';
+    renderChecklist();
+    try {
+        if (status === 'on') {
+            await P.disable(supabaseInstance);
+            announce('Notifications are off on this phone.');
+        } else {
+            const result = await P.enable(supabaseInstance);
+            if (result === 'on') announce('Notifications are on.');
+            else if (result === 'setup') pushState.error = 'Notifications are being set up. Check back soon.';
+            else if (result === 'error') pushState.error = `Couldn’t turn on notifications: ${(P.lastError && P.lastError.message) || 'try again'}`;
+        }
+    } finally {
+        pushState.busy = false;
+    }
+    await checkPush(true);
+    renderChecklist();
 }
 
 // The Admin links (Clubhouse menu, drawer, footer) show only to admins. The database decides, by its
@@ -3595,10 +3692,31 @@ function checklistModel() {
         items.push({ key: 'venmo', state: 'loading', tone: 'todo', title: 'Venmo', detail: esc('Checking…') });
     }
 
-    const todoStates = { rsvp: ['unknown', 'maybe', 'none'], deposit: ['pay', 'ask', 'nopayee', 'failed'], golf: ['todo'], venmo: ['todo', 'failed'] };
+    // 5. Notifications on this phone (push.js). No item where the phone can't do them, or before push_2027.sql has run.
+    const push = pushState.status;
+    const notifyBtn = (kind, text, aria) => checkButton(kind, 'check-notify-btn', 'data-action="notify"', text, aria);
+    const notifyWhat = 'Challenges, results, tee times and the commissioner’s updates, straight to this phone.';
+    if (pushState.busy) {
+        items.push({ key: 'notify', state: 'busy', tone: 'todo', title: push === 'on' ? 'Turning notifications off…' : 'Turning notifications on…', detail: esc('One sec…') });
+    } else if (push === 'on') {
+        items.push({ key: 'notify', state: 'on', tone: 'done', title: 'Notifications on', detail: esc(notifyWhat), actions: notifyBtn('link', 'Turn off', 'Turn off notifications on this phone') });
+    } else if (push === 'off') {
+        items.push({ key: 'notify', state: 'off', tone: 'todo', title: 'Turn on notifications', detail: esc(notifyWhat), actions: notifyBtn('line', 'Turn on'), error: pushState.error });
+    } else if (push === 'install') {
+        const P = window.BBBPush;
+        items.push({ key: 'notify', state: 'install', tone: 'todo', title: 'Add the app to your home screen',
+            detail: esc(P.canInstall() ? 'Then turn on notifications from there: challenges, tee times and the commissioner’s updates, straight to your phone.' : P.installHint()),
+            actions: P.canInstall() ? notifyBtn('line', 'Install') : '' });
+    } else if (push === 'blocked') {
+        items.push({ key: 'notify', state: 'blocked', tone: 'locked', title: 'Notifications are blocked', detail: esc('Allow them for this site in your phone’s Settings, then come back here.') });
+    }
+
+    const todoStates = { rsvp: ['unknown', 'maybe', 'none'], deposit: ['pay', 'ask', 'nopayee', 'failed'], golf: ['todo'], venmo: ['todo', 'failed'], notify: ['off', 'install'] };
     model.items = items;
-    model.total = items.length;
-    model.done = items.filter(i => i.tone === 'done').length;
+    // A phone where notifications are blocked can't do anything here, so it doesn't keep the card from "all set"
+    const counted = items.filter(i => !(i.key === 'notify' && i.state === 'blocked'));
+    model.total = counted.length;
+    model.done = counted.filter(i => i.tone === 'done').length;
     model.todo = items.filter(i => (todoStates[i.key] || []).includes(i.state)).length;
     model.variant = model.done === model.total ? 'allset' : 'full';
     return model;
@@ -3698,8 +3816,8 @@ function checklistHTMLOf(model) {
     let note = '';
     let action = '';
     if (model.variant === 'allset') {
-        const names = { rsvp: 'RSVP', deposit: 'deposit', golf: 'golf profile', venmo: 'Venmo' };
-        const list = model.items.map(i => names[i.key]);
+        const names = { rsvp: 'RSVP', deposit: 'deposit', golf: 'golf profile', venmo: 'Venmo', notify: 'notifications' };
+        const list = model.items.filter(i => i.tone === 'done').map(i => names[i.key]);
         title = `You’re all set for ${city}.`;
         note = `${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} ${list.length > 1 ? 'are' : 'is'} all in.`;
         action = checkButton('link', 'check-rsvp-btn', 'data-action="rsvp"', 'Change my RSVP');
@@ -4399,6 +4517,7 @@ function runAction(action) {
     }
     setDrawer(false);
     setClubhouse(false);
+    if (action === 'notify') { togglePush(); return; } // straight from the tap: the permission prompt needs one
     if (action === 'rsvp') openRsvp();
     if (action === 'profile' || action === 'signup') openProfile();
     if (action === 'venmo') openProfile('venmo'); // the checklist's Venmo item: straight to the Venmo box

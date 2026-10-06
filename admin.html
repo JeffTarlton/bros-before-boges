@@ -4,8 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0b09">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Admin Dashboard | Bros before Boges</title>
-    <link rel="stylesheet" href="style.css?v=2027.10">
+    <link rel="stylesheet" href="style.css?v=2027.11">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -1304,6 +1308,23 @@
             .tee-actions .admin-btn { flex: 1 1 auto; }
         }
 
+        /* Announcements tab (push_2027.sql): one form, then what's been sent */
+        #announce-summary { margin: 0 0 14px; }
+        #announce-summary:empty { display: none; }
+        .announce-card { display: grid; gap: 14px; max-width: 720px; }
+        .announce-card .admin-input { margin: 0; }
+        .announce-card textarea.admin-input { resize: vertical; min-height: 84px; line-height: 1.4; }
+        .announce-card .login-label { margin-bottom: 6px; }
+        .announce-card .tee-actions { margin-top: 0; }
+        .announce-card .tee-status { margin-top: 0; }
+        .announce-history-title { margin: 28px 0 10px; color: #fff; font-size: 1rem; }
+        .announce-history { display: grid; gap: 10px; max-width: 720px; }
+        .announce-item { padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; background: rgba(255, 255, 255, 0.02); }
+        .announce-item b { color: #fff; }
+        .announce-item p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.9rem; line-height: 1.45; }
+        .announce-item small { display: block; margin-top: 6px; color: var(--text-muted); font-size: 0.8rem; }
+        .announce-history .tab-lede { margin: 0; }
+
         /* ── Phones and tablets: a compact header, a pinned tab strip, and one tappable row per player
            (Roster, RSVPs, Score Entry) that opens to the full card. Desktop shows every column instead. ── */
         .tab-short { display: none; }
@@ -1473,6 +1494,7 @@
         }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 
@@ -1545,6 +1567,7 @@
                 <button type="button" class="sidebar-item" data-tab="potential">New sign-ups</button>
                 <button type="button" class="sidebar-item" data-tab="photos"><span class="tab-full">Photo album</span><span class="tab-short">Photos</span></button>
                 <button type="button" class="sidebar-item" data-tab="tee-times"><span class="tab-full">Tee times</span><span class="tab-short">Tee times</span></button>
+                <button type="button" class="sidebar-item" data-tab="announcements"><span class="tab-full">Announcements</span><span class="tab-short">Announce</span></button>
             </nav>
 
             <!-- Content Area -->
@@ -1757,6 +1780,38 @@
                     <div class="setup-note" id="tee-note" hidden></div>
                     <div class="tee-list" id="tee-list"></div>
                     <a class="album-preview" href="index.html#schedule" target="_blank" rel="noopener">See the homepage schedule <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>
+                </div>
+
+                <!-- Announcements: a phone notification to everyone who turned them on (push_2027.sql) -->
+                <div id="tab-announcements" class="tab-content" style="display: none;">
+                    <h2>Announcements</h2>
+                    <p class="tab-lede">A notification straight to the phones of every approved player who has turned them on (the site added to their home screen, then <b>Turn on notifications</b> from the homepage checklist or the bell in The Bookie). Bets, tee times, approvals and new RSVPs already notify on their own; this is for everything else.</p>
+                    <div class="setup-note" id="announce-note" hidden></div>
+                    <p class="album-status" id="announce-summary" role="status"></p>
+                    <form id="announce-form" class="tee-card announce-card" method="post" novalidate onsubmit="return false">
+                        <div>
+                            <label class="login-label" for="announce-title">Title</label>
+                            <input type="text" id="announce-title" class="admin-input" maxlength="80" autocomplete="off" placeholder="Rooms are booked" aria-describedby="announce-error">
+                        </div>
+                        <div>
+                            <label class="login-label" for="announce-body">Message (optional)</label>
+                            <textarea id="announce-body" class="admin-input" rows="3" maxlength="200" placeholder="Talking Stick Resort, Thu to Mon. Deposit is due Dec 1."></textarea>
+                            <p class="field-hint"><span id="announce-count">0</span> of 200 characters. Phones show about two lines.</p>
+                        </div>
+                        <div>
+                            <label class="login-label" for="announce-url">Opens (optional)</label>
+                            <input type="text" id="announce-url" class="admin-input" maxlength="200" autocomplete="off" placeholder="/#schedule" aria-describedby="announce-url-hint">
+                            <p class="field-hint" id="announce-url-hint">Where a tap lands: a page on the site, like <b>/#schedule</b>, <b>/#checklist</b>, <b>/bookie</b> or <b>/rules</b>. Blank opens the homepage.</p>
+                        </div>
+                        <p class="sheet-error" id="announce-error" role="alert" hidden></p>
+                        <div class="tee-actions">
+                            <button type="submit" id="announce-send" class="admin-btn">Send to everyone</button>
+                            <button type="button" id="announce-test" class="admin-btn secondary">Send me a test</button>
+                        </div>
+                        <p class="tee-status" id="announce-status" role="status"></p>
+                    </form>
+                    <h3 class="announce-history-title">Sent</h3>
+                    <div id="announce-history" class="announce-history"></div>
                 </div>
 
                 <!-- Ryder Cup Score Tab -->
@@ -1997,9 +2052,10 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.18"></script>
+    <script src="trip-config.js?v=2027.19"></script>
+    <script src="push.js?v=2027.19"></script>
     <script src="scoring.js?v=2027.11"></script>
-    <script src="admin.js?v=2027.21"></script>
+    <script src="admin.js?v=2027.23"></script>
 </body>
 
 </html>

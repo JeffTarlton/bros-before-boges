@@ -2041,6 +2041,8 @@ async function init(retry) {
         S.loadError = err;
     }
     if (!S.authUser) S.me = null;
+    // A phone with notifications on re-saves its subscription now and then (push.js)
+    if (S.me && window.BBBPush) window.BBBPush.refresh(sb);
     if (S.sess) await refreshSession();
     S.ready = true;
     route();

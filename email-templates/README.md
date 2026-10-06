@@ -78,6 +78,9 @@ Run these once in the Supabase SQL Editor, after `rsvp_accounts.sql`. Both are s
 - `bookie_2027.sql`: turns on prop bets and makes the database hold every bet to the page’s rules
   (only confirmed players bet, only the player challenged accepts, winners come from the players in
   the bet, and so on). Admins can still fix anything.
+- `bookie_crew_read_2027.sql` (after `payments_2027.sql`): bets and their trash talk can only be read
+  by signed-in, confirmed players and admins. Signed-out visitors and new sign-ups waiting for approval
+  get nothing, even straight from the database.
 - `tracker_2027.sql`: the live leaderboard opens to everyone (signed in or not), only confirmed
   players can enter scores, hole scores must be 1 to 20, and scorecard totals are worked out from
   the holes. The tracker works without it, but run it before the trip.
