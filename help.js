@@ -14,7 +14,8 @@
           <p class="tip"> is a green tip box
      k    extra words people might search for (optional)
    PAGE_TOPICS picks the handful shown first on each page ("On The Bookie"), in order; a key like
-   'tracker#score' is used while that tab is open.
+   'tracker#score' is used while that tab is open. A section marked organizers: true shows only on
+   the Admin page: players never see it in the panel, its search or help.html.
    {spots}, {rsvpBy}, {deposit}, {depositDue}, {payTo}, {dates}, {tz}, {inbox} and {host} come from
    trip-config.js and the address bar (facts() below), so the answers keep up with each year.
 
@@ -39,7 +40,7 @@
         { id: 'alerts', title: 'Notifications and the home-screen app', blurb: 'The bell, phone banners and installing the app.' },
         { id: 'privacy', title: 'Privacy: who sees what', blurb: 'What’s public, what’s crew-only and what’s private.' },
         { id: 'trouble', title: 'Something’s not working', blurb: 'Common snags and how to get past them.' },
-        { id: 'admin', title: 'For organizers (Admin)', blurb: 'Only for the commissioner and organizers.' }
+        { id: 'admin', title: 'For organizers (Admin)', blurb: 'Only for the commissioner and organizers.', organizers: true }
     ];
 
     const TOPICS = [
@@ -910,6 +911,11 @@
             messages: 'messages', rules: 'rules', privacy: 'privacy', admin: 'admin', help: 'help'
         })[last] || 'home';
     }
+    // The organizers' answers show only on Admin itself
+    function shown(t) {
+        const sec = SECTIONS.find(s => s.id === t.s);
+        return !(sec && sec.organizers) || pageKey() === 'admin';
+    }
     // This page's picks: its open tab's list (#score, #ledger-panel, …) when it has one
     function pageTopics(page) {
         const hash = decodeHash(location.hash.slice(1));
@@ -928,7 +934,7 @@
     let index = null;
     function searchIndex() {
         if (!index) {
-            index = TOPICS.map(t => ({ t, q: norm(t.q), k: norm(t.k), a: norm(plain(fill(t.a))) }));
+            index = TOPICS.filter(shown).map(t => ({ t, q: norm(t.q), k: norm(t.k), a: norm(plain(fill(t.a))) }));
         }
         return index;
     }
@@ -1178,7 +1184,7 @@
         body.appendChild(node('h3', 'bbb-help-group', mine.length ? 'Everything else' : 'All topics'));
         const ul = node('ul', 'bbb-help-list');
         SECTIONS.forEach(sec => {
-            const topics = TOPICS.filter(t => t.s === sec.id);
+            const topics = TOPICS.filter(t => t.s === sec.id && shown(t));
             if (!topics.length) return;
             const li = node('li');
             const d = node('details', 'bbb-help-sec');
@@ -1252,7 +1258,7 @@
         if (!list) return;
 
         SECTIONS.forEach(sec => {
-            const topics = TOPICS.filter(t => t.s === sec.id);
+            const topics = TOPICS.filter(t => t.s === sec.id && shown(t));
             if (!topics.length) return;
             const block = node('section', 'help-sec');
             block.id = 'sec-' + sec.id;
