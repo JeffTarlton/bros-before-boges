@@ -96,7 +96,7 @@ let rsvpLoaded = false;  // the RSVPs tab has loaded at least once
 const TAB_NAMES = ['roster', 'rsvps', 'drafting', 'matchups', 'scores', 'score-entry', 'potential', 'photos', 'tee-times', 'announcements'];
 
 // Links that go out to the guys (texts and emails), so always the live site, never this page's host
-const SITE_URL = 'https://bros-before-boges.vercel.app';
+const SITE_URL = 'https://www.bros-before-boges.com';
 const INVITE_URL = `${SITE_URL}/signup`;
 const BOOKIE_URL = `${SITE_URL}/bookie`;
 

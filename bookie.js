@@ -635,7 +635,7 @@ async function joinRoster(name, email) {
             name: data.name,
             email: email || '—',
             next_step: 'Approve them in Admin → RSVPs (link below) so they show on the site.',
-            admin_link: 'https://bros-before-boges.vercel.app/admin#rsvps'
+            admin_link: 'https://www.bros-before-boges.com/admin#rsvps'
         });
     }
     return data;
@@ -676,7 +676,7 @@ async function claimPlayer(playerId, user) {
             name: row.name,
             login_email: user.email || '—',
             next_step: 'Check it’s really him, then approve him in Admin → RSVPs (link below). If it isn’t him, unlink that login there.',
-            admin_link: 'https://bros-before-boges.vercel.app/admin#rsvps'
+            admin_link: 'https://www.bros-before-boges.com/admin#rsvps'
         });
     }
     return row;

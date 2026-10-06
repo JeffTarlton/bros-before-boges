@@ -44,7 +44,7 @@ const rsvpState = { available: false, missingTable: false, latest: [], lastAt: n
 // RSVP and new-player alerts (trip-config.js → alerts)
 const ALERTS = CFG.alerts || {};
 // Each RSVP alert links straight to Admin's RSVPs tab, so approving a new player from a phone is one tap
-const ADMIN_RSVPS_URL = 'https://bros-before-boges.vercel.app/admin#rsvps';
+const ADMIN_RSVPS_URL = 'https://www.bros-before-boges.com/admin#rsvps';
 
 // The signed-in visitor and their roster row. RSVPs need both; accounts are set up on
 // The Bookie page (bookie.html?next=…), which sends people back here when they're done.
