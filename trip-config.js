@@ -82,9 +82,7 @@ window.BBB = {
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
             { date: '2026-10-04', text: 'HQ is Talking Stick Resort, Thursday Apr 8 through checkout Monday Apr 12: four nights, two to a room, about $159 a night each ($636 a man). That puts the estimate at about $1,786 a man plus your flight. Tee times aren’t booked yet; they’ll show on the schedule here as soon as they are.' },
-            { date: '2026-10-03', text: 'New date: RSVPs and the $500 deposit are now both due Dec 1.' },
             { date: '2026-10-02', text: 'Thursday at Talking Stick is now a practice round: no Cup points. The Cup is three rounds: We-Ko-Pa Cholla Friday morning, Saguaro Friday afternoon, and Camelback Ambiente on Saturday.' },
-            { date: '2026-10-02', text: 'Planning numbers: rooms are running about $175 a night, two to a room (about $263 each for the three nights), and American’s nonstop from Lubbock is about $450 round trip. Both are estimates, not final prices.' },
             { date: '2026-10-02', text: 'Deposit is $500 a man, due Dec 1, by Venmo to Westin. Log in and pay it from Your checklist on the homepage: one tap opens Venmo with the amount filled in. Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All three Cup rounds are locked in. RSVPs are due Dec 1 so we can book rooms.' }
         ],
