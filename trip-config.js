@@ -33,7 +33,7 @@ window.BBB = {
         timeZoneName: 'Arizona',
         hq: {
             name: 'Talking Stick Resort',
-            note: 'Thu Apr 8 – Mon Apr 12 (4 nights), two to a room. Minutes from Talking Stick Golf Club.',
+            note: 'Thu Apr 8 – Sun Apr 11 (3 nights), two to a room. Want a 4th night? Tell Westin by Nov 21. Minutes from Talking Stick Golf Club.',
             link: 'https://www.google.com/maps/search/?api=1&query=Talking+Stick+Resort+Scottsdale+AZ'
         },
         airport: {
@@ -50,16 +50,16 @@ window.BBB = {
             note: 'April averages ~85°F highs and ~60°F lows. Rain is rare. Sunset around 6:55 PM.'
         },
         cost: {
-            perPerson: 1786,
+            perPerson: 1627,
             approx: true,
             excludes: 'airfare (~$450)',
-            note: 'Estimated per man: golf plus your half of a room at Talking Stick Resort (about $159 a night each, four nights). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
+            note: 'Estimated per man: golf plus your half of a room at Talking Stick Resort (about $159 a night each, three nights). Plus your flight, about $450 round trip on American’s nonstop from Lubbock. Prices can still change.',
             // Add line items when they're known, e.g. { label: 'Golf', amount: 850 }
             breakdown: [
                 { label: 'Talking Stick · Thu practice', amount: 250 },
                 { label: 'We-Ko-Pa · 36 holes Fri', amount: 650 },
                 { label: 'Camelback Ambiente · Sat', amount: 250 },
-                { label: 'Talking Stick Resort · 4 nights, 2 to a room', amount: 636 }
+                { label: 'Talking Stick Resort · 3 nights, 2 to a room', amount: 477 }
             ],
             // How to pay, once there's something to pay; leave out any part. The public cost line reads
             // "Deposit $500 due Nov 30 · Venmo · Log in to pay". Never put a Venmo @username in how or note
@@ -81,7 +81,7 @@ window.BBB = {
         // { date: '2026-12-01', text: 'HQ is booked.' } (A date typed any other way shows the entry first, undated.)
         // (An older config's single announcement: { title, body } still shows when this list is empty or missing.)
         updates: [
-            { date: '2026-10-04', text: 'HQ is Talking Stick Resort, Thursday Apr 8 through checkout Monday Apr 12: four nights, two to a room, about $159 a night each ($636 a man). That puts the estimate at about $1,786 a man plus your flight. Tee times aren’t booked yet; they’ll show on the schedule here as soon as they are.' },
+            { date: '2026-10-26', text: 'Rooms are booked for three nights, thanks to Westin. If you’d like to add a 4th night, let Westin know by Nov 21. We’re capping this year’s group at 20 golfers. Make sure your status is up to date and get your deposit sent to Westin ASAP.' },
             { date: '2026-10-02', text: 'Thursday at Talking Stick is now a practice round: no Cup points. The Cup is three rounds: We-Ko-Pa Cholla Friday morning, Saguaro Friday afternoon, and Camelback Ambiente on Saturday.' },
             { date: '2026-10-02', text: 'Deposit is $500 a man, due Dec 1, by Venmo to Westin. Log in and pay it from Your checklist on the homepage: one tap opens Venmo with the amount filled in. Golf runs about $1,150: the Talking Stick practice round $250, We-Ko-Pa’s 36 holes $650, Camelback Ambiente $250. Prices can still change.' },
             { date: '2026-10-01', text: 'Final round set: Camelback Golf Club’s Ambiente course on Saturday. All three Cup rounds are locked in. RSVPs are due Dec 1 so we can book rooms.' }
@@ -201,13 +201,13 @@ window.BBB = {
         {
             date: '2027-04-11',
             title: 'Dawn patrol & Masters Sunday',
-            text: 'An optional early round for anyone who’s up for it (sunrise is ~6:00 AM). It’s also the final round of the Masters, and Arizona is three hours behind Augusta. The rooms run through Sunday night, so fly home Sunday evening or Monday.',
+            text: 'An optional early round for anyone who’s up for it (sunrise is ~6:00 AM). It’s also the final round of the Masters, and Arizona is three hours behind Augusta. Checkout is Sunday, so plan to fly home Sunday afternoon or evening, unless you’ve added a 4th night.',
             tag: 'Optional',
             tagSoft: true,
             media: { type: 'dawn' },
             slots: [
                 { when: 'AM', tee: 'sunday', teeOptional: true, what: 'Optional early round', meta: 'Course TBA' },
-                { when: 'PM', what: 'Masters final round', meta: 'Fly home tonight, or Monday (checkout Apr 12)' }
+                { when: 'PM', what: 'Masters final round', meta: 'Checkout today, Apr 11 · fly home tonight' }
             ]
         }
     ],
