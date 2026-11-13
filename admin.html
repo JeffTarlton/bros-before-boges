@@ -762,6 +762,23 @@
         .matchup-card.has-problem { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444, 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .matchup-issue { margin: -5px 0 12px; color: #fca5a5; font-size: 0.85rem; font-weight: 600; }
 
+        /* Matchups: each match's group and tee time, under its players (groups_2027.sql). Side by side,
+           or stacked on the narrowest phones so "07:20 AM" is never cut off. */
+        .matchup-when {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .matchup-when > div:first-child { flex: 1 1 80px; min-width: 0; }
+        .matchup-when > div:last-child { flex: 1.3 1 140px; min-width: 0; }
+        .matchup-when label { display: block; margin-bottom: 5px; font-size: 0.8rem; font-weight: bold; color: var(--text-muted); }
+        .matchup-when .admin-input { margin: 0; padding: 6px 8px; min-height: 44px; font-size: 0.85rem; }
+        .matchup-when input[type="time"] { color-scheme: dark; }
+        #matchup-group-hint { max-width: 640px; margin: -8px 0 18px; }
+
         /* Matchups round filter (admin.js renderMatchupRoundFilters). The pills wrap, so on a phone a
            round "not on the schedule" is never hidden off the edge. The picked round is filled green;
            a round that isn't a Cup round is outlined in gold. */
@@ -1717,6 +1734,10 @@
                     <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">
                         Assign opponents for each round (Team 1 vs Team 2) to correctly calculate Match Points.
                     </p>
+                    <!-- Group and tee time per match (groups_2027.sql): admin.js shows the note until the
+                         script has run, and the hint once it has (renderGroupNote) -->
+                    <div class="setup-note" id="matchup-group-note" hidden></div>
+                    <p class="field-hint" id="matchup-group-hint" hidden>Group and tee time are optional. Pick a group and its tee time fills in when another match in that group already has one.</p>
                     <!-- Round buttons: the Cup rounds in trip-config.js, drawn by admin.js (renderMatchupRoundFilters) -->
                     <div class="wager-filters" id="matchup-round-filters" style="margin-bottom: 20px;"></div>
                     <div id="matchups-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 20px;">
@@ -1755,7 +1776,7 @@
                 <!-- Photo album: the shared album link for the homepage's "Add your photos" (photos_2027.sql) -->
                 <div id="tab-photos" class="tab-content" style="display: none;">
                     <h2>Photo album</h2>
-                    <p class="tab-lede">The shared album the crew adds their trip photos to. After the trip, the homepage’s “That’s a wrap” card shows <b>Add your photos</b>, which opens it, to players on the confirmed roster who are logged in. Everyone else sees “Log in to add your photos” and never the link.</p>
+                    <p class="tab-lede">The shared album the crew adds their trip photos to. As soon as it’s saved, <b>Trip photos</b> at the bottom of Live scores opens it, and after the trip the homepage’s “That’s a wrap” card shows <b>Add your photos</b> too, both only to players on the confirmed roster who are logged in. Everyone else never sees the link.</p>
                     <div class="setup-note" id="album-note" hidden></div>
                     <form id="album-form" class="album-form" method="post" novalidate onsubmit="return false">
                         <label class="login-label" for="album-url">Shared album link for <span id="album-year">the trip</span></label>
@@ -2052,12 +2073,12 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.19"></script>
+    <script src="trip-config.js?v=2027.20"></script>
     <script src="push.js?v=2027.19"></script>
     <script src="bell.js?v=2027.2"></script>
-    <script src="help.js?v=2027.2"></script>
-    <script src="scoring.js?v=2027.11"></script>
-    <script src="admin.js?v=2027.25"></script>
+    <script src="help.js?v=2027.3"></script>
+    <script src="scoring.js?v=2027.12"></script>
+    <script src="admin.js?v=2027.26"></script>
 </body>
 
 </html>

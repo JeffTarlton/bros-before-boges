@@ -123,11 +123,26 @@ window.BBBScoring = (function () {
         return (matchups || []).slice().sort((a, b) => (made(a) - made(b)) || byId(a, b));
     }
 
-    // Matchup rows (t1_player1_id ...) become [{ id, number, sides: [{ team: 1, ids }, { team: 2, ids }] }]
+    // A matchup's group number and tee time, when Admin has set them (groups_2027.sql). Tidied
+    // here so every screen reads them the same way: a group is 1 or more, a time is 'HH:MM'.
+    function matchGroup(m) {
+        const g = Number(m && m.group_number);
+        return Number.isInteger(g) && g > 0 ? g : null;
+    }
+    function matchTeeTime(m) {
+        const t = typeof (m && m.tee_time) === 'string' ? m.tee_time.slice(0, 5) : '';
+        return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : null;
+    }
+
+    // Matchup rows (t1_player1_id ...) become
+    // [{ id, number, group, teeTime, sides: [{ team: 1, ids }, { team: 2, ids }] }]
+    // (group and teeTime are null until Admin sets them)
     function matchesFrom(matchups) {
         return sortMatchups(matchups).map((m, i) => ({
             id: m.id,
             number: i + 1,
+            group: matchGroup(m),
+            teeTime: matchTeeTime(m),
             sides: [
                 { team: 1, ids: [m.t1_player1_id, m.t1_player2_id].filter(Boolean) },
                 { team: 2, ids: [m.t2_player1_id, m.t2_player2_id].filter(Boolean) }
@@ -272,9 +287,172 @@ window.BBBScoring = (function () {
         return v - whole === 0.5 ? `${whole || ''}½` : String(v);
     }
 
+    // Cup points a round's matches are worth: a point a match, a point a nine in split, none in stroke
+    function pointsOnLine(format, matches) {
+        if (format.key === 'stroke') return 0;
+        return (matches || []).length * (format.key === 'split' ? 2 : 1);
+    }
+
+    // The Cup across every round: rounds = [{ format, matches, holesById, pars }].
+    // won: points from finished matches (and nines); projected: every started match as it stands
+    // (finished ones included); total: what all the rounds are worth; toWin: more than half of it,
+    // known only once every round has its matches set (null before). decided: 1 or 2 once a team
+    // has banked more than half of every point there is (only then: a clinch, never a guess).
+    // A round counts as set once it has matches, or, when the caller knows the roster, once its
+    // matches cover it (r.complete === false: some still missing).
+    function cupTotals(rounds) {
+        const out = { won: [0, 0], projected: [0, 0], total: 0, toWin: null, started: false, allSet: true, decided: 0 };
+        (rounds || []).forEach(r => {
+            if (r.format.key === 'stroke') return;
+            if (!r.matches.length || r.complete === false) out.allSet = false;
+            out.total += pointsOnLine(r.format, r.matches);
+            r.matches.forEach(m => {
+                const res = matchResult(r.format, m, r.holesById, r.pars);
+                if (res.started) out.started = true;
+                out.won[0] += res.points.won[0]; out.won[1] += res.points.won[1];
+                out.projected[0] += res.points.projected[0]; out.projected[1] += res.points.projected[1];
+            });
+        });
+        if (out.allSet && out.total) {
+            out.toWin = out.total / 2 + 0.5;
+            out.decided = out.won[0] >= out.toWin ? 1 : out.won[1] >= out.toWin ? 2 : 0;
+        }
+        return out;
+    }
+
+    // Hole by hole for a match's scorecard: each side's number on every hole, who took the hole and
+    // the running margin. win: 1 side A, 2 side B, 0 halved, null until both sides have a number.
+    // lead (side A's view): holes up in match play, strokes ahead in split (each nine on its own),
+    // points ahead in points rounds. over: the match was already decided before this hole (match
+    // play only), so the hole doesn't count.
+    function holeMargins(format, match, holesById, pars) {
+        const [A, B] = match.sides;
+        const a = sideHoles(format, A, holesById, pars);
+        const b = sideHoles(format, B, holesById, pars);
+        const kind = format.key === 'split' ? 'strokes' : format.key === 'points' ? 'points' : 'match';
+        const higher = kind === 'points';
+        const spans = kind === 'strokes' ? [[1, 9], [10, HOLES]] : [[1, HOLES]];
+        const holes = Array(HOLES).fill(null);
+        spans.forEach(([from, to]) => {
+            let lead = 0, thru = 0, closed = false;
+            for (let h = from; h <= to; h++) {
+                const x = a[h - 1], y = b[h - 1];
+                if (x === null || y === null) {
+                    holes[h - 1] = { win: null, lead: null, over: closed };
+                    continue;
+                }
+                const win = x === y ? 0 : ((higher ? x > y : x < y) ? 1 : 2);
+                if (closed) {
+                    holes[h - 1] = { win, lead: null, over: true };
+                    continue;
+                }
+                if (kind === 'match') lead += win === 1 ? 1 : win === 2 ? -1 : 0;
+                else lead += higher ? x - y : y - x;
+                thru++;
+                if (kind === 'match' && Math.abs(lead) > (to - from + 1) - thru) closed = true;
+                holes[h - 1] = { win, lead, over: false };
+            }
+        });
+        return { kind, a, b, holes };
+    }
+
+    // Each player's trip so far: rounds = [{ format, matches, holesById, pars }].
+    // { [playerId]: { w, l, h, pts, birdies } }. Only finished matches (or nines, in split) count
+    // toward the record and points; every player on the side gets the side's result. Birdies are
+    // every hole under par: on the player's own card, or on the side's ball when partners share
+    // one (it counts for both partners, even one whose own card has no row).
+    function playerRecords(rounds) {
+        const rec = {};
+        const get = id => (rec[id] = rec[id] || { w: 0, l: 0, h: 0, pts: 0, birdies: 0 });
+        const under = (list, pars) => (list || []).filter((v, i) => v !== null && pars && pars[i] && v < pars[i]).length;
+        (rounds || []).forEach(r => {
+            const viaSide = new Set();
+            if (r.format.sharedBall) {
+                r.matches.forEach(m => m.sides.forEach(s => {
+                    const n = under(sideHoles(r.format, s, r.holesById, r.pars), r.pars);
+                    s.ids.forEach(id => { if (!viaSide.has(id)) { get(id).birdies += n; viaSide.add(id); } });
+                }));
+            }
+            Object.keys(r.holesById || {}).forEach(id => {
+                if (!viaSide.has(id)) get(id).birdies += under(r.holesById[id], r.pars);
+            });
+            if (r.format.key === 'stroke') return;
+            r.matches.forEach(m => {
+                matchResult(r.format, m, r.holesById, r.pars).parts.forEach(p => {
+                    if (!p.final) return;
+                    m.sides.forEach((s, i) => s.ids.forEach(id => {
+                        const x = get(id);
+                        x.pts += p.points[i];
+                        if (p.lead === 0) x.h++;
+                        else if ((p.lead > 0) === (i === 0)) x.w++;
+                        else x.l++;
+                    }));
+                });
+            });
+        });
+        return rec;
+    }
+
+    // The trip's standouts for the wrap-up card: rounds = [{ number, format, matches, holesById, pars }].
+    // Every list keeps ties (several players can share a best).
+    // - topPoints / mostBirdies: from playerRecords, so they match the Player records table.
+    // - lowRound: the lowest full 18 on a player's own ball. Rounds where partners share one ball
+    //   (split, shared) or only the better ball counts (bestball) are left out: those cards aren't
+    //   one player's own score.
+    // - biggestWin: the widest finished match-play win (6&5 beats 3&2; 3&2 beats 3&1). Points and
+    //   stroke contests use other units, so they don't compete.
+    function tripHighlights(rounds) {
+        const list = rounds || [];
+        const rec = playerRecords(list);
+        const best = key => {
+            let value = 0, ids = [];
+            Object.keys(rec).forEach(id => {
+                const v = rec[id][key];
+                if (v > value) { value = v; ids = [id]; }
+                else if (v === value && v > 0) ids.push(id);
+            });
+            return value > 0 ? { value, ids } : null;
+        };
+
+        let lowRound = null;
+        list.forEach(r => {
+            if (r.format.sharedBall || r.format.key === 'bestball') return;
+            Object.keys(r.holesById || {}).forEach(id => {
+                const h = r.holesById[id];
+                if (countEntered(h) !== HOLES) return;
+                const t = totals(h, r.pars);
+                const entry = { id, round: r.number, strokes: t.strokes, toPar: t.toPar };
+                const better = !lowRound || t.toPar < lowRound.toPar || (t.toPar === lowRound.toPar && t.strokes < lowRound.strokes);
+                if (better) lowRound = { toPar: t.toPar, strokes: t.strokes, entries: [entry] };
+                else if (t.toPar === lowRound.toPar && t.strokes === lowRound.strokes) lowRound.entries.push(entry);
+            });
+        });
+
+        let biggestWin = null;
+        list.forEach(r => {
+            if (r.format.key === 'stroke' || r.format.key === 'split' || r.format.key === 'points') return;
+            (r.matches || []).forEach(m => {
+                matchResult(r.format, m, r.holesById, r.pars).parts.forEach(p => {
+                    if (p.kind !== 'match' || !p.final || p.lead === 0) return;
+                    const n = Math.abs(p.lead);
+                    const win = p.lead > 0 ? 0 : 1;
+                    const entry = { round: r.number, matchId: m.id, number: m.number, lead: n, left: p.left,
+                        winners: m.sides[win].ids, losers: m.sides[1 - win].ids, team: m.sides[win].team,
+                        text: p.left > 0 ? `${n}&${p.left}` : `${n} UP` };
+                    const cmp = !biggestWin ? 1 : (n - biggestWin.lead) || (p.left - biggestWin.left);
+                    if (cmp > 0) biggestWin = { lead: n, left: p.left, entries: [entry] };
+                    else if (cmp === 0) biggestWin.entries.push(entry);
+                });
+            });
+        });
+
+        return { topPoints: best('pts'), mostBirdies: best('birdies'), lowRound, biggestWin };
+    }
+
     return {
         HOLES, HOLE_COLS, FORMATS, formatFor, cleanHole, holesOf, countEntered, mergeHoles, totals,
-        fmtToPar, quotaPoints, scoreName, holeCap, sortMatchups, matchesFrom, sideHoles, matchPlay, sumContest,
-        matchResult, partText, roundPoints, fmtPoints
+        fmtToPar, quotaPoints, scoreName, holeCap, sortMatchups, matchGroup, matchTeeTime, matchesFrom, sideHoles,
+        matchPlay, sumContest, matchResult, partText, roundPoints, fmtPoints, pointsOnLine, cupTotals, holeMargins,
+        playerRecords, tripHighlights
     };
 })();

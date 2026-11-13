@@ -55,32 +55,80 @@ async function fromCache(request, ignoreSearch) {
 
 // The network, but give up waiting after NET_WAIT_MS when there's a copy to show instead.
 // A slow answer still lands in the copy for next time.
-function networkFirst(event, request, key, fallback) {
+// quick: the copy a slow answer may be swapped for; last: the copy for a failed answer (defaults to
+// quick). Same-origin files pass an exact-version quick copy, so a slow network right after a deploy
+// never pairs a new page with an older script; any older copy still beats no signal at all.
+// A page answer that landed after its copy was shown: fetch the files it names first, keep the page
+// only once they're all in, and only then drop older versions, so the copy never pairs a page with
+// another version's files (and a phone that always opens on a slow signal still catches up)
+async function catchUp(res) {
+    const cache = await caches.open(CACHE);
+    const html = await res.text();
+    const refs = [...html.matchAll(/<script[^>]+src="([^"]+)"/g), ...html.matchAll(/<link[^>]+href="([^"]+)"/g)];
+    const urls = [...new Set(refs.map(m => new URL(m[1].replace(/&amp;/g, '&'), PAGE).href))]
+        .map(h => new URL(h))
+        .filter(u => u.origin === self.location.origin && !/^\/round_tracker(\.html)?$/.test(u.pathname));
+    for (const u of urls) {
+        if (await cache.match(u.href)) continue; // this exact version is already kept
+        const r = await fetch(u.href, { mode: 'same-origin', credentials: 'omit' });
+        if (!r.ok) throw new Error('missing ' + u.href); // leave the old page and its files as they are
+        await cache.put(u.href, await plain(r)); // not store(): nothing older is dropped yet
+    }
+    // Fresh headers: the original's encoding or length would no longer match the decoded text
+    await cache.put(PAGE, new Response(html, { status: 200, headers: { 'Content-Type': res.headers.get('Content-Type') || 'text/html; charset=utf-8' } }));
+    for (const u of urls) {
+        const old = await cache.keys(u.origin + u.pathname, { ignoreSearch: true });
+        await Promise.all(old.filter(r => r.url !== u.href).map(r => cache.delete(r)));
+    }
+}
+
+// page: this is the page itself. Only a page answered from the copy starts the offline hold; a page
+// answer that lands after its copy was shown is kept through catchUp, with its files.
+function networkFirst(event, request, key, quick, last = quick, page = false) {
+    let done = false;
+    let usedCopy = false;
     const net = fetch(request);
     const saved = net.then(res => {
-        if (res.ok) event.waitUntil(store(key, res.clone()).catch(() => {}));
+        let work = null;
+        if (page && usedCopy && res.type === 'opaqueredirect') {
+            // /round_tracker.html answers 308 -> /round_tracker (cleanUrls), and most links use the
+            // .html address: the browser won't follow it now the copy is showing, so follow it here
+            work = fetch(PAGE, { credentials: 'same-origin' }).then(r => (r.ok ? catchUp(r) : undefined));
+        } else if (res.ok) {
+            work = page && usedCopy ? catchUp(res.clone()) : store(key, res.clone());
+        }
+        if (work) {
+            work = work.catch(() => {});
+            try { event.waitUntil(work); } catch (e) { /* the answer was already given: it still finishes */ }
+        }
         return res;
     });
     return new Promise(resolve => {
-        let done = false;
-        const useCopy = async () => {
-            const copy = await fallback();
-            if (copy && !done) { done = true; offlineUntil = Date.now() + OFFLINE_HOLD_MS; resolve(copy); }
+        const useCopy = async get => {
+            const copy = await get();
+            if (copy && !done) {
+                done = true;
+                usedCopy = true;
+                if (page) offlineUntil = Date.now() + OFFLINE_HOLD_MS;
+                resolve(copy);
+            }
             return copy;
         };
-        const timer = setTimeout(useCopy, NET_WAIT_MS);
+        const timer = setTimeout(() => useCopy(quick), NET_WAIT_MS);
         saved.then(async res => {
             if (done) return;
             clearTimeout(timer);
             // A gateway or server error page is no better than no signal
-            if (res.status >= 500 && await useCopy()) return;
+            if (res.status >= 500 && await useCopy(last)) return;
             if (done) return;
             done = true;
+            // The page came from the network: its files try the network again too
+            if (page) offlineUntil = 0;
             resolve(res);
         }, async () => {
             clearTimeout(timer);
             if (done) return;
-            if (!(await useCopy())) { done = true; resolve(Response.error()); }
+            if (!(await useCopy(last))) { done = true; resolve(Response.error()); }
         });
     });
 }
@@ -91,7 +139,7 @@ self.addEventListener('fetch', event => {
     const url = new URL(request.url);
     if (request.mode === 'navigate') {
         // round_tracker, round_tracker.html, any ?query or #hash: one page
-        event.respondWith(networkFirst(event, request, PAGE, () => fromCache(PAGE)));
+        event.respondWith(networkFirst(event, request, PAGE, () => fromCache(PAGE), undefined, true));
         return;
     }
     if (!keeps(url)) return;
@@ -101,7 +149,8 @@ self.addEventListener('fetch', event => {
         event.respondWith(fromCache(request, true).then(copy => copy || fetch(ask)));
         return;
     }
-    event.respondWith(networkFirst(event, ask, request.url, () => fromCache(request, true)));
+    const sameOrigin = url.origin === self.location.origin;
+    event.respondWith(networkFirst(event, ask, request.url, () => fromCache(request, !sameOrigin), () => fromCache(request, true)));
 });
 
 // The page lists what it loaded, so the first visit (before this worker was running) is kept too

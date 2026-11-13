@@ -71,6 +71,9 @@ let originalPlayers = []; // To track changes and allow discard
 let matchups = [];
 let originalMatchups = [];
 let currentMatchupRound = adminCupRounds()[0]; // the first Cup round in trip-config.js
+// Whether groups_2027.sql has added matchups.group_number and tee_time: true, false (not yet: the
+// Matchups tab hides both and says so, and no save sends them), or null (not known yet: hidden too)
+let groupColumns = null;
 let hasChanges = false;
 // Each dataset is 'loading', 'ok' or 'error'. Save writes matchups as a diff against what
 // loaded, so it stays off unless both loaded in this page session.
@@ -164,6 +167,10 @@ function plainError(err) {
 // A database function that isn't there yet (its setup script hasn't run). Missing tables don't count:
 // only this falls back to the old way of reading the roster.
 const isMissingFunction = err => /PGRST202|could not find the function/i.test(`${err && err.code} ${err && err.message}`);
+
+// A column that isn't there yet (groups_2027.sql hasn't run). Postgres says 42703 ("column
+// matchups.group_number does not exist"); PostgREST says PGRST204 for a write that names one.
+const isMissingColumn = err => /42703|PGRST204|column .* does not exist|could not find the .* column/i.test(`${err && err.code} ${err && err.message}`);
 
 async function checkInitialAuth() {
     if (!supabaseInstance) {
@@ -391,7 +398,7 @@ function setupEventListeners() {
         saveAlbum(document.getElementById('album-url').value);
     });
     document.getElementById('album-remove')?.addEventListener('click', () => {
-        if (!confirm('Remove the photo album link? The homepage’s “Add your photos” button goes away until you add one again.')) return;
+        if (!confirm('Remove the photo album link? “Trip photos” on Live scores and the homepage’s “Add your photos” go away until you add one again.')) return;
         saveAlbum('');
     });
     document.getElementById('album-url')?.addEventListener('input', () => setAlbumError(''));
@@ -750,13 +757,20 @@ function renderPrivacyNote() {
 async function loadMatchups() {
     if (supabaseInstance) {
         try {
-            const { data, error } = await supabaseInstance
-                .from('matchups')
-                .select('*');
+            // Alongside the matches, until it says yes: one tiny read that asks whether groups_2027.sql
+            // has added the group and tee time columns (a missing column is an error, not an empty row)
+            const [{ data, error }, probe] = await Promise.all([
+                supabaseInstance.from('matchups').select('*'),
+                groupColumns === true ? null
+                    : Promise.resolve(supabaseInstance.from('matchups').select('group_number').limit(1)).catch(e => ({ error: e }))
+            ]);
 
             if (error || !data) throw error || new Error('No matchups data came back.');
-            // Same order as the Round Tracker, so Match 3 here is Match 3 on the course
-            const ordered = window.BBBScoring ? window.BBBScoring.sortMatchups(data) : data;
+            groupColumns = groupColumnsFrom(probe, data);
+            // Same order as the Round Tracker, so Match 3 here is Match 3 on the course. Group and tee
+            // time are tidied before the copy that Save compares with, so how a value came back from
+            // the database never looks like an edit.
+            const ordered = (window.BBBScoring ? window.BBBScoring.sortMatchups(data) : data).map(tidyMatchupWhen);
             matchups = JSON.parse(JSON.stringify(ordered));
             originalMatchups = JSON.parse(JSON.stringify(ordered));
             loadState.matchups = 'ok';
@@ -1199,6 +1213,7 @@ window.filterMatchupRound = (roundNum) => {
 function renderMatchupsUI() {
     if (!elements.matchupsList) return;
     elements.matchupsList.innerHTML = '';
+    renderGroupNote();
 
     const problem = loadProblem(['roster', 'matchups']);
     if (problem) {
@@ -1256,9 +1271,25 @@ function renderMatchupsUI() {
         div.dataset.matchup = globalIndex;
         div.style = "padding: 20px;";
 
+        // Group and tee time, under the players (groups_2027.sql; hidden until it has run). Screen
+        // readers hear which match each is for ("Match 2, group"), with the hint about copying times.
+        const when = groupColumns !== true ? '' : `
+            <div class="matchup-when">
+                <div>
+                    <label for="mg-${escHtml(globalIndex)}">Group</label>
+                    <select id="mg-${escHtml(globalIndex)}" data-field="group_number" class="admin-input" aria-label="Match ${escHtml(index + 1)}, group" aria-describedby="matchup-group-hint" onchange="updateMatchupGroup(${escHtml(globalIndex)}, this.value)">
+                        ${groupOptionsHtml(match.group_number)}
+                    </select>
+                </div>
+                <div>
+                    <label for="mt-${escHtml(globalIndex)}">Tee time</label>
+                    <input type="time" step="60" id="mt-${escHtml(globalIndex)}" data-field="tee_time" class="admin-input" aria-label="Match ${escHtml(index + 1)}, tee time" value="${escHtml(teeTimeOf(match.tee_time) || '')}" oninput="updateMatchupTeeTime(${escHtml(globalIndex)}, this.value)" onchange="updateMatchupTeeTime(${escHtml(globalIndex)}, this.value)">
+                </div>
+            </div>`;
+
         div.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-                <h4 style="color: var(--admin-accent);">Match ${index + 1}</h4>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 15px;">
+                <h4 class="matchup-title" style="color: var(--admin-accent);">${escHtml(matchupCardTitle(match))}</h4>
                 <button type="button" class="admin-btn secondary" style="width: auto; min-height: 44px; padding: 0 16px; font-size: 0.8rem; margin: 0;" aria-label="Remove match ${index + 1}" onclick="removeMatchup(${globalIndex})">Remove</button>
             </div>
             <p class="matchup-issue" hidden></p>
@@ -1288,6 +1319,7 @@ function renderMatchupsUI() {
                     ${getOptions(2, match.t2_player2_id)}
                 </select>` : ''}
             </div>
+            ${when}
         `;
         elements.matchupsList.appendChild(div);
     });
@@ -1303,7 +1335,8 @@ function addMatchup() {
     matchups.push({
         round_number: currentMatchupRound,
         t1_player1_id: null, t1_player2_id: null,
-        t2_player1_id: null, t2_player2_id: null
+        t2_player1_id: null, t2_player2_id: null,
+        group_number: null, tee_time: null
     });
     renderMatchupsUI();
     checkChanges();
@@ -1318,6 +1351,44 @@ window.removeMatchup = (index) => {
 window.updateMatchupTeam = (index, field, value) => {
     // Back to "Select…" stores null, as loaded, so it doesn't count as an edit
     matchups[index][field] = value || null;
+    checkChanges();
+};
+
+// The tee time a group pick filled in for each match (not one the admin typed), so picking another
+// group, or "Not set", takes it back out instead of leaving the first group's time behind (the
+// arrow keys on a select fire a change for every group they pass)
+const autoTee = new WeakMap();
+
+window.updateMatchupGroup = (index, value) => {
+    const m = matchups[index];
+    if (!m) return;
+    // A number, or null for "Not set" (as loaded), so going back to the stored group isn't an edit
+    m.group_number = groupNumberOf(value);
+    // A convenience (the hint above the matches says so): the matches in a group tee off together,
+    // so a match with no tee time takes the time another match in that group already has
+    const wasAuto = autoTee.has(m) && m.tee_time === autoTee.get(m);
+    if (!m.tee_time || wasAuto) {
+        const mate = m.group_number && matchups.find(x => x !== m && x.round_number === m.round_number && x.group_number === m.group_number && teeTimeOf(x.tee_time));
+        const t = mate ? teeTimeOf(mate.tee_time) : (wasAuto ? null : m.tee_time);
+        if (t !== m.tee_time) {
+            m.tee_time = t;
+            const card = elements.matchupsList && elements.matchupsList.querySelector(`[data-matchup="${index}"]`);
+            const input = card && card.querySelector('input[data-field="tee_time"]');
+            if (input) input.value = t || '';
+        }
+        if (mate) autoTee.set(m, t); else autoTee.delete(m);
+    }
+    renderMatchupTitle(index);
+    checkChanges();
+};
+
+window.updateMatchupTeeTime = (index, value) => {
+    const m = matchups[index];
+    if (!m) return;
+    autoTee.delete(m); // typed by hand: a group pick never replaces it
+    // 'HH:MM', or null when the box is cleared (as loaded), so clearing a new time isn't an edit
+    m.tee_time = teeTimeOf(value);
+    renderMatchupTitle(index);
     checkChanges();
 };
 
@@ -1436,16 +1507,20 @@ async function bookieHistoryWarning(playerIds) {
 }
 
 const MATCHUP_SLOTS = ['t1_player1_id', 't1_player2_id', 't2_player1_id', 't2_player2_id'];
-const MATCHUP_FIELDS = ['round_number', ...MATCHUP_SLOTS];
+// The fields a match's update can change. group_number and tee_time only once groups_2027.sql has
+// run: until then matchupValues leaves them out, so they never differ and are never sent.
+const MATCHUP_FIELDS = ['round_number', ...MATCHUP_SLOTS, 'group_number', 'tee_time'];
 
 // "Round 2 · Match 3", numbered the way the Matchups tab numbers them
 function matchupLabel(m, list = matchups) {
     return `Round ${m.round_number} · Match ${list.filter(x => x.round_number === m.round_number).indexOf(m) + 1}`;
 }
 
+// Only the players count: a match with a group or tee time but nobody picked is still blank
 const isBlankMatchup = m => MATCHUP_SLOTS.every(k => !m[k]);
 
 // The row as it should be stored. A side with only its second player picked keeps him, as player 1.
+// Group and tee time only once groups_2027.sql has run: before that the database has no such columns.
 function matchupValues(m) {
     const v = { round_number: m.round_number };
     [['t1_player1_id', 't1_player2_id'], ['t2_player1_id', 't2_player2_id']].forEach(([one, two]) => {
@@ -1453,7 +1528,84 @@ function matchupValues(m) {
         v[one] = picks[0] || null;
         v[two] = picks[1] || null;
     });
+    if (groupColumns === true) {
+        v.group_number = groupNumberOf(m.group_number);
+        v.tee_time = teeTimeOf(m.tee_time);
+    }
     return v;
+}
+
+// ---- Group and tee time per match (groups_2027.sql) ----
+const GROUPS_PENDING_TEXT = 'Groups and tee times need one database update: run groups_2027.sql in Supabase.';
+
+// A group as Admin keeps it: a whole number from 1 to 20 (what the database takes), or null. A
+// select hands back '3', so this runs on every edit as well as on load.
+function groupNumberOf(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 20 ? n : null;
+}
+
+// A tee time as Admin keeps it: 'HH:MM' on the 24-hour clock, or null. A time column would hand
+// back '07:20:00', and a cleared time box gives '', so both are tidied the same way.
+function teeTimeOf(value) {
+    const t = typeof value === 'string' ? value.trim().slice(0, 5) : '';
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : null;
+}
+
+// Every loaded match gets both, tidied (null before groups_2027.sql has run), so the copy Save
+// compares with has exactly what the screen has
+function tidyMatchupWhen(m) {
+    return Object.assign({}, m, { group_number: groupNumberOf(m.group_number), tee_time: teeTimeOf(m.tee_time) });
+}
+
+// Has groups_2027.sql run? The probe (a read of group_number alone) says so: no error is yes, a
+// missing-column error is no. If the probe failed some other way, a row from select('*') still
+// tells (it has every column); with no rows either, what was known before stands.
+function groupColumnsFrom(probe, rows) {
+    if (!probe || !probe.error) return true;
+    if (isMissingColumn(probe.error)) return false;
+    console.warn('Couldn’t check for the group and tee time columns:', probe.error);
+    if (rows && rows.length) return rows.some(r => r && Object.prototype.hasOwnProperty.call(r, 'group_number'));
+    return groupColumns;
+}
+
+// Blank, then 1 to 10 (twenty spots fill five groups of four). A stored group above 10 still
+// shows, so it can be seen and changed.
+function groupOptionsHtml(current) {
+    const g = groupNumberOf(current);
+    const nums = Array.from({ length: 10 }, (_, i) => i + 1);
+    if (g && !nums.includes(g)) nums.push(g);
+    return '<option value="">Not set</option>' +
+        nums.map(n => `<option value="${escHtml(n)}"${n === g ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+}
+
+// "Match 2 · Group 1 · 7:20 AM": the card's title, numbered the way matchupLabel numbers it. Each
+// part keeps to one line on a phone (no break inside "7:20 AM").
+function matchupCardTitle(m) {
+    const n = matchups.filter(x => x.round_number === m.round_number).indexOf(m) + 1;
+    const g = groupColumns === true ? groupNumberOf(m.group_number) : null;
+    const t = groupColumns === true ? teeTimeOf(m.tee_time) : null;
+    return [`Match ${n}`, g ? `Group ${g}` : '', t ? teeClock(t) : '']
+        .filter(Boolean).map(part => part.replace(/ /g, '\u00a0')).join(' · ');
+}
+
+// Updated in place, so the pick being changed keeps focus
+function renderMatchupTitle(index) {
+    const card = elements.matchupsList && elements.matchupsList.querySelector(`[data-matchup="${index}"]`);
+    const title = card && card.querySelector('.matchup-title');
+    if (title && matchups[index]) title.textContent = matchupCardTitle(matchups[index]);
+}
+
+// The note above the matches while groups_2027.sql hasn't run, and the hint once it has
+function renderGroupNote() {
+    const note = document.getElementById('matchup-group-note');
+    const hint = document.getElementById('matchup-group-hint');
+    if (note) {
+        note.textContent = groupColumns === false ? GROUPS_PENDING_TEXT : '';
+        note.hidden = groupColumns !== false;
+    }
+    if (hint) hint.hidden = groupColumns !== true;
 }
 
 // Every match Save would store wrongly. A fully blank match isn't one: Save just drops it.
@@ -4232,7 +4384,7 @@ function renderAlbum(fillInput = false) {
     note.hidden = !note.textContent;
     status.textContent = albumState.state === 'loading' ? 'Loading…'
         : !ready ? ''
-        : has ? 'Saved. After the trip, logged-in crew see Add your photos on the homepage.'
+        : has ? 'Saved. Logged-in crew see Trip photos on Live scores now, and Add your photos on the homepage after the trip.'
         : 'No album yet, so the homepage shows no photos button.';
 }
 

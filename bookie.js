@@ -20,6 +20,32 @@ const CAME_FROM_AUTH_LINK = /(^|[#&])(access_token|error_code|error)=/.test(wind
 // A link to one bet (bookie.html?bet=<id>, or #bet=<id>), e.g. a challenge someone texted: the
 // board opens on that card once it loads, after logging in if need be (pageUrl keeps it).
 const BET_LINK = /^[\w-]{1,80}$/.test(LINK_PARAMS.get('bet') || '') ? LINK_PARAMS.get('bet') : null;
+// "Bet on this match" in the Round Tracker links to bookie.html?new=h2h&vs=<id>[,<id>]&round=<n>&match=<n>:
+// the New bet sheet opens as a head-to-head against the other side of your match (one player in
+// singles, two in a team round). Only player ids and numbers are read from the link. The bet's
+// wording is made here, never copied from the address, because it goes into the other player's
+// notification. A part that doesn't check out is left out; without new=h2h there's no link at all.
+const NEW_BET_LINK = (() => {
+    if (LINK_PARAMS.get('new') !== 'h2h') return null;
+    const vsIds = (LINK_PARAMS.get('vs') || '').split(',');
+    const vs = vsIds.length <= 2 && vsIds.every(id => /^[\w-]{1,80}$/.test(id)) ? [...new Set(vsIds)] : [];
+    const num = key => (/^[1-9]\d?$/.test(LINK_PARAMS.get(key) || '') ? Number(LINK_PARAMS.get(key)) : null);
+    const round = num('round');
+    const match = round ? num('match') : null;
+    const query = ['new=h2h'];
+    if (vs.length) query.push(`vs=${vs.join(',')}`);
+    if (round) query.push(`round=${round}`);
+    if (match) query.push(`match=${match}`);
+    return {
+        vs,
+        team: vs.length > 1, // both players on the other side: you pick which one you're betting
+        desc: !round ? '' : match ? `Round ${round}, Match ${match}: who wins the match` : `Round ${round}: who wins our match`,
+        query: query.join('&')
+    };
+})();
+// A bet worded that way is on a match, not a score: settling it from Live scores' 18-hole gross
+// would get it wrong, so the settle sheet points to the match result instead
+const MATCH_BET_DESC = /^Round \d{1,2}(, Match \d{1,2})?:/;
 
 // Other pages send people here to log in (?next=rsvp etc.). Once their login is linked to
 // a roster name they go straight back. `mode` opens the log-in or sign-up form on arrival.
@@ -92,8 +118,10 @@ const WALL = Object.assign({
         unlinkedText: 'Pick your name on the trip roster so the crew can message you.'
     },
     bookie: {
-        title: BET_LINK ? 'Log in to see the bet' : 'Log in to The Bookie',
-        text: BET_LINK
+        title: NEW_BET_LINK ? 'Log in to make the bet' : BET_LINK ? 'Log in to see the bet' : 'Log in to The Bookie',
+        text: NEW_BET_LINK
+            ? 'Log in and the bet on your match opens, ready to fill in. It’s the same player account you use to RSVP and keep score.'
+            : BET_LINK
             ? 'Someone sent you a bet on The Bookie. Log in and it opens right up. It’s the same player account you use to RSVP and keep score.'
             : 'Side bets, the ledger and settle-up for the trip. It’s the same player account you use to RSVP and keep score.',
         unlinkedText: 'Betting opens once your login is linked to a confirmed name on the trip roster.'
@@ -124,6 +152,8 @@ let resetPending = OPENED_FROM_RESET_LINK; // don't leave the page before the ne
 // check and the board load finish, so the browser's own jump to it misses
 let openLedgerOnLoad = window.location.hash === '#ledger-panel';
 let betLinkPending = !!BET_LINK; // a ?bet= link not shown yet (once, after the first board load)
+let newBetPending = !!NEW_BET_LINK; // a "Bet on this match" link whose sheet hasn't opened yet (once)
+let newBetHeld = false; // ...kept for a New bet sheet the player opened before the roster loaded
 // True once the trash talk has loaded at least once (who called a bet off comes from it)
 let commentsLoaded = false;
 // 'checking' until the login check decides, then 'out', 'in' (logged in, can't bet yet),
@@ -346,7 +376,9 @@ async function initBookie() {
     } else if (modal.classList.contains('active') && authForm.style.display === 'block' && authMode !== 'reset') {
         // A very slow check showed the logged-out wall and they opened a sheet from it:
         // keep what they typed, unless the check found their login after all
-        if (signedIn) closeModal();
+        // (and a "Bet on this match" link that waited behind that sheet opens now, not after some
+        // unrelated action later)
+        if (signedIn) { closeModal(); openNewBetLink(); }
     } else if (START_MODE && !signedIn && navLoginBtn.dataset.signedIn !== 'true') {
         openAuthModal(START_MODE);
     }
@@ -546,10 +578,19 @@ function closeModal() {
     modal.classList.remove('active');
     document.body.classList.remove('modal-open');
     INERT_WHILE_MODAL.forEach(sel => document.querySelectorAll(sel).forEach(el => { el.inert = false; }));
-    // A sheet that opened on arrival (?mode=) has nothing to go back to: land on the wall's first button
-    const back = modalReturnFocus && modalReturnFocus !== document.body ? modalReturnFocus : (wallState === 'out' && wallButtons.querySelector('.wall-btn'));
+    // A sheet that opened on arrival has nothing to go back to: land on the wall's first button
+    // (?mode=), or on the board's New bet control (a "Bet on this match" link). getClientRects, not
+    // offsetParent: the phone's round + button is position: fixed.
+    const newBetBtn = () => [document.getElementById('fab-create-wager-btn'), openWagerBtn]
+        .find(b => b && b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden') || null;
+    const back = modalReturnFocus && modalReturnFocus !== document.body ? modalReturnFocus
+        : wallState === 'out' ? wallButtons.querySelector('.wall-btn')
+            : wallState === 'dashboard' ? newBetBtn() : null;
     if (back && document.contains(back)) back.focus({ preventScroll: true });
     modalReturnFocus = null;
+    // A link held for a sheet that closed before the roster came: dropped, not popped up later
+    if (newBetHeld && newBetPending) dropNewBetLink();
+    newBetHeld = false;
 }
 
 // ==========================================
@@ -557,11 +598,13 @@ function closeModal() {
 // ==========================================
 // This page's address for email and Google links to come back to (keeps ?next= and ?bet=,
 // so someone who opened a texted challenge lands on it after logging in or signing up).
+// A "Bet on this match" link rides along too, until its sheet has opened.
 function pageUrl() {
     const query = [];
     if (NEXT) query.push(`next=${NEXT}`);
     if (ADMIN_TAB) query.push(`tab=${ADMIN_TAB}`);
     if (BET_LINK) query.push(`bet=${encodeURIComponent(BET_LINK)}`);
+    if (newBetPending) query.push(NEW_BET_LINK.query);
     return window.location.origin + window.location.pathname + (query.length ? `?${query.join('&')}` : '');
 }
 
@@ -945,7 +988,35 @@ async function loadSession() {
         document.getElementById('ledger-panel').scrollIntoView({ block: 'start' });
     }
     openBetLink();
+    openNewBetLink();
     return true;
+}
+
+// A "Bet on this match" link (NEW_BET_LINK): the New bet sheet opens as a head-to-head with the
+// terms filled in. One player on the other side is picked for you; two (a team round) go to the
+// top of the list for you to choose. Anyone the list doesn't offer (you, a name not confirmed, a
+// player who RSVP'd out) is passed over quietly. Runs once, on the board, and not over another
+// sheet (a new password still to save, say): it tries again on the next refresh.
+function openNewBetLink(tap, refill) {
+    // On its own it also waits for the RSVPs (rsvpOut; set once they've loaded, or empty if that
+    // failed), so nobody who RSVP'd out is offered or picked. A tap on New bet (`tap`) doesn't wait:
+    // the sheet opens now, and anyone out leaves its list when the RSVPs land (dropOutPlayers).
+    // `refill`: a sheet the player opened before the roster loaded becomes the link's sheet.
+    if (!newBetPending || !currentUser || wallState !== 'dashboard' || !dbPlayers.length || (rsvpOut === null && !tap)) return;
+    if (resetPending || (modal.classList.contains('active') && !refill)) return;
+    newBetPending = false;
+    const offered = new Set(challengeablePlayers().map(p => p.id));
+    const vs = NEW_BET_LINK.vs.filter(id => offered.has(id));
+    wagerTypeSelect.value = 'h2h';
+    if (NEW_BET_LINK.desc) wagerDescInput.value = NEW_BET_LINK.desc;
+    // Picks the player and focuses the opponent list if nobody is picked, else the amount
+    // (syncWagerTypeFields runs after the pick, so the line's labels and the preview name him)
+    openWagerModal({
+        inMatch: NEW_BET_LINK.team ? vs : [],
+        pick: NEW_BET_LINK.team ? '' : (vs[0] || null)
+    });
+    // Off the address bar, so a reload doesn't open the sheet again
+    history.replaceState(null, '', pageUrl());
 }
 
 // A ?bet=<id> link: show that card on the main board (or the list that has it) and flash it.
@@ -1468,6 +1539,23 @@ async function fetchBaseData() {
         } catch (e) {
             rsvpOut = new Set();
         }
+        dropOutPlayers();
+    }
+    fillEmptySheet();
+}
+
+// A New bet sheet opened before the RSVPs loaded lists everyone: take out whoever RSVP'd out
+// (and their pick, if one of them was picked), keeping everything else as typed
+function dropOutPlayers() {
+    if (!rsvpOut || !rsvpOut.size || !modal.classList.contains('active') || createWagerForm.style.display !== 'block') return;
+    let lost = false;
+    [...wagerTargetSelect.options].forEach(o => {
+        if (o.value && rsvpOut.has(o.value)) { if (o.selected) lost = true; o.remove(); }
+    });
+    wagerTargetSelect.querySelectorAll('optgroup').forEach(g => { if (!g.children.length) g.remove(); });
+    if (lost) {
+        wagerTargetSelect.value = '';
+        syncWagerTypeFields();
     }
 }
 
@@ -1494,6 +1582,7 @@ async function refreshBoard(opts) {
     paidMarks.then(result => { if (result !== 'stale' && result !== 'skipped') renderLedger(); });
     lastRefresh = Date.now();
     if (betLinkPending && wallState === 'dashboard') openBetLink(); // a ?bet= link the first load couldn't show
+    if (newBetPending) openNewBetLink(); // ...and a "Bet on this match" link
 }
 
 // The Refresh button: spins while it works
@@ -2559,14 +2648,18 @@ window.openSettleModal = function (id) {
     setSettleBusy(false);
 
     // Live scores can only settle a head-to-head about the 18-hole gross score; the note under
-    // the button says so before anyone taps it (the confirm says it again)
+    // the button says so before anyone taps it (the confirm says it again). A bet on a match
+    // ("Round 2, Match 3: ...") is won in match play, so it gets a pointer to the result instead.
+    const onMatch = wager.type === 'h2h' && MATCH_BET_DESC.test(String(wager.description || ''));
     const autoBtn = document.getElementById('settle-auto-btn');
     if (autoBtn) {
-        autoBtn.style.display = wager.type === 'h2h' ? 'block' : 'none';
+        autoBtn.style.display = wager.type === 'h2h' && !onMatch ? 'block' : 'none';
         autoBtn.onclick = () => handleAutoSettle(wager);
     }
     const autoNote = document.getElementById('settle-auto-note');
-    if (autoNote) autoNote.hidden = wager.type !== 'h2h';
+    if (autoNote) autoNote.hidden = wager.type !== 'h2h' || onMatch;
+    const matchNote = document.getElementById('settle-match-note');
+    if (matchNote) matchNote.hidden = !onMatch;
 
     const container = document.getElementById('settle-wager-winners-container');
     const parts = wager.participants || [];
@@ -3998,25 +4091,77 @@ function newWagerId() {
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-// The sheet keeps whatever you typed if you close it by accident; it clears after a bet is made
-function openWagerModal() {
+// Anyone confirmed for the trip can be challenged, except yourself and players who RSVP'd out
+function challengeablePlayers() {
+    const out = rsvpOut || new Set();
+    return dbPlayers.filter(p => p.id !== currentUser.id && p.status !== 'potential' && !out.has(p.id));
+}
+
+// The opponent list: everyone who can be challenged, or, for a "Bet on this match" link, the
+// players in your match first ("In your match"), then everyone else
+function opponentOptionsHTML(link) {
+    const players = challengeablePlayers();
+    const option = p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}${p.user_id ? '' : ' (no player account yet)'}</option>`;
+    const inMatch = link && Array.isArray(link.inMatch) ? players.filter(p => link.inMatch.includes(p.id)) : [];
+    const rest = players.filter(p => !inMatch.includes(p));
+    return '<option value="">Select an opponent...</option>' + (inMatch.length
+        ? `<optgroup label="In your match">${inMatch.map(option).join('')}</optgroup>` +
+            (rest.length ? `<optgroup label="Everyone else">${rest.map(option).join('')}</optgroup>` : '')
+        : players.map(option).join(''));
+}
+
+// A New bet sheet opened before the roster loaded has nobody to pick. Once the roster is in, fill
+// it: as the link's sheet when a "Bet on this match" link is waiting, else just the list (nothing
+// typed is lost, and focus stays where it is)
+function fillEmptySheet() {
+    if (!dbPlayers.length || !modal.classList.contains('active') || createWagerForm.style.display !== 'block') return;
+    if ([...wagerTargetSelect.options].some(o => o.value)) return;
+    if (newBetPending && newBetHeld) {
+        newBetHeld = false;
+        openNewBetLink(true, true);
+        if (!newBetPending) return;
+    }
+    wagerTargetSelect.innerHTML = opponentOptionsHTML(null);
+    syncWagerTypeFields();
+}
+
+// A "Bet on this match" link that won't open after all: off the address bar too
+function dropNewBetLink() {
+    newBetPending = false;
+    newBetHeld = false;
+    history.replaceState(null, '', pageUrl());
+}
+
+// The sheet keeps whatever you typed if you close it by accident; it clears after a bet is made.
+// A "Bet on this match" link (openNewBetLink) passes `link`: `inMatch`, the players in your match
+// to list first, and `pick`, the one to select ('' for nobody). It's also a click handler, and a
+// click passes an Event, which is no link.
+function openWagerModal(link) {
     if (!currentUser) return;
+    if (!link || link instanceof Event) link = null;
+    // A "Bet on this match" link still waiting (the board was slow to load) is used up by the
+    // player's own tap: the prefilled sheet opens now. Before the roster has loaded, the sheet
+    // opens with nobody to pick and becomes the link's sheet once it lands (fillEmptySheet). If it
+    // can't open for any other reason, the link is dropped rather than popping up later.
+    if (!link && newBetPending) {
+        openNewBetLink(true);
+        if (!newBetPending) return;
+        if (dbPlayers.length) dropNewBetLink();
+        else newBetHeld = true; // until this sheet fills in or closes
+    }
 
     showModalForm('create');
     modalTitle.textContent = 'New bet';
     showCreateError('');
 
-    // Anyone confirmed for the trip can be challenged, except players who RSVP'd out
     const keep = wagerTargetSelect.value;
-    const out = rsvpOut || new Set();
-    wagerTargetSelect.innerHTML = '<option value="">Select an opponent...</option>' + dbPlayers
-        .filter(p => p.id !== currentUser.id && p.status !== 'potential' && !out.has(p.id))
-        .map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}${p.user_id ? '' : ' (no player account yet)'}</option>`)
-        .join('');
-    if (keep && [...wagerTargetSelect.options].some(o => o.value === keep)) wagerTargetSelect.value = keep;
+    wagerTargetSelect.innerHTML = opponentOptionsHTML(link);
+    const pick = link && typeof link.pick === 'string' ? link.pick : keep;
+    if (pick && [...wagerTargetSelect.options].some(o => o.value === pick)) wagerTargetSelect.value = pick;
 
     syncWagerTypeFields();
-    openModal(wagerTypeSelect);
+    // From a link: straight to the opponent list if nobody's picked yet, else to the amount
+    openModal(link ? (wagerTargetSelect.value ? wagerAmtInput : wagerTargetSelect) : wagerTypeSelect);
 }
 window.openWagerModal = openWagerModal;
 

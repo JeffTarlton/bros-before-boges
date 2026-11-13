@@ -16,7 +16,7 @@
    PAGE_TOPICS picks the handful shown first on each page ("On The Bookie"), in order; a key like
    'tracker#score' is used while that tab is open. A section marked organizers: true shows only on
    the Admin page: players never see it in the panel, its search or help.html.
-   {spots}, {rsvpBy}, {deposit}, {depositDue}, {payTo}, {dates}, {tz}, {inbox} and {host} come from
+   {spots}, {rsvpBy}, {deposit}, {depositDue}, {payTo}, {dates}, {tz}, {inbox}, {host}, {toWin} and {tees} come from
    trip-config.js and the address bar (facts() below), so the answers keep up with each year.
 
    Pages load it after bell.js: <script src="help.js?v=…" defer></script>. It places itself;
@@ -311,9 +311,10 @@
             a: `<p><strong>Trip updates</strong>, at the top of The Trip section on the homepage, lists the news newest first. <strong>Still to come</strong> beside it shows what isn’t decided yet. Big news from the commissioner also comes as a notification.</p>`
         },
         {
-            id: 'tee-times', s: 'trip', k: 'tee times tba schedule itinerary when',
+            id: 'tee-times', s: 'trip', k: 'tee times tba schedule itinerary when group first tee',
             q: 'When are tee times posted?',
-            a: `<p>As soon as each round is booked. Until then the <a href="/index.html#schedule">schedule</a> says “tee time TBA”. When they’re set you get a “Tee times are posted” notification. All times are {tz} time.</p>`
+            a: `<p>As soon as each round is booked. Until then the <a href="/index.html#schedule">schedule</a> says “tee time TBA”. When they’re set you get a “Tee times are posted” notification. All times are {tz} time.</p>
+                <p>Live scores shows each round’s first tee time under the round tabs. Once the commissioner gives each match its group and tee time, Keep score shows both when you pick your match, and each match on Live scores shows its tee time.</p>`
         },
         {
             id: 'flights', s: 'trip', k: 'flight airport hotel hq room lodging book stay',
@@ -348,10 +349,10 @@
                 <p>After the trip it becomes <strong>That’s a wrap</strong>: <span class="ui">Final scores</span>, <span class="ui">Settle up</span> and, once the album is set up, <span class="ui">Add your photos</span>.</p>`
         },
         {
-            id: 'photos', s: 'trip', k: 'photos album pictures hall of fame add',
+            id: 'photos', s: 'trip', k: 'photos album pictures hall of fame add trip photos',
             q: 'Where are the photos, and how do I add mine?',
             a: `<p>Past trips’ photos are in the <strong>Hall of Fame</strong> on the homepage; tap one for full screen and swipe through.</p>
-                <p>After the trip, the <strong>That’s a wrap</strong> card has <span class="ui">Add your photos</span>, which opens the shared album. You need to be logged in as an approved player to see it.</p>`
+                <p>Once the commissioner sets up the shared album, <span class="ui">Trip photos</span> at the bottom of <a href="/round_tracker.html#board">Live scores</a> opens it, and after the trip the <strong>That’s a wrap</strong> card has <span class="ui">Add your photos</span> too. You need to be logged in as an approved player to see either.</p>`
         },
 
         // ---- The Bookie
@@ -381,6 +382,7 @@
                 <li>Check the preview (“You risk $30 to win $20”) and tap <span class="ui">Post bet</span>.</li>
                 </ol>
                 <p>A pool or prop is open for others to join right away. A challenge waits for the other player to accept.</p>
+                <p>Keeping score? <span class="ui">Bet on this match</span>, under the players, opens a head-to-head with your round and match filled in. In a team round, both of the other side are at the top of the list: pick which one you’re betting.</p>
                 <p class="tip">Signal dropped while posting? Tap <span class="ui">Post bet</span> again without changing anything. It won’t post twice.</p>`
         },
         {
@@ -412,7 +414,7 @@
                 <li><strong>A pool or prop you made</strong>: once everyone’s in, tap <span class="ui">Close betting</span>. After the round, tap <span class="ui">Who won?</span>, pick the winner(s) and <span class="ui">Save result</span>.</li>
                 <li><strong>A head-to-head</strong>: either player taps <span class="ui">Who won?</span> once it’s decided.</li>
                 <li>A tie? <span class="ui">Call it a push</span>. Not happening after all? <span class="ui">Void bet</span>. Either way, no money changes hands.</li>
-                <li>A head-to-head on an 18-hole gross score? <span class="ui">Use Live scores (18-hole gross)</span> settles it from the scorecards once you’ve both finished.</li>
+                <li>A head-to-head on an 18-hole gross score? <span class="ui">Use Live scores (18-hole gross)</span> settles it from the scorecards once you’ve both finished. A bet on a match (“Round 2, Match 3: …”) can’t be settled that way: check who won on Live scores, then pick the winner.</li>
                 </ul>
                 <p>The ledger updates right away, a note in the trash talk shows who recorded it, and everyone on the bet gets a notification.</p>`
         },
@@ -500,11 +502,12 @@
             q: 'How do I start scoring our round?',
             a: `<ol>
                 <li>Open <a href="/round_tracker.html#setup">Keep score</a> (on the homepage, in the menu, or /score) <strong>while you still have signal</strong>, ideally before you tee off.</li>
-                <li>Today’s round and course are already picked. Check them.</li>
-                <li>Tap your <strong>match</strong>. Playing as a foursome of two singles matches? Tap the other one too. Or use <span class="ui">Pick players one by one</span>.</li>
+                <li>Today’s round is already picked, and its course and tees show under it. Playing somewhere else? <span class="ui">Playing a different course?</span> has the list.</li>
+                <li>Tap your <strong>match</strong>. Playing as a foursome of two singles matches? Tap the other one too. Or use <span class="ui">Pick players one by one</span>. Once the commissioner sets the groups, your whole group is picked for you.</li>
                 <li>Tap <span class="ui">Start scoring Round 1</span> (or whichever round it is).</li>
                 </ol>
                 <p>If another group already started the round, you join it, and any holes already entered for your group fill in.</p>
+                <p>On singles day a foursome is two matches. If only one is picked, Start asks about the other match in your group first: add it, or start with just yours.</p>
                 <p class="tip">“Start it today anyway?” means that round isn’t on today’s schedule. Tap Cancel unless the plan changed.</p>`
         },
         {
@@ -512,9 +515,9 @@
             q: 'How do I enter scores?',
             a: `<ul>
                 <li>Each player has <strong>− score +</strong>. On an empty hole, <strong>+</strong> puts in par and <strong>−</strong> a birdie; then tap to adjust.</li>
-                <li>Or tap the score itself for a keypad from 1 to 10.</li>
-                <li>When every score on the hole is in, a <strong>Hole 2 →</strong> bar appears at the bottom, and the › at the top turns gold. The bar ignores taps for a moment, so a quick double tap can’t skip a hole.</li>
-                <li>Use ‹ and ›, or the hole numbers 1 to 18, to jump around.</li>
+                <li>Or tap the score itself for a keypad from 1 to 10 (each key near par says Birdie, Par, Bogey…).</li>
+                <li>Under the last player there’s always a <strong>Hole 2 ›</strong> button. When every score on the hole is in, it turns gold and sits just above the tabs, and the › at the top turns gold too. It ignores taps for a moment, so a quick double tap can’t skip a hole.</li>
+                <li>Use ‹ and ›, or tap the hole number at the top to pick any hole.</li>
                 </ul>
                 <p>In the Split Decision, partners share one row: one score for the team.</p>`
         },
@@ -529,17 +532,23 @@
         {
             id: 'fix-score', s: 'score', k: 'fix correct edit mistake change wrong score clear',
             q: 'How do I fix a score I got wrong?',
-            a: `<p>Go back to the hole (‹, or tap its number in the strip), or open <strong>Card</strong> and tap the score. Change it and it saves. To empty a box, tap the score and choose <span class="ui">Clear this score</span>.</p>`
+            a: `<p>Go back to the hole (‹, or tap the hole number at the top and pick it), or open <strong>Card</strong> and tap the score. Change it and it saves. To empty a box, tap the score and choose <span class="ui">Clear this score</span>.</p>`
         },
         {
             id: 'tracker-marks', s: 'score', k: 'gold dot green circle square birdie bogey card marks colors legend',
             q: 'What do the colors, dots and marks mean?',
             a: `<ul>
-                <li><strong>Hole numbers</strong>: green means scored, a small gold dot underneath means partly scored, and a gold ring is the hole you’re on.</li>
+                <li><strong>The bars under the hole</strong>: one per hole. Green means scored, gold means partly scored, and the dark one is the hole you’re on. The <span class="ui">Go to hole</span> grid uses the same colors.</li>
                 <li><strong>A gold dot on a score</strong>: saved on this phone but not sent yet. It keeps trying (<a data-topic="no-signal">no signal?</a>).</li>
-                <li><strong>On the Card</strong>: circle = birdie, double circle = eagle or better, square = bogey, double square = double bogey or worse. No mark = par.</li>
-                <li><strong>The lines above the players</strong>: how each match stands, like “Match 1 — Blue leads 14–10 pts thru 6”.</li>
+                <li><strong>Circles and squares</strong> (on the score and the Card): circle = birdie, double circle = eagle or better, square = bogey, double square = double bogey or worse. No mark = par.</li>
+                <li><strong>The cards above the players</strong>: how each match stands, like “Match 1 · Blue leads 14–10 pts thru 6”. Tap one for the <a data-topic="match-card">match’s scorecard</a>; <span class="ui">Back to scoring</span> brings you back to the hole.</li>
                 </ul>`
+        },
+        {
+            id: 'hole-info', s: 'score', k: 'yards yardage handicap hcp hole index tees',
+            q: 'Where do the yards and “Hcp” on each hole come from?',
+            a: `<p>From each club’s scorecard, for the tees we play{tees}. <strong>Hcp</strong> is the hole’s handicap rank: 1 is the hardest hole on the course, 18 the easiest. It’s for your information only: every match is gross, with no handicap strokes. Live scores shows each round’s tees and total length under the round tabs.</p>
+                <p>If a round is played at a different course than planned, only par shows.</p>`
         },
         {
             id: 'resume', s: 'score', k: 'closed app resume lost phone died battery dead',
@@ -581,7 +590,8 @@
                 <li><strong>2 scores waiting for signal</strong>: saved on this phone. They send by themselves when the signal’s back.</li>
                 <li><strong>Log in to send 2 scores</strong>: your login ran out. Tap it, log in, and they send.</li>
                 <li><strong>2 scores not saved: …</strong> (in red): the database turned them down. Tell an organizer.</li>
-                </ul>`
+                </ul>
+                <p>When scores are slow to send, this note shows a gold dot too: the same dot as on the scores still waiting.</p>`
         },
         {
             id: 'keep-open', s: 'signal', k: 'close app background switch apps lock phone',
@@ -596,29 +606,54 @@
 
         // ---- Live scores
         {
-            id: 'live-where', s: 'live', k: 'live scores leaderboard board watch follow refresh',
+            id: 'live-where', s: 'live', k: 'live scores leaderboard board watch follow refresh share send family link',
             q: 'Where do I follow live scores?',
-            a: `<p><a href="/round_tracker.html#board">Live scores</a>: at the top of the homepage during the trip, in the menu on The Bookie, Rules and Messages, or at /live. No login needed, so anyone can follow along. It refreshes itself every 45 seconds, or tap <span class="ui">Refresh</span>.</p>`
+            a: `<p><a href="/round_tracker.html#board">Live scores</a>: at the top of the homepage during the trip, in the menu on The Bookie, Rules and Messages, or at /live. No login needed, so anyone can follow along. It refreshes itself every 45 seconds, or tap <span class="ui">Refresh</span>.</p>
+                <p>Want family or friends back home to follow? <span class="ui">Share live scores</span>, at the bottom of Live scores, sends them the {host}/live link (on a computer it copies the link). They see the scores only: bets and messages stay private.</p>`
         },
         {
-            id: 'live-read', s: 'live', k: 'if it ended now banked points on the line up all square dormie thru projection',
+            id: 'live-read', s: 'live', k: 'cup to win if it ended now banked heading for points on the line up all square dormie thru projection level needs more first tee',
             q: 'How do I read Live scores?',
             a: `<ul>
-                <li><strong>If it ended now: Blue 6 – 4 Red</strong>: each match goes to whoever leads right now, and a level match counts ½ each.</li>
-                <li><strong>Banked so far</strong>: points from finished matches, then how many points are still on the line.</li>
-                <li><strong>Match cards</strong>: “2 UP thru 7”, “All square”, “dormie” (up as many holes as are left), “wins 3&amp;2” (3 up with 2 to play). Points rounds read like “Blue leads 14–10 pts thru 6”. In the Split Decision each nine is scored on its own.</li>
-                <li>Your match is marked <strong>yours</strong> and comes first.</li>
+                <li><strong>The Cup, at the top</strong>: Blue and Red with the points from every finished match so far, across all the rounds, and what wins it ({toWin}, worked out from the matches once every round’s are set). The bar fills solid for points won; the lighter part is where the matches under way are heading, and past the middle line wins.</li>
+                <li><strong>The tag under the score</strong>: who’s ahead on points won, like “Blue up 1½ · needs 3 more” (or “Level”).</li>
+                <li><strong>Under the round tabs</strong>: the course, our tees and their length, the first tee time and the day. Before a round has any scores, a photo of its course sits above it.</li>
+                <li><strong>Round 2 · if it ended now</strong>: this round, with each match going to whoever leads right now (a level match counts ½ each), then what’s already banked.</li>
+                <li><strong>Match cards</strong>: one row per match, with how it stands in the middle: “2 UP thru 7”, “All square”, “dormie” (up as many holes as are left), “wins 3&amp;2” (3 up with 2 to play). Points rounds read like “Blue leads 14–10 pts thru 6”. In the Split Decision each nine is scored on its own. A solid chip means the match is over. Once the commissioner sets them, each match shows its tee time, like “Match 1 · 7:20 AM”.</li>
+                <li>Your match is marked <strong>yours</strong> and comes first. Tap any match for its <a data-topic="match-card">scorecard</a>.</li>
+                <li>Once the Cup is won, a <a data-topic="trip-wrap">trip wrap-up</a> shows under it.</li>
                 </ul>`
         },
         {
-            id: 'live-table', s: 'live', k: 'individual table ranking pts to par thru F T2 standings',
+            id: 'trip-wrap', s: 'live', k: 'wrap up top points most birdies low round biggest win awards highlights final',
+            q: 'What’s the trip wrap-up on Live scores?',
+            a: `<p>Once a team has won the Cup (or every match is in and it’s tied), a card under the Cup shows the trip’s standouts, all from the scorecards:</p>
+                <ul>
+                <li><strong>Top points</strong> and <strong>Most birdies</strong>: the same counts as the Whole trip table (birdies on a shared ball count for both partners).</li>
+                <li><strong>Low round</strong>: the lowest full 18 on a player’s own ball, so not the Split Decision, where partners share one.</li>
+                <li><strong>Biggest win</strong>: the widest finished match-play win, like 6&amp;5.</li>
+                </ul>
+                <p>If matches are still out when it’s won, it says so, and the numbers update as they finish. A tie goes to <a data-topic="win-cup">the playoff</a>.</p>`
+        },
+        {
+            id: 'match-card', s: 'live', k: 'match scorecard hole by hole margin shaded who won the hole back to scoring',
+            q: 'How do I see a match hole by hole?',
+            a: `<p>Tap the match on <a href="/round_tracker.html#board">Live scores</a>, or tap the match card above the players while you’re scoring (then <span class="ui">Back to scoring</span> takes you back to the hole). It shows both sides’ scores on every hole, with a <strong>Margin</strong> row between them:</p>
+                <ul>
+                <li><strong>B2</strong> means Blue is 2 up after that hole (<strong>R</strong> for Red), and <strong>AS</strong> is all square. In team points and the Split Decision it’s points or strokes ahead, and level reads <strong>Tie</strong>.</li>
+                <li>A shaded box is the side that won the hole. A dash means the match was already over.</li>
+                </ul>`
+        },
+        {
+            id: 'live-table', s: 'live', k: 'individual table ranking pts to par thru F T2 standings whole trip record birdies',
             q: 'How is the player table ranked?',
-            a: `<p>In a points round (The Grind), by points against par pace, so groups that teed off later aren’t buried. Otherwise by score to par. <strong>Thru</strong> is holes played (<strong>F</strong> = finished), and <strong>T2</strong> means tied for 2nd. All scores are gross.</p>`
+            a: `<p><strong>Round</strong>: in a points round (The Grind), by points against par pace, so groups that teed off later aren’t buried. Otherwise by score to par. <strong>Thru</strong> is holes played (<strong>F</strong> = finished), and <strong>T2</strong> means tied for 2nd. All scores are gross. In a match round, tap a name to open that player’s match.</p>
+                <p><strong>Whole trip</strong> (Player records): each player’s record (won, lost, halved) and Cup points from finished matches, plus birdies. Every player on a side gets the side’s result, and each nine of the Split Decision counts on its own.</p>`
         },
         {
             id: 'official-cup', s: 'live', k: 'official cup total commissioner score',
             q: 'Is Live scores the official Cup score?',
-            a: `<p>Not quite. Live scores is built from the groups’ scorecards as they’re entered. The <strong>official</strong> Cup total is posted by the commissioner after each session. Once the Cup is under way it shows as “The Cup (official)” on Live scores, and in Standings and on the homepage.</p>`
+            a: `<p>Not quite. Live scores adds up the Cup from the groups’ scorecards as they’re entered. The <strong>official</strong> total is posted by the commissioner after each session. Once the Cup is under way it shows under the Cup scoreboard as “Official, from the commissioner”, and in Standings and on the homepage.</p>`
         },
 
         // ---- Rules
@@ -805,7 +840,7 @@
                 <ul>
                 <li><strong>Roster</strong>: players, handicaps, teams and Venmo.</li>
                 <li><strong>RSVPs</strong>: every answer and note, approvals, deposits to confirm, payments, the invite link and a CSV.</li>
-                <li><strong>Draft</strong> and <strong>Matchups</strong>: the teams and each round’s matches.</li>
+                <li><strong>Draft</strong> and <strong>Matchups</strong>: the teams, and each round’s matches with their group and tee time.</li>
                 <li><strong>Cup total</strong> and <strong>Scores</strong>: the official Cup points and each player’s scores.</li>
                 <li><strong>New sign-ups</strong>, <strong>Photos</strong>, <strong>Tee times</strong> and <strong>Announce</strong>.</li>
                 </ul>`
@@ -823,10 +858,11 @@
                 <p>Confirm records the payment and ticks the player’s checklist. Not received asks them to check, and to tap I sent it again once it goes through.</p>`
         },
         {
-            id: 'admin-tee-times', s: 'admin', k: 'tee times announcement notify everyone announce',
+            id: 'admin-tee-times', s: 'admin', k: 'tee times announcement notify everyone announce group matchups',
             q: 'How do I post tee times or send an announcement?',
             a: `<ul>
-                <li><strong>Tee times</strong>: set each round’s time, plus an optional note like “4 groups, 10 min apart”. It shows on the homepage schedule right away, and everyone gets a notification.</li>
+                <li><strong>Tee times</strong>: set each round’s time, plus an optional note like “4 groups, 10 min apart”. It shows on the homepage schedule and Live scores right away, and everyone gets a notification.</li>
+                <li><strong>Matchups</strong>: give each match a group and a tee time. Pick a group and its tee time fills in from another match in that group. Press <span class="ui">Save Changes</span> to keep them. Keep score then picks a player’s whole group for him, and each match on Live scores shows its time. (These don’t send a notification.)</li>
                 <li><strong>Announce</strong>: a title and an optional message go to every approved player’s bell, and pop up on the phones that have notifications on. Bets, tee times, approvals and new RSVPs already notify on their own.</li>
                 </ul>`
         },
@@ -836,12 +872,13 @@
             a: `<ul>
                 <li><strong>Scores</strong>: pick the round, press <span class="ui">Fill from Round Tracker</span> to copy the groups’ scorecards, check them, then save.</li>
                 <li><strong>Cup total</strong>: type each team’s official points and press <span class="ui">Save Scores</span>. That’s the number the homepage and Standings show as official.</li>
-                </ul>`
+                </ul>
+                <p>Live scores adds up the Cup itself and only names a winner once every round’s matches cover the whole field. If a player drops out partway, take him off his team on the Draft tab so the later rounds count as complete.</p>`
         },
         {
             id: 'admin-album', s: 'admin', k: 'photo album google photos icloud link shared',
             q: 'How do I set up the shared photo album?',
-            a: `<p>Make a shared album (Google Photos with Collaborate on, or an iCloud Shared Album with Public Website on), copy its link and paste it on the <strong>Photos</strong> tab. After the trip, approved players who are logged in get <span class="ui">Add your photos</span> on the homepage.</p>`
+            a: `<p>Make a shared album (Google Photos with Collaborate on, or an iCloud Shared Album with Public Website on), copy its link and paste it on the <strong>Photos</strong> tab. Approved players who are logged in then get <span class="ui">Trip photos</span> at the bottom of Live scores, and after the trip <span class="ui">Add your photos</span> on the homepage.</p>`
         }
     ];
 
@@ -852,9 +889,10 @@
         'bookie#ledger-panel': ['settle-up', 'pay-venmo', 'your-net', 'venmo-handle', 'never-settled', 'record-result'],
         tracker: ['start-round', 'enter-scores', 'no-signal', 'sync-status', 'fix-score', 'picked-up', 'tracker-marks', 'done-scoring', 'live-read'],
         'tracker#setup': ['who-scores', 'start-round', 'practice-round', 'no-signal', 'enter-scores', 'formats'],
-        'tracker#score': ['enter-scores', 'picked-up', 'fix-score', 'tracker-marks', 'sync-status', 'no-signal', 'two-phones', 'done-scoring'],
-        'tracker#card': ['tracker-marks', 'fix-score', 'done-scoring', 'sync-status'],
-        'tracker#board': ['live-where', 'live-read', 'live-table', 'official-cup', 'formats', 'offline-open'],
+        'tracker#score': ['enter-scores', 'picked-up', 'fix-score', 'tracker-marks', 'hole-info', 'match-card', 'sync-status', 'no-signal', 'two-phones', 'done-scoring', 'make-bet'],
+        'tracker#card': ['tracker-marks', 'fix-score', 'hole-info', 'done-scoring', 'sync-status'],
+        'tracker#board': ['live-where', 'live-read', 'match-card', 'live-table', 'official-cup', 'trip-wrap', 'formats', 'photos', 'offline-open'],
+        'tracker#match': ['match-card', 'live-read', 'tracker-marks', 'official-cup', 'formats'],
         messages: ['messages-how', 'messages-unsend', 'messages-limits', 'messages-locked', 'messages-private', 'notifications-on'],
         rules: ['handicap-strokes', 'house-rules', 'gimme', 'formats', 'win-cup', 'teams'],
         privacy: ['privacy-who', 'privacy-change', 'messages-private', 'notifications-off'],
@@ -887,8 +925,27 @@
             dates: (trip.dates && trip.dates.label) || 'the trip dates',
             tz: trip.timeZoneName || 'trip',
             inbox: (B.alerts && B.alerts.to) || 'brosbeforeboges@lokdit.net',
-            host: location.host || 'the site'
+            host: location.host || 'the site',
+            toWin: points(B.cup && B.cup.pointsToWin) || 'more than half the points',
+            tees: tees(B)
         };
+    }
+    // ": Composite tees at Cholla, Purple tees at Saguaro, …" for the Cup rounds' courses (some
+    // courses sit under a club's options), or nothing when none has tees set
+    function tees(B) {
+        const all = (B.courses || []).flatMap(c => [c].concat(c.options || []));
+        const list = Object.keys(B.roundCourses || {}).map(k => {
+            const c = all.find(x => x && x.id === B.roundCourses[k]);
+            return c && c.teeName ? `${c.teeName} at ${c.shortName || c.name}` : '';
+        }).filter(Boolean);
+        return list.length ? `: ${[...new Set(list)].join(', ')}` : '';
+    }
+    // 10.5 → "10½ points"
+    function points(v) {
+        const n = Number(v);
+        if (!(n > 0)) return '';
+        const whole = Math.floor(n);
+        return `${n - whole === 0.5 ? `${whole || ''}½` : n} points`;
     }
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     function fill(html) {
@@ -918,7 +975,8 @@
     }
     // This page's picks: its open tab's list (#score, #ledger-panel, …) when it has one
     function pageTopics(page) {
-        const hash = decodeHash(location.hash.slice(1));
+        // "#match=2-…" (a match's scorecard on Live scores) uses the list for "#match"
+        const hash = decodeHash(location.hash.slice(1)).split('=')[0];
         const ids = (hash && PAGE_TOPICS[`${page}#${hash}`]) || PAGE_TOPICS[page] || [];
         return ids.map(id => TOPICS.find(t => t.id === id)).filter(Boolean);
     }

@@ -12,22 +12,55 @@
     <link rel="stylesheet" href="style.css?v=2027.13">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;900&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        html { scroll-padding-top: calc(var(--hdr, 72px) + var(--holehead, 100px) + 12px); }
-        /* Secondary text that still reads in full sun (brighter than --text-muted, softer than --text-main) */
-        :root { --text-soft: #dacfc1; --bar-bg: rgba(14, 11, 9, 0.98); }
+        /* ==================================================================================
+           Keep score & Live scores: a light page (cream paper, white cards, dark ink) so it reads
+           in full Arizona sun. The header and the bottom tabs stay black like the rest of the site.
+           Only this page uses the --tk- tokens. style.css's dark tokens are left as they are, so
+           the header, menu, bell, help panel and toasts look the same as on every other page.
+           ================================================================================== */
+        :root {
+            --font-heading: 'Fraunces', Georgia, serif; /* the logo and panel titles, as on the homepage */
+            --tk-paper: #f4efe5;
+            --tk-paper-2: #ebe3d4;
+            --tk-card: #fffdf9;
+            --tk-ink: #1c1712;
+            --tk-ink-2: #4a4136;
+            --tk-muted: #665c4f;
+            --tk-line: #e2d9c9;
+            --tk-line-2: #cdbfa8;
+            --tk-dark: #15110d;
+            --tk-on-dark: #f7f0e4;
+            --tk-on-dark-2: #d3c6b1;
+            --tk-gold: #f5b82e;
+            --tk-gold-2: #e9a215;
+            --tk-gold-ink: #7d5100;
+            --tk-gold-tint: #fbefd2;
+            --tk-gold-line: #ead08f;
+            --tk-green: #0b6e4f;
+            --tk-green-ink: #08664a;
+            --tk-green-tint: #e2f2ea;
+            --tk-green-line: #b3dcc8;
+            --tk-blue: #1f4fb8;
+            --tk-blue-tint: #e6ecf9;
+            --tk-blue-line: #bccaee;
+            --tk-red: #b42318;
+            --tk-red-tint: #fae7e3;
+            --tk-red-line: #efbfb7;
+            --tk-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+            --tk-shadow: 0 1px 2px rgba(45, 33, 18, 0.06), 0 4px 14px rgba(45, 33, 18, 0.06);
+            --bar-bg: var(--tk-paper);
+        }
 
-        /* A slim header so the hole and the players get the room (home-screen mode draws under the status bar) */
-        .site-header { padding: calc(12px + env(safe-area-inset-top)) 0 12px; background: rgba(14, 11, 9, 0.97); }
+        html { scroll-padding-top: calc(var(--hdr, 72px) + var(--holehead, 100px) + 12px); background: var(--tk-paper); }
+        body { background: var(--tk-paper); }
+
+        /* A slim, solid header so the hole and the players get the room (home-screen mode draws under the status bar) */
+        .site-header { padding: calc(12px + env(safe-area-inset-top)) 0 12px; background: var(--tk-dark); }
         .site-header .logo { font-size: 1.4rem; line-height: 1.6; white-space: nowrap; }
         /* The logo goes home, the only one-tap way back in home-screen mode (like The Bookie's). Padding
-           makes it a 44px target and the matching negative margins let that reach into the header's own
-           padding, so the wordmark sits where it always did and the header keeps its height wherever
-           the menu button is hidden (wider than 768px: desktop, a phone on its side), leaving the scoring
-           room below it alone. 1.6em = the logo's line, set just above. */
+           makes it a 44px target and the matching negative margins keep the header's height. */
         .site-header .logo-link {
             display: block; color: inherit;
             padding-block: calc((44px - 1.6em) / 2);
@@ -38,35 +71,42 @@
             max-width: 720px;
             margin: 0 auto;
             padding: calc(var(--hdr, 72px) + 14px) 16px calc(110px + env(safe-area-inset-bottom));
+            color: var(--tk-ink);
         }
+        .tracker .accent { color: var(--tk-green-ink); }
+        .tracker a:not([class]) { color: var(--tk-green-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
         .nowrap { white-space: nowrap; }
-
         .view[hidden] { display: none !important; }
 
         .panel {
-            background: rgba(28, 22, 18, 0.85);
-            border: 1px solid var(--glass-border);
+            background: var(--tk-card);
+            border: 1px solid var(--tk-line);
             border-radius: 18px;
             padding: 18px;
             margin-bottom: 14px;
+            box-shadow: var(--tk-shadow);
         }
 
         .view h2 {
-            font-family: var(--font-heading);
-            font-size: 1.6rem;
-            margin: 0 0 4px;
+            font-family: var(--tk-display);
+            font-size: 1.85rem;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -0.01em;
+            margin: 0 0 6px;
+            color: var(--tk-ink);
         }
 
-        .muted { color: var(--text-muted); }
-        .small { font-size: 0.85rem; }
+        .muted { color: var(--tk-muted); }
+        .small { font-size: 0.875rem; }
         .eyebrow {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             font-weight: 800;
             letter-spacing: 0.12em;
             text-transform: uppercase;
-            color: var(--accent-gold);
+            color: var(--tk-gold-ink);
         }
 
         .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -79,66 +119,63 @@
             min-height: 48px;
             padding: 12px 18px;
             border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main, #fff);
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
             font: inherit;
             font-weight: 700;
             text-decoration: none;
             cursor: pointer;
             touch-action: manipulation;
         }
-
         .t-btn:disabled { opacity: 0.55; cursor: wait; }
-        /* Dark labels on light emerald and gold, so they pass 4.5:1 at both ends of the gradient (in sun too) */
-        .t-btn.primary { background: linear-gradient(135deg, #34d399, var(--accent-emerald)); border: none; color: #04261a; }
-        .t-btn.gold { background: linear-gradient(135deg, var(--accent-gold), #f59e0b); border: none; color: #1a1208; }
+        .t-btn.primary { background: var(--tk-green); border-color: transparent; color: #fff; }
+        .t-btn.gold { background: linear-gradient(135deg, var(--tk-gold), var(--tk-gold-2)); border-color: transparent; color: #1a1208; }
         .t-btn.ghost { background: transparent; }
         .t-btn.block { width: 100%; }
-        .t-btn.small { min-height: 44px; padding: 8px 12px; font-size: 0.85rem; border-radius: 12px; }
+        .t-btn.small { min-height: 44px; padding: 8px 14px; font-size: 0.875rem; border-radius: 12px; }
 
-        .t-btn:focus-visible, .chip:focus-visible, .seg button:focus-visible, .hole-strip button:focus-visible,
-        .step:focus-visible, .score-value:focus-visible, .match-pick:focus-visible, .keypad button:focus-visible {
-            outline: 2px solid var(--accent-gold);
-            outline-offset: 2px;
-        }
+        /* Focus rings that show on cream (style.css's gold ring is for dark pages) */
+        .app-page .tracker :focus-visible, .app-page .sheet :focus-visible { outline: 3px solid var(--tk-ink); outline-offset: 2px; }
+        .app-page .hole-head :focus-visible { outline-color: var(--tk-gold); }
 
-        /* Setup */
+        /* ---------- Setup ---------- */
         .seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
         .seg button {
-            min-height: 56px;
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text-muted);
+            min-height: 58px;
+            border-radius: 14px;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-paper);
+            color: var(--tk-ink);
             font: inherit;
-            font-weight: 700;
+            font-weight: 800;
             line-height: 1.15;
             cursor: pointer;
         }
-        .seg button small { display: block; font-weight: 600; font-size: 0.8rem; opacity: 0.85; }
-        .seg button[aria-pressed="true"] { border-color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); color: var(--accent-gold); }
+        .seg button small { display: block; font-weight: 600; font-size: 0.8rem; color: var(--tk-muted); }
+        .seg button[aria-pressed="true"] { background: var(--tk-dark); border-color: var(--tk-dark); color: var(--tk-on-dark); }
+        .seg button[aria-pressed="true"] small { color: var(--tk-on-dark-2); }
 
         /* A round's format (setup and the board): the rules' name, what it is, no handicap strokes, and a
            link to its section of the rules */
         #setup-body .fmt-line { margin-top: 12px; }
-        .fmt-line strong { color: #fff; white-space: nowrap; }
-        .board-meta .fmt-line { margin: 2px 0; color: var(--text-soft); font-size: 0.85rem; line-height: 1.5; }
-        .fmt-link { position: relative; white-space: nowrap; font-weight: 700; color: var(--accent-emerald); }
+        .fmt-line { color: var(--tk-ink-2); }
+        .fmt-line strong { color: var(--tk-ink); white-space: nowrap; }
+        .board-meta .fmt-line { margin: 2px 0; font-size: 0.875rem; line-height: 1.5; }
+        .fmt-link { position: relative; white-space: nowrap; font-weight: 700; color: var(--tk-green-ink); }
         .fmt-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-        .fmt-link:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; border-radius: 4px; }
         /* 44px tall under a finger, without spreading the lines apart */
         .fmt-link::after { content: ''; position: absolute; left: -6px; right: -6px; top: 50%; height: 44px; margin-top: -22px; }
 
-        .field-label { display: block; font-weight: 700; margin: 16px 0 8px; }
+        .field-label { display: block; font-weight: 800; margin: 16px 0 8px; }
         .t-select {
             width: 100%;
             min-height: 48px;
             padding: 10px 12px;
             border-radius: 12px;
-            border: 1px solid var(--glass-border);
-            background: rgba(14, 11, 9, 0.6);
-            color: #fff;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
             font-size: 16px;
         }
 
@@ -152,72 +189,87 @@
             min-height: 64px;
             padding: 12px 14px;
             border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.03);
-            color: #fff;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
             font: inherit;
+            font-weight: 700;
             text-align: left;
             cursor: pointer;
         }
-        .match-pick .vs { color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
+        .match-pick .vs { color: var(--tk-muted); font-size: 0.8rem; font-weight: 700; }
         .match-pick .side-b { text-align: right; }
-        .match-pick[aria-pressed="true"] { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); box-shadow: inset 0 0 0 1px var(--accent-emerald); }
-        .match-pick .tag { grid-column: 1 / -1; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
-        .match-pick .tag.mine { color: var(--accent-emerald); }
+        .match-pick[aria-pressed="true"] { border-color: var(--tk-green); background: var(--tk-green-tint); box-shadow: inset 0 0 0 1px var(--tk-green); }
+        .match-pick .tag { grid-column: 1 / -1; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tk-muted); }
+        .match-pick .tag.mine { color: var(--tk-green-ink); }
 
-        .team-1 { color: #7fb2ff; }
-        .team-2 { color: #ff8f86; }
+        .team-1 { color: var(--tk-blue); }
+        .team-2 { color: var(--tk-red); }
 
         .chips { display: flex; flex-wrap: wrap; gap: 8px; }
         .chip {
             min-height: 44px;
             padding: 8px 14px;
             border-radius: 99px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.03);
-            color: var(--text-muted);
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink-2);
             font: inherit;
             font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
         }
-        .chip[aria-pressed="true"] { border-color: var(--accent-emerald); color: #fff; background: rgba(16, 185, 129, 0.14); }
-        .chip-team { width: 100%; margin: 12px 0 4px; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+        .chip[aria-pressed="true"] { border-color: var(--tk-green); color: var(--tk-ink); background: var(--tk-green-tint); box-shadow: inset 0 0 0 1px var(--tk-green); }
+        .chip-team { width: 100%; margin: 12px 0 4px; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 
         details.more { margin-top: 14px; }
-        details.more summary { cursor: pointer; color: var(--accent-emerald); font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+        details.more summary { cursor: pointer; color: var(--tk-green-ink); font-weight: 700; min-height: 44px; display: flex; align-items: center; }
 
         /* Solid behind its content (the "Scoring 4: …" line never sits over a match card); the fade lives
            in a strip above the bar and lets taps through */
         .start-bar {
             position: sticky;
-            bottom: calc(76px + env(safe-area-inset-bottom));
+            /* Tucked just under the bottom tabs' top edge (they're about 74.5px tall), so no sliver shows */
+            bottom: calc(74px + env(safe-area-inset-bottom));
             z-index: 5;
-            padding-top: 10px;
+            padding: 10px 0 6px;
             background: var(--bar-bg);
         }
-        .start-bar::before, .next-bar:not(:empty)::before {
+        /* Gold, like the next-hole button: gold is "tap this next" on every tracker screen */
+        .start-bar #start-btn { min-height: 56px; font-size: 1.1rem; }
+        .start-bar #start-btn[hidden] { display: none; }
+        /* Singles day, one match picked: "your group also has Match 4..." above Start */
+        .singles-check { margin-bottom: 10px; }
+        .singles-check p { margin: 0 0 10px; }
+        .singles-check .btn-row .t-btn { flex: 1 1 auto; }
+        /* The round's course as a line of text; another course is behind "Playing a different course?" */
+        .setup-course { margin: 0; line-height: 1.5; }
+        .setup-course strong { display: block; font-weight: 800; }
+        .setup-course .sc-tees { display: block; color: var(--tk-ink-2); font-size: 0.9rem; }
+        details.course-other { margin-top: 4px; }
+        details.course-other .field-label { margin-top: 4px; }
+        .start-bar::before, .next-bar.ready::before {
             content: '';
             position: absolute;
             left: 0;
             right: 0;
             bottom: 100%;
-            height: 24px;
-            background: linear-gradient(to top, var(--bar-bg), rgba(14, 11, 9, 0));
+            height: 20px;
+            background: linear-gradient(to top, var(--bar-bg), rgba(244, 239, 229, 0));
             pointer-events: none;
         }
 
         .notice {
             padding: 12px 14px;
-            border-radius: 12px;
-            background: rgba(251, 191, 36, 0.08);
-            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 14px;
+            background: var(--tk-gold-tint);
+            border: 1px solid var(--tk-gold-line);
             line-height: 1.5;
             margin-bottom: 14px;
         }
-        .notice.error { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.35); }
+        .notice.error { background: var(--tk-red-tint); border-color: var(--tk-red-line); }
 
-        /* Score */
+        /* ---------- Score ---------- */
         .score-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
         .score-top > div:first-child { min-width: 0; }
         /* One line on the Score view, so the rows never jump when the sync chip's text changes length */
@@ -228,182 +280,188 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            min-height: 32px;
+            min-height: 30px;
             padding: 4px 10px;
             border-radius: 99px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            background: rgba(16, 185, 129, 0.12);
-            color: var(--accent-emerald);
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            font-size: 0.78rem;
+            font-weight: 800;
+            background: var(--tk-green-tint);
+            color: var(--tk-green-ink);
+            border: 1px solid var(--tk-green-line);
         }
-        .sync.pending { background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border-color: rgba(251, 191, 36, 0.35); }
-        .sync.problem { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+        .sync.pending { background: var(--tk-gold-tint); color: var(--tk-gold-ink); border-color: var(--tk-gold-line); }
+        .sync.problem { background: var(--tk-red-tint); color: var(--tk-red); border-color: var(--tk-red-line); }
         .sync.wrap { white-space: normal; flex-shrink: 1; }
         a.sync { position: relative; z-index: 7; text-decoration: none; }
         /* "Log in to send N scores" is a link: a 44px tall hit area around the slim chip */
         a.sync::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 44px; margin-top: -20px; }
 
+        /* The hole: a dark bar that stays under the header as the page scrolls. The wrapper's cream
+           backing (reaching up into the gap above, and fading out below) keeps cards from showing
+           around the bar's rounded corners as they slide under it. */
+        .hole-head-wrap { position: sticky; top: var(--hdr, 72px); z-index: 6; margin-top: -8px; padding-top: 8px; background: var(--tk-paper); }
+        .hole-head-wrap::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px; background: linear-gradient(to bottom, var(--tk-paper), rgba(244, 239, 229, 0)); pointer-events: none; }
         .hole-head {
-            position: sticky;
-            top: var(--hdr, 72px);
-            z-index: 6;
             display: grid;
-            grid-template-columns: 56px 1fr 56px;
+            grid-template-columns: 52px minmax(0, 1fr) 52px;
             align-items: center;
             gap: 8px;
             padding: 10px;
-            border-radius: 18px;
-            background: #14100d;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+            border-radius: 24px;
+            background: var(--tk-dark);
+            color: var(--tk-on-dark);
+            box-shadow: 0 8px 22px rgba(30, 20, 8, 0.22);
         }
         .hole-head .step-hole {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.06);
-            color: #fff;
-            font-size: 1.5rem;
-            cursor: pointer;
-        }
-        .hole-head .step-hole:disabled { opacity: 0.3; cursor: default; }
-        .hole-title { text-align: center; }
-        .hole-title h2 { display: block; margin: 0; font-family: var(--font-heading); font-size: 1.7rem; line-height: 1.1; color: #fff; }
-        .hole-title h2:focus { outline: none; }
-        .hole-title h2:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
-        .hole-title span { color: var(--text-soft); font-size: 0.9rem; }
-        .hole-title .hole-hint { display: block; color: var(--text-soft); font-size: 0.85rem; line-height: 1.35; margin-top: 2px; }
-
-        .hole-strip {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding: 10px 2px 6px;
-            scrollbar-width: none;
-            scroll-snap-type: x proximity;
-        }
-        .hole-strip::-webkit-scrollbar { display: none; }
-        .hole-strip button {
-            flex: 0 0 44px;
-            height: 44px;
-            border-radius: 10px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.03);
-            color: var(--text-muted);
-            font: inherit;
-            font-weight: 700;
-            cursor: pointer;
-            scroll-snap-align: center;
-            position: relative;
-        }
-        .hole-strip button.done { background: rgba(16, 185, 129, 0.16); color: #d1fae5; border-color: rgba(16, 185, 129, 0.35); }
-        .hole-strip button.part::after {
-            content: '';
-            position: absolute;
-            left: 50%;
-            bottom: 5px;
-            width: 5px;
-            height: 5px;
-            margin-left: -2.5px;
+            width: 52px;
+            height: 52px;
             border-radius: 50%;
-            background: var(--accent-gold);
+            border: none;
+            background: var(--tk-on-dark);
+            color: var(--tk-dark);
+            font-size: 1.7rem;
+            line-height: 1;
+            padding-bottom: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
         }
-        .hole-strip button[aria-current="true"] { border: 2px solid var(--accent-gold); color: #fff; }
-
-        /* Wide screens: all 18 holes fit, no hidden scrolling */
-        @media (min-width: 700px) {
-            .hole-strip { overflow: visible; }
-            .hole-strip button { flex: 1 1 0; min-width: 0; }
+        .hole-head .step-hole:disabled { opacity: 0.25; cursor: default; }
+        .hole-head .step-hole.ready { background: linear-gradient(135deg, var(--tk-gold), var(--tk-gold-2)); color: #1a1208; }
+        .hole-title { text-align: center; min-width: 0; }
+        .hole-title h2 { margin: 0; font-size: inherit; line-height: 1; }
+        .hole-title h2:focus { outline: none; }
+        /* Tap the hole number to jump to any hole */
+        .hole-jump {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 14px;
+            background: transparent;
+            color: var(--tk-on-dark);
+            font-family: var(--tk-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
         }
+        .hole-jump .caret { font-family: var(--font-body); font-size: 0.75rem; color: var(--tk-gold); }
+        .hole-facts { display: block; color: var(--tk-on-dark-2); font-size: 0.9rem; line-height: 1.35; font-variant-numeric: tabular-nums; }
+        .hole-facts b { color: var(--tk-on-dark); font-weight: 700; }
+        .hole-title .hole-hint { display: block; color: var(--tk-on-dark-2); font-size: 0.82rem; line-height: 1.35; margin-top: 2px; }
 
-        .status-lines { display: grid; gap: 6px; margin: 2px 0 10px; }
+        /* 18 slim bars: scored, partly scored, and the hole you're on (the gap splits the nines) */
+        .hole-progress { display: flex; gap: 3px; margin: 10px 4px 10px; }
+        .hole-progress span { flex: 1 1 0; height: 6px; border-radius: 99px; background: var(--tk-line); }
+        .hole-progress span:nth-child(10) { margin-left: 6px; }
+        .hole-progress span.part { background: #edc66f; }
+        .hole-progress span.done { background: var(--tk-green); }
+        .hole-progress span.cur { background: var(--tk-dark); transform: scaleY(1.7); }
+
+        /* How each match stands. A whole card opens the match's scorecard. */
+        .status-lines { display: grid; gap: 6px; margin: 0 0 10px; }
         .status-lines:empty { display: none; }
         .status-line {
             display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            font-size: 1rem;
-            align-items: baseline;
-        }
-        .status-line b { white-space: nowrap; font-size: 1.12rem; font-weight: 800; }
-        /* Tinted in the colour of whoever's ahead (no tint when it's all square) */
-        .status-line.lead-t1 { background: rgba(96, 165, 250, 0.12); border-color: rgba(96, 165, 250, 0.4); border-left: 4px solid #60a5fa; }
-        .status-line.lead-t2 { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.4); border-left: 4px solid #f87171; }
-
-        .unit {
-            display: grid;
-            grid-template-columns: 1fr auto;
             align-items: center;
             gap: 6px;
-            padding: 12px 10px;
-            margin-bottom: 8px;
+            min-height: 44px;
+            padding: 4px 8px 4px 4px;
             border-radius: 16px;
-            background: rgba(28, 22, 18, 0.85);
-            border: 1px solid var(--glass-border);
-            border-left: 5px solid var(--glass-border);
+            background: var(--tk-card);
+            border: 1px solid var(--tk-line);
+            color: inherit;
+            text-decoration: none;
         }
-        .unit.t1 { border-left-color: #60a5fa; }
-        .unit.t2 { border-left-color: #f87171; }
-        .unit-name { font-weight: 800; font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
-        .unit-sub { color: var(--text-soft); font-size: 0.92rem; line-height: 1.4; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sl-lines { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+        .sl-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 11px; font-size: 0.95rem; }
+        .sl-line .sl-what { color: var(--tk-ink-2); min-width: 0; }
+        .sl-line b { white-space: nowrap; font-size: 1.02rem; font-weight: 800; }
+        .sl-line.lead-t1 { background: var(--tk-blue-tint); }
+        .sl-line.lead-t2 { background: var(--tk-red-tint); }
+        .sl-go { flex: none; color: var(--tk-muted); font-size: 1.3rem; line-height: 1; }
+
+        .unit {
+            position: relative;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 12px 12px 17px;
+            margin-bottom: 8px;
+            border-radius: 18px;
+            background: var(--tk-card);
+            border: 1px solid var(--tk-line);
+            box-shadow: var(--tk-shadow);
+            overflow: hidden;
+        }
+        .unit::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--tk-line-2); }
+        .unit.t1::before { background: var(--tk-blue); }
+        .unit.t2::before { background: var(--tk-red); }
+        .unit-main { min-width: 0; }
+        .unit-name { font-weight: 800; font-size: 1.1rem; line-height: 1.25; overflow-wrap: anywhere; }
+        /* This hole's result, then the round so far, each on its own line of fixed height, so a tap
+           never moves the rows below */
+        .unit-sub { margin-top: 3px; color: var(--tk-ink-2); font-size: 0.9rem; line-height: 1.35; }
+        .unit-sub .u-res, .unit-sub .u-tot { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unit-sub .u-res { font-weight: 800; color: var(--tk-ink); }
+        .unit-sub .u-res:empty::before { content: '–'; font-weight: 400; color: var(--tk-muted); }
+        .unit-sub .u-sep { display: none; color: var(--tk-line-2); }
         /* Each part drops out whole when the line is too long, so a number is never cut ("thru 1…" for 13) */
         .unit-sub .seg { display: inline-block; }
-        .unit-sub .pend { color: var(--accent-gold); font-weight: 700; }
-        /* This hole's result ("Bogey · 1 pt"), in the same colours as the score's mark */
-        .unit-sub .hole-res { font-weight: 800; color: var(--text-main); }
-        .unit-sub .hole-res.birdie { color: #6ee7b7; }
-        .unit-sub .hole-res.eagle, .unit-sub .hole-res.albatross, .unit-sub .hole-res.ace { color: #fde68a; }
-        .unit-sub .hole-res.double, .unit-sub .hole-res.worse { color: #fca5a5; }
-        .unit-sub .res-sep { color: rgba(255, 255, 255, 0.25); }
+        .unit-sub .u-res.birdie { color: var(--tk-green-ink); }
+        .unit-sub .u-res.eagle, .unit-sub .u-res.albatross, .unit-sub .u-res.ace { color: var(--tk-gold-ink); }
+        .unit-sub .u-res.double, .unit-sub .u-res.worse { color: var(--tk-red); }
 
         .stepper { display: flex; align-items: center; gap: 6px; }
         .step {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-paper);
+            color: var(--tk-ink);
             font-size: 1.7rem;
+            font-weight: 500;
             line-height: 1;
+            padding-bottom: 3px;
             cursor: pointer;
             touch-action: manipulation;
             display: inline-flex;
             align-items: center;
             justify-content: center;
         }
-        .step.minus { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
-        .step.plus { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
-        .step:active { transform: scale(0.94); }
-        .step:disabled { opacity: 0.3; }
+        .step:active { transform: scale(0.94); background: var(--tk-paper-2); }
+        .step:disabled { opacity: 0.35; }
         .score-value {
-            --shape: 40px;
+            --shape: 42px;
             position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 52px;
-            height: 52px;
+            width: 58px;
+            height: 58px;
             padding: 0;
-            border-radius: 14px;
-            border: 1px dashed rgba(255, 255, 255, 0.25);
-            background: rgba(255, 255, 255, 0.04);
-            color: #fff;
-            font-family: var(--font-heading);
+            border-radius: 16px;
+            border: 1.5px dashed var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
+            font-family: var(--tk-display);
             font-size: 1.9rem;
-            font-weight: 900;
+            font-weight: 700;
+            font-variant-numeric: lining-nums;
             cursor: pointer;
         }
-        .score-value:not(.set) { color: rgba(255, 255, 255, 0.55); font-weight: 600; }
-        .score-value.set { border-style: solid; }
-        .score-value.birdie { border-color: #34d399; color: #6ee7b7; }
-        .score-value.eagle, .score-value.albatross, .score-value.ace { border-color: #fbbf24; color: #fde68a; }
-        .score-value.bogey { border-color: rgba(248, 113, 113, 0.6); }
-        .score-value.double, .score-value.worse { border-color: #f87171; color: #fca5a5; }
+        .score-value:not(.set) { color: var(--tk-muted); font-weight: 500; }
+        .score-value.set { border-style: solid; box-shadow: 0 1px 3px rgba(45, 33, 18, 0.08); }
+        .score-value.birdie { color: var(--tk-green-ink); border-color: var(--tk-green-line); }
+        .score-value.eagle, .score-value.albatross, .score-value.ace { color: var(--tk-gold-ink); border-color: var(--tk-gold-line); }
+        .score-value.double, .score-value.worse { color: var(--tk-red); border-color: var(--tk-red-line); }
 
         /* Scorecard marks, so a birdie doesn't depend on seeing green: birdie = circle, eagle or better =
            double circle, bogey = square, double bogey or worse = double square, par = no mark.
@@ -416,7 +474,7 @@
             line-height: 1;
             border: 2px solid transparent;
         }
-        .score-value .digit { min-width: var(--shape); height: var(--shape); padding: 0 3px; font-size: 1.7rem; }
+        .score-value .digit { min-width: var(--shape); height: var(--shape); padding: 0 3px; font-size: 1.75rem; }
         .birdie .digit, .eagle .digit, .albatross .digit, .ace .digit { border-color: currentColor; border-radius: 50%; }
         .bogey .digit, .double .digit, .worse .digit { border-color: currentColor; border-radius: 5px; }
         .eagle .digit::after, .albatross .digit::after, .ace .digit::after,
@@ -438,42 +496,42 @@
             position: absolute;
             top: -4px;
             right: -4px;
-            width: 11px;
-            height: 11px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            background: var(--accent-gold);
-            box-shadow: 0 0 0 2.5px #1c1612;
+            background: var(--tk-gold-2);
+            box-shadow: 0 0 0 2.5px var(--tk-card);
         }
-        /* Only while this round's scores are slow to send. Hidden, it keeps its room, so nothing on the
-           page moves when it comes or goes (a thumb reaching for the last player stays on target) */
-        .legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-soft); font-size: 0.85rem; line-height: 1.4; }
-        .legend.off { visibility: hidden; }
-        /* Once the hole is in, the Hole N+1 bar has the spot (the legend would sit half under the tabs) */
-        .next-bar:not(:empty) + .legend { visibility: hidden; }
-        .legend-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-gold); }
 
-        /* Next hole: once every score on the hole is in, the button pins itself just above the
-           bottom tabs (like the setup screen's Start bar), so it's under the thumb on every hole */
-        .next-bar { margin-top: 6px; }
-        .next-bar:not(:empty) {
+        /* Next hole: always under the last player ("4 of 18" and a quiet Hole 5 button). Once every
+           score on the hole is in, it turns gold and pins itself just above the bottom tabs, so it's
+           under the thumb on every hole. */
+        .next-bar { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 4px 0; }
+        .next-bar .nb-count { flex: none; white-space: nowrap; color: var(--tk-muted); font-size: 0.9rem; font-weight: 700; }
+        /* One line always, so the pinned bar never grows over the last player (and, as a last resort,
+           clipped rather than widening the page) */
+        .next-bar .t-btn { flex: 0 0 auto; margin-left: auto; min-width: 0; overflow: hidden; min-height: 52px; padding: 12px 20px; font-size: 1.05rem; white-space: nowrap; transition: opacity 0.2s; }
+        .next-bar.ready {
             position: sticky;
-            bottom: calc(76px + env(safe-area-inset-bottom));
+            bottom: calc(74px + env(safe-area-inset-bottom));
             z-index: 5;
             padding: 10px 0 6px;
             background: var(--bar-bg);
         }
-        .next-bar .t-btn { min-height: 56px; font-size: 1.1rem; transition: opacity 0.2s; }
+        .next-bar.ready .t-btn { flex: 1 1 auto; min-height: 56px; font-size: 1.1rem; }
         /* It just appeared where the thumb is: a quick second tap meant for a stepper can't land on it */
         .next-bar.arming { pointer-events: none; }
         .next-bar.arming .t-btn { opacity: 0.6; }
-        .hole-head .step-hole.ready { background: linear-gradient(135deg, var(--accent-gold), #f59e0b); border-color: transparent; color: #1a1208; }
+        /* The gold dot in the sync chip once scores are slow to send: the same dot as on the scores */
+        .legend-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--tk-gold-2); box-shadow: 0 0 0 1.5px var(--tk-card); }
+        .score-links { margin-top: 14px; justify-content: space-between; }
 
-        /* Keypad sheet */
+        /* ---------- Sheets (score keypad, jump to hole) ---------- */
         .sheet-backdrop {
             position: fixed;
             inset: 0;
             z-index: 3000;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(20, 14, 8, 0.45);
             display: flex;
             align-items: flex-end;
             justify-content: center;
@@ -482,55 +540,78 @@
         .sheet {
             width: 100%;
             max-width: 520px;
-            padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
-            border-radius: 24px 24px 0 0;
-            background: #1c1612;
-            border: 1px solid var(--glass-border);
+            padding: 12px 16px calc(18px + env(safe-area-inset-bottom));
+            border-radius: 26px 26px 0 0;
+            background: var(--tk-card);
+            color: var(--tk-ink);
+            box-shadow: 0 -10px 30px rgba(20, 14, 8, 0.2);
         }
-        .sheet h3 { margin: 0 0 12px; font-size: 1.1rem; }
+        .sheet::before { content: ''; display: block; width: 40px; height: 5px; border-radius: 99px; background: var(--tk-line-2); margin: 0 auto 12px; }
+        .sheet h3 { margin: 0 0 12px; font-family: var(--tk-display); font-size: 1.25rem; font-weight: 700; color: var(--tk-ink); }
         .keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
         .keypad button {
-            height: 56px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 60px;
             border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            font: inherit;
-            font-size: 1.3rem;
-            font-weight: 800;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-paper);
+            color: var(--tk-ink);
+            font-family: var(--tk-display);
+            font-size: 1.45rem;
+            font-weight: 700;
+            line-height: 1;
             cursor: pointer;
+            position: relative;
         }
-        .keypad button.par { border-color: var(--accent-emerald); color: #6ee7b7; }
-        .keypad button:disabled { opacity: 0.25; }
-        .keypad .wide { grid-column: span 5; font-size: 1rem; }
+        .keypad button small { font-family: var(--font-body); font-size: 0.68rem; font-weight: 700; color: var(--tk-muted); }
+        .keypad button.par { background: var(--tk-dark); border-color: var(--tk-dark); color: var(--tk-on-dark); }
+        .keypad button.par small { color: var(--tk-on-dark-2); }
+        .keypad button:disabled { opacity: 0.3; }
+        .keypad .wide { grid-column: 1 / -1; height: 52px; font-family: var(--font-body); font-size: 1rem; font-weight: 700; }
+        .keypad.jump { grid-template-columns: repeat(6, 1fr); }
+        .keypad.jump button.done { background: var(--tk-green-tint); border-color: var(--tk-green-line); color: var(--tk-green-ink); }
+        .keypad.jump button.part::after { content: ''; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--tk-gold-2); }
+        .keypad.jump button[aria-current="true"] { background: var(--tk-dark); border-color: var(--tk-dark); color: var(--tk-on-dark); }
+        .keypad.jump button[aria-current="true"] small { color: var(--tk-on-dark-2); }
 
-        /* Card */
-        .card-scroll { overflow-x: auto; border-radius: 14px; border: 1px solid var(--glass-border); margin-bottom: 14px; }
+        /* ---------- Scorecard grid (the Card, and a match's scorecard) ---------- */
+        .card-scroll { overflow-x: auto; border-radius: 16px; border: 1px solid var(--tk-line); background: var(--tk-card); margin-bottom: 12px; box-shadow: var(--tk-shadow); }
         /* A narrow first-name column leaves the hole cells room (and nothing scrolls sideways at 320px) */
         table.card { border-collapse: collapse; width: 100%; table-layout: fixed; font-variant-numeric: tabular-nums; }
-        table.card th, table.card td { padding: 0; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 0.92rem; }
-        table.card th { color: var(--text-soft); font-weight: 700; padding: 8px 2px; }
+        table.card th, table.card td { padding: 0; text-align: center; border-bottom: 1px solid var(--tk-line); font-size: 0.92rem; }
+        table.card tbody tr:last-child > * { border-bottom: 0; }
+        table.card thead th { background: var(--tk-dark); color: var(--tk-on-dark); font-weight: 800; padding: 8px 1px; }
         table.card .name {
             position: sticky;
             left: 0;
             z-index: 1;
-            width: 56px;
-            padding: 6px 1px 6px 6px;
+            width: 64px;
+            padding: 6px 1px 6px 8px;
             text-align: left;
-            background: #1c1612;
+            background: var(--tk-card);
             font-weight: 700;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
+            letter-spacing: -0.01em;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        table.card tbody th.name { color: var(--text-main); }
+        table.card thead th.name { background: var(--tk-dark); color: var(--tk-on-dark-2); font-size: 0.78rem; letter-spacing: 0.04em; }
+        table.card tbody th.name { color: var(--tk-ink); }
+        table.card tr.t1 th.name { box-shadow: inset 4px 0 0 var(--tk-blue); }
+        table.card tr.t2 th.name { box-shadow: inset 4px 0 0 var(--tk-red); }
         table.card .name .pair { display: block; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-        table.card tr.par td:not(.name) { padding: 8px 2px; }
-        table.card tr.par td { color: var(--accent-emerald); font-weight: 700; }
-        table.card td.sum { font-weight: 800; padding: 8px 2px; background: rgba(255, 255, 255, 0.03); }
-        table.card td.sum, table.card th.sum { width: 30px; }
-        table.card td button {
+        table.card tr.info td, table.card tr.par td { padding: 5px 1px; background: var(--tk-paper); }
+        table.card tr.info td { color: var(--tk-ink-2); font-size: 0.72rem; }
+        table.card tr.par td { color: var(--tk-green-ink); font-weight: 800; font-size: 0.86rem; }
+        table.card tr.info td.name, table.card tr.par td.name { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.02em; color: var(--tk-ink-2); }
+        table.card td.sum { font-weight: 800; padding: 8px 1px; background: var(--tk-paper); }
+        table.card td.sum, table.card th.sum { width: 32px; }
+        table.card td button, table.card td .cell {
             position: relative;
             display: flex;
             align-items: center;
@@ -541,14 +622,16 @@
             padding: 0;
             border: none;
             background: none;
-            color: #fff;
+            color: var(--tk-ink);
             font: inherit;
             font-weight: 700;
             cursor: pointer;
         }
-        table.card td button.birdie { color: #6ee7b7; }
-        table.card td button.eagle, table.card td button.albatross, table.card td button.ace { color: #fde68a; }
-        table.card td button.double, table.card td button.worse { color: #fca5a5; }
+        table.card td .cell { min-height: 40px; cursor: default; }
+        table.card td .empty { color: var(--tk-line-2); }
+        table.card td .birdie { color: var(--tk-green-ink); }
+        table.card td .eagle, table.card td .albatross, table.card td .ace { color: var(--tk-gold-ink); }
+        table.card td .double, table.card td .worse { color: var(--tk-red); }
         table.card .digit { min-width: 26px; height: 26px; padding: 0 3px; border-width: 1.5px; }
         table.card .digit::after { inset: 1.5px; border-width: 1.5px; }
         table.card .digit.two { padding: 0 4px; font-size: 0.8rem; }
@@ -561,156 +644,299 @@
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: var(--accent-gold);
-            box-shadow: 0 0 0 1.5px #14100d;
+            background: var(--tk-gold-2);
+            box-shadow: 0 0 0 1.5px var(--tk-card);
         }
-        .card-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: -4px 2px 14px; color: var(--text-soft); font-size: 0.85rem; }
+        /* A match's margin row: who's up after each hole; the shading is the side that took the hole */
+        table.card tr.margin td, table.card tr.margin th.name { background: var(--tk-paper); }
+        table.card tr.margin td { font-size: 0.72rem; font-weight: 800; padding: 7px 0; color: var(--tk-muted); }
+        table.card tr.margin th.name { font-size: 0.74rem; color: var(--tk-ink-2); }
+        table.card tr.margin td.w1 { background: var(--tk-blue-tint); }
+        table.card tr.margin td.w2 { background: var(--tk-red-tint); }
+        table.card tr.margin .l1 { color: var(--tk-blue); }
+        table.card tr.margin .l2 { color: var(--tk-red); }
+        table.card tr.margin .l0 { color: var(--tk-ink-2); }
+
+        .card-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 2px 2px 14px; color: var(--tk-ink-2); font-size: 0.85rem; }
         .card-key .k { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
         .card-key .digit { width: 16px; height: 16px; border-width: 1.5px; }
         .card-key .digit::after { inset: 1.5px; border-width: 1.5px; }
-        .card-key .birdie .digit { color: #6ee7b7; }
-        .card-key .eagle .digit { color: #fde68a; }
-        .card-key .bogey .digit { color: #fff; }
-        .card-key .double .digit { color: #fca5a5; }
+        .card-key .birdie .digit { color: var(--tk-green-ink); }
+        .card-key .eagle .digit { color: var(--tk-gold-ink); }
+        .card-key .bogey .digit { color: var(--tk-ink); }
+        .card-key .double .digit { color: var(--tk-red); }
+        .card-key .k.wide { white-space: normal; }
 
+        /* Totals: one row per player (or pair) under the card */
+        .totals-panel { padding: 6px 14px; }
+        .totals { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+        .totals th, .totals td { padding: 10px 5px; border-bottom: 1px solid var(--tk-line); text-align: right; white-space: nowrap; }
+        .totals th:first-child, .totals td:first-child { text-align: left; white-space: normal; padding-left: 0; }
+        .totals th:last-child, .totals td:last-child { padding-right: 0; }
+        .totals thead th { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tk-muted); }
+        .totals tbody tr:last-child td { border-bottom: 0; }
+        .totals td.big { font-weight: 800; }
+        .totals .tt-name { font-weight: 800; display: block; line-height: 1.3; }
+        .totals .tt-sub { display: block; font-size: 0.78rem; color: var(--tk-muted); }
+        .totals tr.t1 .tt-name { color: var(--tk-blue); }
+        .totals tr.t2 .tt-name { color: var(--tk-red); }
 
-        /* Board */
-        .round-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; scrollbar-width: none; }
+        /* ---------- Live scores ---------- */
+        /* The Cup: both teams' points from finished matches, what wins it, and a bar */
+        .cup-hero {
+            padding: 16px 14px 14px;
+            margin-bottom: 14px;
+            border-radius: 22px;
+            background: var(--tk-card);
+            border: 1px solid var(--tk-line);
+            box-shadow: var(--tk-shadow);
+            text-align: center;
+            overflow: hidden;
+        }
+        .cup-hero p { margin: 0; }
+        .cup-hero .ch-label { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tk-gold-ink); }
+        .ch-score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 10px 0 12px; }
+        .ch-team { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px 10px; border-radius: 18px; border: 1px solid transparent; }
+        .ch-team.t1 { background: var(--tk-blue-tint); border-color: var(--tk-blue-line); color: var(--tk-blue); }
+        .ch-team.t2 { background: var(--tk-red-tint); border-color: var(--tk-red-line); color: var(--tk-red); }
+        .ch-name { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+        .ch-num { font-family: var(--tk-display); font-size: 3.6rem; font-weight: 700; line-height: 0.95; font-variant-numeric: lining-nums; }
+        .ch-mid { display: flex; flex-direction: column; align-items: center; min-width: 54px; }
+        .ch-towin { font-family: var(--tk-display); font-size: 1.7rem; font-weight: 700; line-height: 1; color: var(--tk-ink); }
+        .ch-towin-l { margin-top: 3px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tk-muted); }
+        .ch-vs { font-family: var(--tk-display); font-style: italic; font-size: 1.2rem; color: var(--tk-muted); }
+        .ch-track { position: relative; margin: 0 2px; }
+        .ch-bar { position: relative; height: 10px; border-radius: 99px; background: var(--tk-paper-2); overflow: hidden; }
+        .ch-bar span { position: absolute; top: 0; bottom: 0; }
+        .ch-bar .b1 { left: 0; background: var(--tk-blue); }
+        .ch-bar .p1 { background: #a9bce9; }
+        .ch-bar .b2 { right: 0; background: var(--tk-red); }
+        .ch-bar .p2 { background: #e8aaa1; }
+        /* Past the middle wins */
+        .ch-track::after { content: ''; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--tk-ink); opacity: 0.55; }
+        .ch-line { margin-top: 10px !important; color: var(--tk-ink-2); font-size: 0.9rem; line-height: 1.45; text-wrap: balance; }
+        .ch-line b { color: var(--tk-ink); white-space: nowrap; }
+        .cup-hero.decided .ch-line { font-family: var(--tk-display); font-size: 1.15rem; color: var(--tk-ink); }
+        .ch-official { margin: 12px -14px -14px !important; padding: 10px 14px; background: var(--tk-gold-tint); border-top: 1px solid var(--tk-gold-line); font-size: 0.86rem; font-weight: 600; color: var(--tk-ink); }
+        .ch-official b { font-weight: 800; }
+        .cup-official-only { padding: 0; }
+        .cup-official-only .ch-official { margin: 0 !important; border-top: 0; }
+        /* Who's ahead on banked points, and what the leader still needs */
+        .ch-lead { display: inline-block; margin: -2px 0 12px !important; padding: 5px 12px; border-radius: 99px; background: var(--tk-paper-2); color: var(--tk-ink-2); font-size: 0.85rem; font-weight: 800; line-height: 1.3; }
+        .ch-lead.t1 { background: var(--tk-blue-tint); color: var(--tk-blue); }
+        .ch-lead.t2 { background: var(--tk-red-tint); color: var(--tk-red); }
+
+        /* Trip wrap-up: once the Cup is won, the standouts from the scorecards */
+        .trip-wrap { padding: 16px; margin-bottom: 14px; border-radius: 22px; background: var(--tk-card); border: 1px solid var(--tk-gold-line); box-shadow: var(--tk-shadow); }
+        .trip-wrap p { margin: 0; }
+        .tw-label { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tk-gold-ink); }
+        .tw-title { margin: 4px 0 10px; font-family: var(--tk-display); font-size: 1.35rem; font-weight: 700; line-height: 1.25; text-wrap: balance; }
+        .tw-list { margin: 0; display: grid; gap: 0; }
+        .tw-list > div { display: grid; grid-template-columns: 7.2em minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--tk-line); }
+        .tw-list dt { color: var(--tk-muted); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 2px; }
+        .tw-list dd { margin: 0; font-weight: 700; line-height: 1.4; }
+        .tw-note { margin-top: 8px !important; color: var(--tk-muted); font-size: 0.8rem; }
+
+        /* Before a round has scores: a slim photo of its course */
+        .course-band { position: relative; margin: 0 0 12px; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 1; min-height: 104px; background: var(--tk-paper-2); }
+        .course-band[hidden] { display: none; }
+        .course-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .course-band figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 14px 4px; background: linear-gradient(to top, rgba(16, 12, 8, 0.72), rgba(16, 12, 8, 0)); }
+        .course-band .cb-name { display: inline-flex; align-items: flex-end; min-height: 44px; padding-bottom: 6px; color: #fff; font-family: var(--tk-display); font-size: 1.3rem; font-weight: 700; line-height: 1.15; text-decoration: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45); }
+        .course-band .cb-credit { position: absolute; top: 6px; right: 8px; max-width: 70%; padding: 2px 7px; border-radius: 6px; background: rgba(16, 12, 8, 0.45); color: rgba(255, 255, 255, 0.92); font-size: 0.66rem; line-height: 1.35; text-align: right; }
+
+        /* Share and photos, at the foot of Live scores */
+        .board-links { margin-top: 14px; }
+        .board-links .btn-row .t-btn { flex: 1 1 160px; }
+        .board-links p { margin: 8px 2px 0; }
+
+        /* The rounds side by side, as wide as the page; with many rounds they scroll sideways */
+        .round-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(84px, 1fr); gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin-bottom: 10px; scrollbar-width: none; }
+        .round-tabs::-webkit-scrollbar { display: none; }
         .round-tabs button {
-            flex: 0 0 auto;
-            min-height: 44px;
-            padding: 8px 16px;
-            border-radius: 99px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text-muted);
+            min-width: 0;
+            min-height: 52px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
             font: inherit;
-            font-weight: 700;
+            font-weight: 800;
+            line-height: 1.2;
+            text-align: left;
             cursor: pointer;
         }
-        .round-tabs button[aria-pressed="true"] { border-color: var(--accent-gold); color: var(--accent-gold); background: rgba(251, 191, 36, 0.12); }
-
-        /* The official Cup total (season live): one slim row above the round tabs. The score keeps
-           to one line; on a narrow phone "(official)" drops under "The Cup" instead. */
-        .cup-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: center;
-            gap: 2px 12px;
-            padding: 10px 14px;
-            margin-bottom: 12px;
-            border-radius: 14px;
-            background: rgba(251, 191, 36, 0.06);
-            border: 1px solid rgba(251, 191, 36, 0.28);
-        }
-        .cup-row .cup-name { font-size: 0.85rem; font-weight: 800; line-height: 1.3; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-gold); }
-        .cup-row .cup-title { white-space: nowrap; }
-        .cup-row .cup-off { white-space: nowrap; font-weight: 700; letter-spacing: 0.02em; text-transform: none; }
-        .cup-row .cup-score { justify-self: end; font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; white-space: nowrap; }
-        .cup-row .cup-score b { font-weight: 900; }
-        .cup-row .cup-dash { margin: 0 7px; color: var(--text-soft); }
-        .cup-row .cup-note { grid-column: 1 / -1; color: var(--text-soft); font-size: 0.82rem; line-height: 1.4; }
-        @media (max-width: 400px) {
-            .cup-row { padding: 8px 12px; margin-bottom: 10px; }
-            .cup-row .cup-dash { margin: 0 5px; }
-        }
-        /* Short phones: the round's own score has to land above the bottom tabs, so the note gives way
-           ("official" still says it) */
-        @media (max-width: 400px) and (max-height: 760px) {
-            .cup-row .cup-note { display: none; }
-        }
-
-        /* The round's points: the live projection, big, with what's banked under it */
-        .board-head { text-align: center; padding: 16px 14px; }
-        .board-head p { margin: 0; }
-        .board-head .bh-label { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-gold); }
-        .board-head.final .bh-label { color: var(--accent-emerald); }
-        .board-head .bh-score { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; column-gap: 10px; margin: 8px 0 6px; }
-        .board-head .bh-team { font-size: 0.9rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
-        .board-head .bh-team:last-child { text-align: left; }
-        .board-head .bh-num { font-family: var(--font-heading); font-size: 3.2rem; font-weight: 900; line-height: 1; }
-        .board-head .bh-dash { font-family: var(--font-heading); font-size: 2rem; font-weight: 700; line-height: 1; color: var(--text-soft); }
-        .board-head .bh-line { color: var(--text-soft); font-size: 0.95rem; line-height: 1.45; }
-        .board-head .bh-line b { color: var(--text-main); white-space: nowrap; }
-        .board-head .bh-stake { font-family: var(--font-heading); font-size: 1.3rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
-        .board-empty { margin: 0; color: var(--text-soft); line-height: 1.5; text-wrap: balance; }
-        .board-head .board-empty { margin-top: 6px; }
-        /* Phones: "Banked so far" and "N points on the line" on their own lines, no stray dot */
-        @media (max-width: 440px) {
-            .board-head .bh-line > span { display: block; }
-            .board-head .bh-line .bh-sep { display: none; }
-        }
-        @media (max-width: 360px) {
-            .board-head .bh-score { column-gap: 8px; }
-            .board-head .bh-num { font-size: 2.75rem; }
-        }
-
-        .match-card {
-            padding: 12px 14px;
-            margin-bottom: 10px;
-            border-radius: 16px;
-            background: rgba(28, 22, 18, 0.85);
-            border: 1px solid var(--glass-border);
-        }
-        .match-card.mine { border-color: rgba(16, 185, 129, 0.55); }
-        .match-card .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-weight: 700; }
-        .match-card .sides div:last-child { text-align: right; }
-        .match-card .lead { margin-top: 8px; display: grid; gap: 4px; }
-        .pill {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 99px;
-            font-size: 0.85rem;
-            font-weight: 800;
-            background: rgba(255, 255, 255, 0.06);
-        }
-        .pill.t1 { background: rgba(96, 165, 250, 0.16); color: #bfdbfe; }
-        .pill.t2 { background: rgba(248, 113, 113, 0.16); color: #fecaca; }
-        .pill.final { box-shadow: inset 0 0 0 1px currentColor; }
-
-        .standings { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-        .standings th, .standings td { padding: 10px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: right; }
-        .standings th:nth-child(2), .standings td:nth-child(2) { text-align: left; }
-        .standings th { color: var(--text-soft); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
-        .standings td.lead-col { font-weight: 800; }
-        .standings .nm-short { display: none; }
-        /* Narrow phones: a little less padding, "David O." for the name, and the Strokes column (to par
-           says the same) gives way, so each player keeps to one line and nothing scrolls sideways */
-        @media (max-width: 400px) {
-            .board-table { padding: 14px 12px; }
-            .standings th, .standings td { padding: 10px 4px; }
-            .standings .nm-full { display: none; }
-            .standings .nm-short { display: inline; }
-        }
-        @media (max-width: 380px) {
-            .standings .col-strokes { display: none; }
-        }
-        @media (max-width: 360px) {
-            .standings th, .standings td { padding: 10px 3px; }
-            .standings th { letter-spacing: 0.02em; }
-        }
-        /* Team points tables carry an extra Pts column: on phones Strokes gives way so a name fits on one line */
-        @media (max-width: 440px) {
-            .standings.has-pts .col-strokes { display: none; }
-        }
+        .round-tabs button small { display: block; font-weight: 600; font-size: 0.78rem; color: var(--tk-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .round-tabs button[aria-pressed="true"] { background: var(--tk-dark); border-color: var(--tk-dark); color: var(--tk-on-dark); }
+        .round-tabs button[aria-pressed="true"] small { color: var(--tk-on-dark-2); }
 
         .board-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
         /* A long format line wraps inside its column, so Updated/Refresh keeps its place on wide screens */
         .board-meta > div:first-child { flex: 1 1 280px; min-width: 0; }
+        .board-meta .bm-where { color: var(--tk-ink-2); font-size: 0.875rem; }
+        .board-meta .btn-row { align-items: center; }
 
-        /* Bottom tabs: always on screen */
-        .tracker-nav { display: flex; }
-        .tracker-nav .bottom-nav-btn { flex: 1; min-height: 52px; padding: 5px 4px; text-decoration: none; font-size: 0.8rem; }
+        /* This round's Cup points: the live projection, with what's banked */
+        .board-head { text-align: center; padding: 14px; }
+        .board-head p { margin: 0; }
+        .board-head .bh-label { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tk-gold-ink); }
+        .board-head.final .bh-label { color: var(--tk-green-ink); }
+        .board-head .bh-score { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; column-gap: 10px; margin: 6px 0 4px; }
+        .board-head .bh-team { font-size: 0.85rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
+        .board-head .bh-team:last-child { text-align: left; }
+        .board-head .bh-num { font-family: var(--tk-display); font-size: 2.4rem; font-weight: 700; line-height: 1; }
+        .board-head .bh-dash { font-family: var(--tk-display); font-size: 1.6rem; line-height: 1; color: var(--tk-muted); }
+        .board-head .bh-line { color: var(--tk-ink-2); font-size: 0.9rem; line-height: 1.45; }
+        .board-head .bh-line b { color: var(--tk-ink); white-space: nowrap; }
+        .board-head .bh-stake { font-family: var(--tk-display); font-size: 1.2rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+        .board-empty { margin: 0; color: var(--tk-ink-2); line-height: 1.5; text-wrap: balance; }
+        .board-head .board-empty { margin-top: 6px; }
+
+        /* A match on the board: both sides, how it stands in the middle; the card opens its scorecard */
+        .match-card {
+            display: block;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border-radius: 18px;
+            background: var(--tk-card);
+            border: 1px solid var(--tk-line);
+            box-shadow: var(--tk-shadow);
+            color: var(--tk-ink);
+            text-decoration: none;
+        }
+        .match-card.mine { border-color: var(--tk-green); box-shadow: inset 0 0 0 1px var(--tk-green), var(--tk-shadow); }
+        /* "MATCH 3 · 7:30 AM · YOURS" as a small caption; the whole card opens the scorecard (›) */
+        .mc-cap { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tk-muted); }
+        .mc-cap .mine-tag { color: var(--tk-green-ink); }
+        .mc-go { font-size: 1.2rem; line-height: 1; letter-spacing: 0; color: var(--tk-muted); }
+        /* One row: both sides with how it stands between them */
+        .mc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
+        .mc-side { font-weight: 800; line-height: 1.3; overflow-wrap: break-word; }
+        .mc-side span { display: block; }
+        /* Measured after each draw (fitMatchCards): a name that doesn't fit stacks the card instead */
+        .match-card:not(.stack) .mc-side span { white-space: nowrap; overflow: hidden; }
+        .mc-side.a { padding-left: 10px; border-left: 4px solid var(--tk-line-2); }
+        .mc-side.b { padding-right: 10px; border-right: 4px solid var(--tk-line-2); text-align: right; }
+        .mc-side.t1 { border-color: var(--tk-blue); }
+        .mc-side.t2 { border-color: var(--tk-red); }
+        .mc-status { display: grid; gap: 4px; justify-items: center; max-width: 170px; }
+        /* Stacked: both sides across the top, how it stands on its own row */
+        .match-card.stack .mc-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 8px; }
+        .match-card.stack .mc-status { grid-column: 1 / -1; grid-row: 2; max-width: none; }
+        .pill {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 0.82rem;
+            font-weight: 800;
+            line-height: 1.25;
+            text-align: center;
+            background: var(--tk-paper-2);
+            color: var(--tk-ink-2);
+        }
+        .pill.t1 { background: var(--tk-blue-tint); color: var(--tk-blue); }
+        .pill.t2 { background: var(--tk-red-tint); color: var(--tk-red); }
+        /* Finished: a solid chip */
+        .pill.final { background: var(--tk-ink-2); color: #fff; }
+        .pill.final.t1 { background: var(--tk-blue); }
+        .pill.final.t2 { background: var(--tk-red); }
+
+        /* The player table: this round, or the whole trip */
+        .board-table { padding: 14px 14px 6px; }
+        .bt-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+        .bt-title { margin: 0; font-family: var(--tk-display); font-size: 1.3rem; font-weight: 700; }
+        .bt-note { margin: 0 0 6px; color: var(--tk-muted); font-size: 0.8rem; }
+        .scope { display: inline-flex; padding: 3px; border-radius: 13px; background: var(--tk-paper-2); }
+        .scope button { min-height: 44px; padding: 6px 14px; border: 0; border-radius: 10px; background: transparent; color: var(--tk-ink-2); font: inherit; font-weight: 800; font-size: 0.85rem; cursor: pointer; }
+        .scope button[aria-pressed="true"] { background: var(--tk-dark); color: var(--tk-on-dark); }
+
+        .standings { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+        .standings th, .standings td { padding: 10px 6px; border-bottom: 1px solid var(--tk-line); text-align: right; }
+        .standings th:nth-child(2), .standings td:nth-child(2) { text-align: left; }
+        .standings th { color: var(--tk-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+        .standings tbody tr:last-child td { border-bottom: 0; }
+        .standings td.pos { color: var(--tk-muted); font-weight: 700; }
+        /* Records, points and positions keep to one line ("3-0-1", not "3-0-" over "1") */
+        .standings td:not(.nm) { white-space: nowrap; }
+        .standings td.nm { font-weight: 800; }
+        .standings td.lead-col { font-weight: 800; }
+        .standings .row-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: -10px 0; color: inherit; text-decoration: none; }
+        .standings .row-link::after { content: '›'; color: var(--tk-muted); font-weight: 700; }
+        .standings .nm-short { display: none; }
+
+        /* ---------- A match's scorecard ---------- */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 0 16px 0 12px;
+            margin-bottom: 12px;
+            /* The same shape as the other buttons (round pills are for status only) */
+            border-radius: 12px;
+            border: 1px solid var(--tk-line-2);
+            background: var(--tk-card);
+            color: var(--tk-ink);
+            font-weight: 800;
+            text-decoration: none;
+        }
+        .back-link span[aria-hidden] { font-size: 1.3rem; line-height: 1; margin-top: -2px; }
+        .mv-sub { margin: 0 0 10px; color: var(--tk-ink-2); }
+        .mv-sides { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-bottom: 10px; }
+        .mv-sides .mc-side { font-size: 1.05rem; }
+        .mv-status { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+        .mv-status .pill { font-size: 0.9rem; padding: 6px 12px; }
+
+        /* ---------- Bottom tabs: always on screen, black like the header ---------- */
+        .tracker-nav { display: flex; background: var(--tk-dark); -webkit-backdrop-filter: none; backdrop-filter: none; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        .tracker-nav .bottom-nav-btn { flex: 1; min-height: 52px; padding: 4px 4px 3px; gap: 3px; text-decoration: none; font-size: 0.76rem; color: #b9ab97; }
         .tracker-nav .bottom-nav-btn span:last-child { white-space: nowrap; }
-        .tracker-nav .bottom-nav-btn[aria-current="page"] { color: var(--accent-gold); }
+        .tracker-nav .bottom-nav-btn[aria-current="page"] { color: var(--tk-gold); }
         .tracker-nav .bottom-nav-btn[hidden] { display: none; }
-        .tracker-nav .ico { font-size: 1.25rem; line-height: 1; }
+        .tracker-nav .ico { display: block; width: 24px; height: 24px; }
+        .tracker-nav .ico svg { display: block; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
         .toast-container { bottom: calc(84px + env(safe-area-inset-bottom)); }
 
+        /* Wide screens: the hole progress and steppers get a little more room */
+        @media (min-width: 700px) {
+            .hole-progress span { height: 7px; }
+        }
         @media (min-width: 900px) {
             .tracker { padding-top: 120px; }
-            .tracker-nav { left: 50%; transform: translateX(-50%); max-width: 720px; border-radius: 18px 18px 0 0; border-left: 1px solid var(--glass-border); border-right: 1px solid var(--glass-border); }
+            .tracker-nav { left: 50%; transform: translateX(-50%); max-width: 720px; border-radius: 18px 18px 0 0; }
+        }
+
+        /* Phones */
+        @media (max-width: 440px) {
+            .board-head .bh-line > span { display: block; }
+            .board-head .bh-line .bh-sep, .ch-line .ch-sep { display: none; }
+            .ch-line > span { display: block; }
+            /* The course name is on the line under the tabs: on a phone each tab keeps to its day */
+            .round-tabs .rt-course { display: none; }
+            /* A match card on a phone: a narrower middle, so the names keep their room */
+            .match-card { padding: 10px 12px; }
+            .mc-row { gap: 8px; }
+            .mc-status { max-width: 132px; }
+            .mc-status .pill { padding: 5px 8px; font-size: 0.78rem; }
+            .match-card.stack .mc-status .pill { padding: 5px 10px; font-size: 0.82rem; }
+            .tw-list > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+        }
+        @media (max-width: 400px) {
+            .board-table { padding: 12px 12px 4px; }
+            .standings th, .standings td { padding: 10px 4px; }
+            .standings .nm-full { display: none; }
+            .standings .nm-short { display: inline; }
+            .ch-num { font-size: 3.1rem; }
+            .totals th, .totals td { padding: 10px 4px; }
+        }
+        @media (max-width: 380px) {
+            .standings .col-strokes { display: none; }
+        }
+        /* Team points tables carry an extra Pts column: on phones Strokes gives way so a name fits on one line */
+        @media (max-width: 440px) {
+            .standings.has-pts .col-strokes { display: none; }
         }
 
         /* Short phones (an SE, or Safari with its toolbars showing): four players and their − score +
@@ -724,38 +950,55 @@
             .score-top { margin-bottom: 4px; }
             .score-top .eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.08em; }
             .score-top .sync { min-height: 28px; padding: 2px 9px; }
-            .hole-head { grid-template-columns: 48px 1fr 48px; gap: 6px; padding: 6px 8px; border-radius: 16px; }
-            .hole-head .step-hole { width: 48px; height: 48px; border-radius: 12px; font-size: 1.35rem; }
-            /* "Hole 4  Par 4 · max 6" on one line, the hint under it */
-            .hole-title { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; column-gap: 8px; }
-            .hole-title h2 { font-size: 1.45rem; }
-            .hole-title > span { line-height: 1.3; }
-            .hole-title .hole-hint { flex-basis: 100%; margin-top: 0; line-height: 1.3; }
-            .hole-strip { padding: 4px 2px 2px; }
+            .hole-head-wrap { margin-top: -4px; padding-top: 4px; }
+            .hole-head { grid-template-columns: 48px minmax(0, 1fr) 48px; gap: 6px; padding: 6px 8px; border-radius: 20px; }
+            /* The fade under the hole bar no deeper than the gap above the progress bars */
+            .hole-head-wrap::after { height: 5px; }
+            .hole-head .step-hole { width: 48px; height: 48px; font-size: 1.5rem; }
+            /* Still a 44px target: it reaches into the bar's padding instead of making the bar taller */
+            .hole-jump { font-size: 1.5rem; margin-block: -6px; }
+            .hole-facts { font-size: 0.82rem; line-height: 1.3; }
+            .hole-title .hole-hint { margin-top: 0; line-height: 1.3; font-size: 0.78rem; }
+            .hole-progress { margin: 6px 4px 6px; }
             .status-lines { gap: 4px; margin: 0 0 6px; }
-            .status-line { padding: 4px 10px; line-height: 1.35; }
-            .unit { padding: 6px 10px; margin-bottom: 5px; }
-            .unit-sub { margin-top: 1px; line-height: 1.35; }
-            .score-value { --shape: 38px; width: 48px; height: 48px; }
-            .next-bar:not(:empty) { padding: 6px 0 4px; }
-            .next-bar:not(:empty)::before { height: 12px; }
-            .next-bar .t-btn { min-height: 52px; }
-            .legend { margin-top: 4px; }
+            .sl-line { padding: 3px 8px; line-height: 1.35; }
+            /* This hole's result and the round so far share one line */
+            .unit { padding: 6px 10px 6px 15px; margin-bottom: 5px; border-radius: 16px; }
+            .unit-sub { margin-top: 1px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .unit-sub .u-res, .unit-sub .u-tot { display: inline; }
+            .unit-sub .u-sep { display: inline; }
+            .unit-sub .u-res:empty, .unit-sub .u-res:empty + .u-sep { display: none; }
+            .step { width: 48px; height: 48px; }
+            .score-value { --shape: 38px; width: 52px; height: 52px; }
+            .next-bar.ready { padding: 6px 0 4px; }
+            .next-bar.ready::before { height: 12px; }
+            .next-bar .t-btn { min-height: 48px; }
+            .next-bar.ready .t-btn { min-height: 52px; }
+            .start-bar #start-btn { min-height: 52px; }
         }
 
         @media (max-width: 360px) {
-            .step { width: 46px; height: 46px; }
+            /* Once the hole is in, the gold button gets the whole width ("Back to hole 10 →") */
+            .next-bar.ready .nb-count { display: none; }
+            /* "Match 4" and "Red leads 26–21 pts thru 8" keep to one line */
+            .sl-line { gap: 8px; font-size: 0.82rem; }
+            .sl-line .sl-what { white-space: nowrap; }
+            .sl-line b { font-size: 0.86rem; }
+            .step { width: 46px; height: 46px; border-radius: 13px; }
             .score-value { --shape: 36px; width: 50px; height: 50px; font-size: 1.6rem; }
             .score-value .digit { font-size: 1.5rem; }
-            .unit { padding: 12px 10px; }
-            .unit-name { font-size: 0.9rem; }
-            /* The hole head's middle gets the room, so the hint stays on one line */
-            .hole-head { grid-template-columns: 44px 1fr 44px; gap: 4px; }
+            .unit { padding: 12px 8px 12px 14px; }
+            .unit-name { font-size: 0.95rem; }
+            .stepper { gap: 4px; }
+            /* The hole head's middle gets the room, so the facts stay on one line */
+            .hole-head { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 4px; }
             .hole-head .step-hole { width: 44px; height: 44px; }
-            table.card .name { width: 50px; padding: 6px 0 6px 4px; font-size: 0.8rem; }
-            table.card td.sum, table.card th.sum { width: 27px; }
+            table.card .name { width: 54px; padding: 6px 0 6px 6px; font-size: 0.74rem; }
+            table.card td.sum, table.card th.sum { width: 29px; }
             table.card td.sum, table.card th.sum, table.card th { padding-left: 0; padding-right: 0; }
-            table.card td button { font-size: 0.85rem; }
+            table.card td button, table.card td .cell { font-size: 0.85rem; }
+            table.card tr.info td { font-size: 0.62rem; letter-spacing: -0.02em; }
+            table.card tr.margin td { font-size: 0.64rem; }
             table.card .digit { min-width: 21px; height: 21px; padding: 0 2px; }
             table.card .digit::after { inset: 1.25px; border-width: 1.25px; }
             /* A narrow "1" so a 10+ fits inside its inner ring */
@@ -763,11 +1006,23 @@
             table.card .digit.two::after { inset: 0.75px; border-width: 1px; }
             .score-value .digit.two { font-size: 1.25rem; }
             .card-key { gap: 6px 10px; font-size: 0.8rem; }
+            .standings th, .standings td { padding: 10px 3px; }
+            .standings th { letter-spacing: 0.02em; }
+            .ch-num { font-size: 2.75rem; }
+            .board-head .bh-score { column-gap: 8px; }
+            .board-head .bh-num { font-size: 2rem; }
+            .scope button { padding: 6px 10px; }
+            .round-tabs button { padding: 6px 10px; }
         }
         @media (max-width: 360px) and (max-height: 760px) {
-            .unit { padding: 6px 8px; }
+            .unit { padding: 6px 8px 6px 13px; margin-bottom: 4px; }
+            .hole-progress { margin: 5px 4px 4px; }
+            .score-top { margin-bottom: 3px; }
+            .hole-head-wrap { margin-top: -3px; padding-top: 3px; }
+            .hole-head-wrap::after { height: 4px; }
             .hole-head { padding: 6px; }
             .score-value { --shape: 36px; width: 46px; height: 46px; }
+            .step { width: 46px; height: 46px; }
         }
     </style>
     <link rel="icon" type="image/svg+xml" href="bbb-logo.svg">
@@ -814,14 +1069,21 @@
             <div id="card-body"></div>
         </section>
 
-        <!-- Board: every match, open to everyone -->
+        <!-- Board: the Cup and every match, open to everyone -->
         <section class="view" id="view-board" aria-labelledby="board-title" hidden>
             <h2 id="board-title">Live <span class="accent">scores</span></h2>
             <div id="board-body"><p class="muted">Loading…</p></div>
         </section>
+
+        <!-- One match, hole by hole (from Live scores or the Score view) -->
+        <section class="view" id="view-match" aria-labelledby="match-title" hidden>
+            <a class="back-link" id="match-back" href="#board"><span aria-hidden="true">‹</span> <span class="bl-text">Live scores</span></a>
+            <h2 id="match-title">Match <span class="accent">scorecard</span></h2>
+            <div id="match-body"><p class="muted">Loading…</p></div>
+        </section>
     </main>
 
-    <!-- Quick score picker -->
+    <!-- Quick score picker, and the jump-to-hole grid -->
     <div class="sheet-backdrop" id="keypad" hidden>
         <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="keypad-title">
             <h3 id="keypad-title">Score</h3>
@@ -830,23 +1092,24 @@
     </div>
 
     <nav class="bottom-nav tracker-nav" aria-label="Keep score and live scores">
-        <a class="bottom-nav-btn" href="#setup" data-view="setup"><span class="ico" aria-hidden="true">⛳</span><span>Keep score</span></a>
-        <a class="bottom-nav-btn" href="#score" data-view="score" hidden><span class="ico" aria-hidden="true">⛳</span><span>Score</span></a>
-        <a class="bottom-nav-btn" href="#card" data-view="card" hidden><span class="ico" aria-hidden="true">📋</span><span>Card</span></a>
-        <a class="bottom-nav-btn" href="#board" data-view="board"><span class="ico" aria-hidden="true">🏆</span><span>Live scores</span></a>
-        <a class="bottom-nav-btn" href="bookie.html"><span class="ico" aria-hidden="true">💵</span><span>Bookie</span></a>
+        <a class="bottom-nav-btn" href="#setup" data-view="setup"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 21V3.5"/><path d="M6 4h11.5l-2.6 3.75 2.6 3.75H6"/><path d="M3.5 21h6"/></svg></span><span>Keep score</span></a>
+        <a class="bottom-nav-btn" href="#score" data-view="score" hidden><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M7 12h3.5M8.75 10.25v3.5M13.5 12H17"/></svg></span><span>Score</span></a>
+        <a class="bottom-nav-btn" href="#card" data-view="card" hidden><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M3 14.75h18M9 4v16M15 4v16"/></svg></span><span>Card</span></a>
+        <a class="bottom-nav-btn" href="#board" data-view="board"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 16.5V21M7 3.5h10v5a5 5 0 0 1-10 0z"/><path d="M7 5.5H4.5v1a3 3 0 0 0 3 3M17 5.5h2.5v1a3 3 0 0 1-3 3"/></svg></span><span>Live scores</span></a>
+        <a class="bottom-nav-btn" href="bookie.html"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.7 9.4c-.4-1-1.4-1.6-2.7-1.6-1.6 0-2.6.8-2.6 2s1 1.8 2.6 2.1c1.6.3 2.7.9 2.7 2.2s-1.1 2.1-2.7 2.1c-1.4 0-2.4-.6-2.8-1.7M12 6.3v1.5M12 16.3v1.5"/></svg></span><span>Bookie</span></a>
     </nav>
 
     <div class="toast-container" role="status" aria-live="polite"></div>
     <div id="sync-live" class="sr-only" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
-    <script src="trip-config.js?v=2027.19"></script>
+    <script src="trip-config.js?v=2027.20"></script>
     <script src="push.js?v=2027.19"></script>
     <script src="bell.js?v=2027.2"></script>
-    <script src="help.js?v=2027.2"></script>
-    <script src="scoring.js?v=2027.11"></script>
-    <script src="round_tracker.js?v=2027.20"></script>
+    <script src="help.js?v=2027.3"></script>
+    <script src="scoring.js?v=2027.12"></script>
+    <script src="assets/photo-sizes.js?v=2027.3"></script>
+    <script src="round_tracker.js?v=2027.21"></script>
     <script>
         // Mobile menu: the nav slides in from the right below 768px
         (function () {

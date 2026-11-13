@@ -267,6 +267,11 @@ window.BBB = {
                     holePars: [4, 5, 4, 4, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 3, 5, 4],
                     holeYards: [394, 552, 450, 433, 391, 223, 457, 153, 446, 437, 261, 392, 391, 445, 461, 194, 582, 471],
                     yardsTeeName: 'Black tees',
+                    // The tees we play, hole by hole: Keep score shows them on each hole and on the card.
+                    // From the club's scorecard (men's handicaps).
+                    teeName: 'Gold tees',
+                    teeYards: [379, 509, 417, 390, 356, 187, 427, 143, 412, 390, 217, 358, 356, 410, 425, 161, 534, 439],
+                    holeHandicaps: [15, 13, 1, 3, 11, 5, 9, 17, 7, 12, 6, 2, 16, 8, 14, 18, 4, 10],
                     signatureHoles: [
                         { hole: 3, par: 4, yards: 450, blurb: '“Sand Hills” is the No. 1 handicap hole, with the out-of-bounds fence running along it. Bogey is a fine score.' },
                         { hole: 11, par: 3, yards: 261, blurb: '“The Big Battle” is a par 3 over a huge bunker, and it plays 217 even from the Golds. Walking off with a bogey counts as a small win.' },
@@ -344,6 +349,10 @@ window.BBB = {
             holePars: [4, 5, 3, 4, 3, 4, 4, 5, 4, 5, 3, 4, 4, 3, 4, 4, 5, 4],
             holeYards: [351, 588, 178, 469, 207, 436, 350, 605, 459, 566, 220, 390, 420, 177, 327, 472, 578, 432],
             yardsTeeName: 'Cholla tees',
+            // The tees we play, hole by hole (Keep score). From the club's scorecard.
+            teeName: 'Composite tees',
+            teeYards: [332, 574, 150, 389, 155, 371, 323, 558, 384, 538, 187, 361, 347, 159, 299, 374, 528, 407],
+            holeHandicaps: [13, 3, 17, 9, 15, 7, 11, 1, 5, 4, 16, 10, 12, 18, 14, 6, 2, 8],
             signatureHoles: [
                 { hole: 1, par: 4, yards: 351, blurb: 'An elevated opener that dares you to cut the corner over desert toward Red Mountain. Pull it off and it’s a flip wedge in.' },
                 { hole: 8, par: 5, yards: 605, blurb: 'The longest hole and No. 1 handicap: clear an arroyo off the tee, then play down to a green fronted by a stacked-rock wall, with the Superstition and Mazatzal ranges in view.' },
@@ -383,6 +392,10 @@ window.BBB = {
             holePars: [4, 4, 4, 5, 3, 4, 4, 5, 3, 4, 3, 4, 4, 5, 3, 4, 4, 4],
             holeYards: [469, 336, 416, 631, 178, 442, 331, 515, 137, 337, 197, 476, 470, 538, 255, 328, 402, 508],
             yardsTeeName: 'Saguaro tees',
+            // The tees we play, hole by hole (Keep score). From the club's scorecard.
+            teeName: 'Purple tees',
+            teeYards: [443, 299, 383, 609, 159, 406, 305, 498, 130, 322, 194, 461, 457, 527, 233, 315, 372, 490],
+            holeHandicaps: [5, 11, 9, 1, 15, 7, 13, 3, 17, 14, 18, 6, 8, 2, 16, 12, 10, 4],
             signatureHoles: [
                 { hole: 4, par: 5, yards: 631, blurb: 'The longest hole on the property and the No. 1 handicap, a true three-shotter aimed at a wall of blue mountains.' },
                 { hole: 13, par: 4, yards: 470, blurb: 'A dogleg left with a huge fairway and one bunker in the middle, about 280 out from the tips. This is the long-drive hole.' },
@@ -426,6 +439,11 @@ window.BBB = {
             holePars: [4, 3, 5, 4, 4, 4, 5, 3, 4, 4, 3, 4, 4, 5, 3, 5, 4, 4],
             holeYards: [393, 185, 556, 375, 328, 448, 604, 241, 438, 361, 194, 454, 393, 580, 245, 523, 445, 462],
             yardsTeeName: 'Black tees',
+            // The tees we play, hole by hole (Keep score). The club posts no card: yards and men's
+            // handicaps agree across GolfPass, AGI Golf and an older club card (where Verde was "Green").
+            teeName: 'Verde tees',
+            teeYards: [373, 160, 504, 352, 300, 413, 569, 210, 395, 336, 174, 419, 345, 541, 204, 488, 410, 437],
+            holeHandicaps: [5, 11, 17, 13, 15, 1, 7, 9, 3, 18, 12, 2, 14, 6, 8, 16, 4, 10],
             signatureHoles: [
                 { hole: 7, par: 5, yards: 604, blurb: 'The longest hole on the course, and it’s still 569 from the Verdes. Plan on three good ones to get there.' },
                 { hole: 13, par: 4, yards: 393, blurb: 'The resort singles this one out for its mix of low- and high-walled bunkers, and the green is tiered. Check the pin before you pick a club.' },
@@ -459,6 +477,9 @@ window.BBB = {
         // the Draft card shows captainsNote instead.
         captains: [],
         captainsNote: 'Captains will be selected soon',
+        // Live scores works out what wins the Cup from the matches (more than half the points) once
+        // every round's matchups are set. Until then it can show a target from here, e.g.
+        // pointsToWin: 10.5 (16 players) or 13 (20 players); it never names a winner from it.
         headline: 'Blue holds the hardware.',
         subheadline: 'Red wants revenge.',
         lede: 'Two captains, a draft, and three rounds of team match play. The losing side hears about it for twelve months.',
