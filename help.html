@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>Help | Bros before Boges</title>
-    <meta name="description" content="How to RSVP, pay your deposit, bet in The Bookie, keep score on the course and everything else on the Bros before Boges site.">
+    <meta name="description" content="How to RSVP, pay your deposit, bet in The Bookie, keep score on the course and everything else on the Bros before Boges site, with short how-to videos.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..700,0..100,0..1;1,9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -72,6 +72,28 @@
         }
         .help-copy:hover { color: var(--ink); }
         .help-sec .bbb-help-a > .help-copy { margin-top: 16px; }
+        /* The how-to videos (help.js VIDEOS): a card each, side by side when there's room */
+        .help-video-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+        .help-video {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin: 0;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .help-video[hidden] { display: none; }
+        .help-video:target { border-color: rgba(232, 184, 107, 0.6); }
+        .help-video video { display: block; width: 100%; max-width: 320px; height: auto; aspect-ratio: 9 / 16; margin: 0 auto; border-radius: 14px; background: #0b0907; }
+        .help-video-title { font-size: 1.3rem; font-weight: 500; }
+        .help-video-meta { margin-top: 4px; color: var(--ink-muted); font-size: 0.9rem; }
+        .help-video-about { margin-top: 8px; }
+        .help-video-steps { margin-top: 10px; }
+        .help-video-steps > summary { min-height: 44px; padding: 11px 0; color: var(--gold); font-weight: 600; cursor: pointer; }
+        .help-video-steps ol { margin: 4px 0 0 1.3em; color: var(--ink-muted); line-height: 1.5; }
+        .help-video-steps li + li { margin-top: 6px; }
         .help-more { margin-top: 48px; padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink-muted); }
         .help-more a { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
     </style>
@@ -200,7 +222,7 @@
         })();
     </script>
     <script src="trip-config.js?v=2027.20"></script>
-    <script src="help.js?v=2027.3"></script>
+    <script src="help.js?v=2027.4"></script>
     <script>
         if (window.BBBHelp) window.BBBHelp.renderPage(document.getElementById('main'));
     </script>

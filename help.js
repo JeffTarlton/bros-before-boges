@@ -13,6 +13,8 @@
           <a data-topic="id">…</a> opens another answer; class="ui" marks a button's label;
           <p class="tip"> is a green tip box
      k    extra words people might search for (optional)
+   VIDEOS are the how-to videos in assets/videos. help.html shows them as players at the top (the
+   'videos' section); the panel and search get their answers, which link to the player.
    PAGE_TOPICS picks the handful shown first on each page ("On The Bookie"), in order; a key like
    'tracker#score' is used while that tab is open. A section marked organizers: true shows only on
    the Admin page: players never see it in the panel, its search or help.html.
@@ -25,6 +27,7 @@
 (function () {
     // ---- the answers ----------------------------------------------------------------------------
     const SECTIONS = [
+        { id: 'videos', title: 'Videos: see how it works', blurb: 'One-minute walkthroughs, captioned, so you don’t need sound. They use sample players.' },
         { id: 'start', title: 'Getting started', blurb: 'New here? Start with these.' },
         { id: 'account', title: 'Your account and logging in', blurb: 'One player account for everything on the site.' },
         { id: 'rsvp', title: 'RSVP and the head count', blurb: 'Saying you’re in, spots and the waitlist.' },
@@ -43,7 +46,61 @@
         { id: 'admin', title: 'For organizers (Admin)', blurb: 'Only for the commissioner and organizers.', organizers: true }
     ];
 
+    // The how-to videos, filmed from the real pages with sample players (.claude/videos/source films
+    // them again after the screens change). Keyed by their answer's id below. New files? Bump
+    // VIDEO_V so phones fetch them, and the length and size with them.
+    const VIDEO_V = '2027.1';
+    const VIDEOS = {
+        'video-keep-score': {
+            title: 'Keep score', file: 'how-to-keep-score', length: '58 seconds', size: 'about 5 MB',
+            about: 'Starting your round, entering scores, your match’s scorecard and Live scores.',
+            steps: [
+                'Open Keep score from the homepage or the menu. Today’s round is already picked.',
+                'Your match is picked for you. Check it, then tap Start.',
+                'Each player has − score +. On an empty hole, + puts in par.',
+                'Or tap the score for a keypad. The keys near par are named.',
+                'When every score is in, the button turns gold. Tap it for the next hole.',
+                'Scores send as you go. No signal? They wait on the phone and send later.',
+                'Tap your match to see how it stands, hole by hole.',
+                'Back to scoring takes you back to the hole you’re on.',
+                'Live scores shows the Cup and every match, for the whole crew.'
+            ]
+        },
+        'video-bookie': {
+            title: 'The Bookie', file: 'how-to-use-the-bookie', length: '68 seconds', size: 'about 6 MB',
+            about: 'Making a bet, accepting a challenge, recording who won and settling up on Venmo.',
+            steps: [
+                'Side bets live in The Bookie. It’s the same login as Keep score.',
+                'Tap + to make a bet.',
+                'Pick the kind of bet and who you’re challenging.',
+                'Spell out the bet and the amount. Even means you both risk the same.',
+                'Check what each of you risks, then tap Post bet.',
+                'Jake’s phone gets a notification. The bet waits for him to accept.',
+                'It’s at the top, under Waiting on you. Jake taps Accept, and the bet is live.',
+                'After the round, either player taps Who won?',
+                'Pick the winner and tap Save result. The Ledger updates right away.',
+                'Settle up says who pays whom, netted to as few Venmos as possible.',
+                'Pay on Venmo, then tap Mark paid so it comes off the list.'
+            ]
+        }
+    };
+    const videoLink = id => `<p><a href="/help.html#${id}">Watch the video</a> (${VIDEOS[id].length}, ${VIDEOS[id].size})</p>`;
+
     const TOPICS = [
+        // ---- Videos (help.html shows these as the players themselves: VIDEOS above)
+        {
+            id: 'video-keep-score', s: 'videos', k: 'video videos watch tutorial tutorials demo demos walkthrough walkthroughs keep score scoring',
+            q: 'Is there a video on keeping score?',
+            a: `<p>Yes: a one-minute walkthrough of ${VIDEOS['video-keep-score'].about.charAt(0).toLowerCase() + VIDEOS['video-keep-score'].about.slice(1, -1)}. It’s captioned, so you don’t need sound, and it uses sample players.</p>
+                ${videoLink('video-keep-score')}`
+        },
+        {
+            id: 'video-bookie', s: 'videos', k: 'video videos watch tutorial tutorials demo demos walkthrough walkthroughs bookie bet betting',
+            q: 'Is there a video on The Bookie?',
+            a: `<p>Yes: a one-minute walkthrough of ${VIDEOS['video-bookie'].about.charAt(0).toLowerCase() + VIDEOS['video-bookie'].about.slice(1, -1)}. It’s captioned, so you don’t need sound, and it uses sample players.</p>
+                ${videoLink('video-bookie')}`
+        },
+
         // ---- Getting started
         {
             id: 'whats-here', s: 'start', k: 'about overview features what is this',
@@ -56,7 +113,8 @@
                 <li>Make side bets with the crew in <a href="/bookie.html">The Bookie</a>, then settle up on Venmo.</li>
                 <li><a href="/round_tracker.html#setup">Keep score</a> for your group on the course, and follow <a href="/round_tracker.html#board">Live scores</a>.</li>
                 <li>Message other players, and get notifications on your phone.</li>
-                </ul>`
+                </ul>
+                <p>Keep score and The Bookie each have a <a href="/help.html#sec-videos">one-minute video</a>.</p>`
         },
         {
             id: 'first-steps', s: 'start', k: 'new start begin setup invite signup first time',
@@ -383,7 +441,8 @@
                 </ol>
                 <p>A pool or prop is open for others to join right away. A challenge waits for the other player to accept.</p>
                 <p>Keeping score? <span class="ui">Bet on this match</span>, under the players, opens a head-to-head with your round and match filled in. In a team round, both of the other side are at the top of the list: pick which one you’re betting.</p>
-                <p class="tip">Signal dropped while posting? Tap <span class="ui">Post bet</span> again without changing anything. It won’t post twice.</p>`
+                <p class="tip">Signal dropped while posting? Tap <span class="ui">Post bet</span> again without changing anything. It won’t post twice.</p>
+                <p>Rather watch? <a data-topic="video-bookie">The Bookie video</a> shows a bet from start to finish.</p>`
         },
         {
             id: 'odds', s: 'bookie', k: 'odds line underdog favorite even 3:2 2:1 custom stake risk',
@@ -508,7 +567,8 @@
                 </ol>
                 <p>If another group already started the round, you join it, and any holes already entered for your group fill in.</p>
                 <p>On singles day a foursome is two matches. If only one is picked, Start asks about the other match in your group first: add it, or start with just yours.</p>
-                <p class="tip">“Start it today anyway?” means that round isn’t on today’s schedule. Tap Cancel unless the plan changed.</p>`
+                <p class="tip">“Start it today anyway?” means that round isn’t on today’s schedule. Tap Cancel unless the plan changed.</p>
+                <p>Rather watch? <a data-topic="video-keep-score">The Keep score video</a> starts a round and scores two holes.</p>`
         },
         {
             id: 'enter-scores', s: 'score', k: 'enter score stepper plus minus keypad next hole',
@@ -885,10 +945,10 @@
     // The handful each page shows first, most useful first
     const PAGE_TOPICS = {
         home: ['first-steps', 'rsvp-how', 'checklist', 'deposit', 'spots', 'golf-profile', 'notifications-on', 'home-screen', 'tee-times', 'whats-here'],
-        bookie: ['bookie-what', 'make-bet', 'odds', 'accept-challenge', 'record-result', 'settle-up', 'pay-venmo', 'waiting-on-you', 'cancel-bet', 'approval'],
+        bookie: ['video-bookie', 'bookie-what', 'make-bet', 'odds', 'accept-challenge', 'record-result', 'settle-up', 'pay-venmo', 'waiting-on-you', 'cancel-bet', 'approval'],
         'bookie#ledger-panel': ['settle-up', 'pay-venmo', 'your-net', 'venmo-handle', 'never-settled', 'record-result'],
-        tracker: ['start-round', 'enter-scores', 'no-signal', 'sync-status', 'fix-score', 'picked-up', 'tracker-marks', 'done-scoring', 'live-read'],
-        'tracker#setup': ['who-scores', 'start-round', 'practice-round', 'no-signal', 'enter-scores', 'formats'],
+        tracker: ['video-keep-score', 'start-round', 'enter-scores', 'no-signal', 'sync-status', 'fix-score', 'picked-up', 'tracker-marks', 'done-scoring', 'live-read'],
+        'tracker#setup': ['video-keep-score', 'who-scores', 'start-round', 'practice-round', 'no-signal', 'enter-scores', 'formats'],
         'tracker#score': ['enter-scores', 'picked-up', 'fix-score', 'tracker-marks', 'hole-info', 'match-card', 'sync-status', 'no-signal', 'two-phones', 'done-scoring', 'make-bet'],
         'tracker#card': ['tracker-marks', 'fix-score', 'hole-info', 'done-scoring', 'sync-status'],
         'tracker#board': ['live-where', 'live-read', 'match-card', 'live-table', 'official-cup', 'trip-wrap', 'formats', 'photos', 'offline-open'],
@@ -1324,15 +1384,22 @@
             const h = node('h2', 'help-sec-title', sec.title);
             block.appendChild(h);
             if (sec.blurb) block.appendChild(node('p', 'help-sec-blurb', sec.blurb));
-            const ul = listOf(topics, { id: true, page: true });
-            ul.querySelectorAll('.bbb-help-a').forEach(a => {
-                const id = a.parentElement.dataset.topic;
-                const copy = node('button', 'help-copy', 'Copy link to this answer');
-                copy.type = 'button';
-                copy.addEventListener('click', () => copyLink(id, copy));
-                a.appendChild(copy);
-            });
-            block.appendChild(ul);
+            if (sec.id === 'videos') {
+                // The videos themselves rather than their answers
+                const grid = node('div', 'help-video-grid');
+                topics.filter(t => VIDEOS[t.id]).forEach(t => grid.appendChild(videoCard(t.id)));
+                block.appendChild(grid);
+            } else {
+                const ul = listOf(topics, { id: true, page: true });
+                ul.querySelectorAll('.bbb-help-a').forEach(a => {
+                    const id = a.parentElement.dataset.topic;
+                    const copy = node('button', 'help-copy', 'Copy link to this answer');
+                    copy.type = 'button';
+                    copy.addEventListener('click', () => copyLink(id, copy, 'Copy link to this answer'));
+                    a.appendChild(copy);
+                });
+                block.appendChild(ul);
+            }
             list.appendChild(block);
             if (nav) {
                 const a = node('a', 'help-chip', sec.title);
@@ -1341,11 +1408,55 @@
             }
         });
 
-        function copyLink(id, btn) {
+        // One video's card: the player (only its cover loads until Play), what it covers, its steps
+        // as text (it has no sound) and a link to send
+        function videoCard(id) {
+            const v = VIDEOS[id];
+            const fig = node('figure', 'help-video');
+            fig.id = id;
+            fig.dataset.topic = id;
+            const video = node('video');
+            video.controls = true;
+            video.preload = 'none';
+            video.setAttribute('playsinline', '');
+            video.width = 1080;
+            video.height = 1920;
+            video.poster = `/assets/videos/${v.file}.jpg?v=${VIDEO_V}`;
+            video.setAttribute('aria-label', `${v.title} video, ${v.length}, captioned, no sound`);
+            const src = node('source');
+            src.src = `/assets/videos/${v.file}.mp4?v=${VIDEO_V}`;
+            src.type = 'video/mp4';
+            video.appendChild(src);
+            // A browser that can't play it gets the file
+            const fallback = node('a', null, `Download the ${v.title} video`);
+            fallback.href = src.src;
+            video.appendChild(fallback);
+            // One at a time
+            video.addEventListener('play', () => {
+                list.querySelectorAll('.help-video video').forEach(other => { if (other !== video) other.pause(); });
+            });
+            const cap = node('figcaption');
+            cap.appendChild(node('h3', 'help-video-title', v.title));
+            cap.appendChild(node('p', 'help-video-meta', `${v.length} · captioned, no sound · ${v.size}`));
+            cap.appendChild(node('p', 'help-video-about', v.about));
+            const steps = node('details', 'help-video-steps');
+            steps.appendChild(node('summary', null, 'The steps in the video'));
+            const ol = node('ol');
+            v.steps.forEach(s => ol.appendChild(node('li', null, s)));
+            steps.appendChild(ol);
+            const copy = node('button', 'help-copy', 'Copy link to this video');
+            copy.type = 'button';
+            copy.addEventListener('click', () => copyLink(id, copy, 'Copy link to this video'));
+            cap.append(steps, copy);
+            fig.append(video, cap);
+            return fig;
+        }
+
+        function copyLink(id, btn, label) {
             const url = `${location.origin}${location.pathname}#${id}`;
             const done = ok => {
                 btn.textContent = ok ? 'Link copied' : url;
-                if (ok) setTimeout(() => { btn.textContent = 'Copy link to this answer'; }, 2000);
+                if (ok) setTimeout(() => { btn.textContent = label; }, 2000);
             };
             if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => done(true), () => done(false));
             else done(false);
@@ -1361,9 +1472,10 @@
                 let shown = 0;
                 list.querySelectorAll('.help-sec').forEach(block => {
                     let any = false;
-                    block.querySelectorAll('details.bbb-help-topic').forEach(d => {
+                    // An answer (in its list item), or a video's card
+                    block.querySelectorAll('details.bbb-help-topic, figure.help-video').forEach(d => {
                         const on = !keep || keep.has(d.dataset.topic);
-                        d.parentElement.hidden = !on;
+                        (d.matches('figure') ? d : d.parentElement).hidden = !on;
                         if (on) { any = true; shown++; }
                     });
                     block.hidden = !any;
@@ -1371,7 +1483,7 @@
                 // Down to one answer: open it
                 if (keep && keep.size === 1) {
                     const only = document.getElementById([...keep][0]);
-                    if (only) only.open = true;
+                    if (only && only.matches('details')) only.open = true;
                 }
                 if (status) status.textContent = !q ? '' : shown ? (shown === 1 ? '1 answer' : `${shown} answers`) : `Nothing matches “${q}”. Try another word, like “bet”, “RSVP” or “phone”.`;
             });
@@ -1383,6 +1495,11 @@
             if (!id) return;
             const el = document.getElementById(id);
             if (!el) return;
+            // A search hid it (a "Rather watch?" link under a search): show everything again first
+            if (input && input.value && el.closest('[hidden]')) {
+                input.value = '';
+                input.dispatchEvent(new Event('input'));
+            }
             if (el.matches('details')) el.open = true;
             if (scroll) {
                 const root = document.documentElement, was = root.style.scrollBehavior;
@@ -1393,6 +1510,14 @@
         }
         landOnHash(true);
         window.addEventListener('hashchange', () => landOnHash(true));
+        // A link to where the address already points changes no hash: land on it anyway
+        list.addEventListener('click', e => {
+            const a = e.target.closest('a[href^="#"]');
+            if (a && decodeHash(a.getAttribute('href')) === decodeHash(location.hash)) {
+                e.preventDefault();
+                landOnHash(true);
+            }
+        });
         window.addEventListener('load', () => landOnHash(true), { once: true });
     }
 
